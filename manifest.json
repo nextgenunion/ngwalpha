@@ -1,0 +1,16 @@
+{
+  "name": "Next Gen Worship Beta",
+  "short_name": "NGWorship Beta",
+  "id": "/",
+  "description": "An offline-first worship songbook with smart search and chord transpose.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F3F3F1",
+  "theme_color": "#1F2A44",
+  "icons": [
+    { "src": "icons/app-icon.png", "sizes": "960x958", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-icon-maskable.png", "sizes": "960x958", "type": "image/png", "purpose": "maskable" }
+  ]
+}
