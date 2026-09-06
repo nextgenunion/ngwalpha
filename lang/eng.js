@@ -177,4 +177,6 @@ window.SONGBOOK_LANG.en = {
   devCreditsSub: "Shows the Credits list on the About page",
   devHideDescTitle: "Hide setting descriptions",
   devHideDescSub: "Hides the description text under some settings rows",
+  devVividGlassTitle: "Vivid song header glass",
+  devVividGlassSub: "Switches the song page's glass header from the default frosted-white look to a more colorful tint. Light mode only — dark mode is unaffected.",
 };

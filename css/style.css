@@ -817,23 +817,21 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
        blur intensity along with the tint, so both hit zero together and
        the effect genuinely dissolves into .page's own gradient rather
        than stopping.
-   Tinted with a mostly-white blend of var(--paper) and var(--accent-tint)
-   here (light mode's look, and the default for any theme that doesn't
-   override it below). Pure --accent-tint at these opacities turned out
-   invisible in practice: it's already a very pale blend of accent and
-   paper (see the html[data-accent="..."] rules near the top of this
-   file), which is close in lightness to .page's own top-of-screen
-   gradient — layering one pale blue over another pale blue leaves almost
-   no visible edge. Leaning the mix heavily toward --paper instead makes
-   this read as a distinctly *lighter, milkier* sheen against the more
-   saturated gradient beneath it — closer to how a real frosted panel
-   reads sitting on top of a colored surface — while the small
-   --accent-tint fraction keeps a faint hint of the theme's hue so it
-   doesn't go flat white. Dark mode overrides this further down:
-   --accent-tint there is a dark, muted color (right for the old flat
-   card, wrong for a glow), so dark mode instead tints with a low-strength
-   raw --accent wash — enough to pick up the theme's color without
-   glowing.
+   Tinted with var(--paper) here — the default, subtler look (a plain
+   frosted-white glass). A colored variant tried in its place (mixing in
+   --accent-tint) turned out invisible in practice: even leaned heavily
+   toward --paper it stayed close in lightness to .page's own
+   top-of-screen gradient, so one pale wash sat on another with no
+   visible edge. Rather than keep chasing a colored blend that reads at
+   every accent color, the vivid alternative below goes back to raw
+   --accent instead (unmistakably visible, just tuned down from its first
+   pass) and is offered as an opt-in toggle rather than forced on
+   everyone — see the [data-vivid-glass] rule and Developer options'
+   "Vivid song header glass" switch. Dark mode has its own override
+   further down either way: --accent-tint there is a dark, muted color
+   (right for the old flat card, wrong for a glow), so dark mode always
+   tints with a low-strength raw --accent wash regardless of the vivid
+   toggle, which only affects light mode.
    Tall and slow to fade on purpose: this stands in for the app's actual
    top bar now, so it should read as one continuous surface that carries
    past the icon row and only finishes dissolving right around the title —
@@ -853,18 +851,43 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   height: calc(env(safe-area-inset-top) + 210px);
   z-index: -1;
   pointer-events: none;
-  --sv-glass-tint: color-mix(in srgb, var(--paper) 80%, var(--accent-tint) 20%);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--sv-glass-tint) 88%, transparent) 0%,
-    color-mix(in srgb, var(--sv-glass-tint) 58%, transparent) 32%,
-    color-mix(in srgb, var(--sv-glass-tint) 24%, transparent) 60%,
+    color-mix(in srgb, var(--paper) 55%, transparent) 0%,
+    color-mix(in srgb, var(--paper) 32%, transparent) 32%,
+    color-mix(in srgb, var(--paper) 10%, transparent) 60%,
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
   mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
+}
+/* Vivid variant (light mode only — see the comment above and Developer
+   options' "Vivid song header glass" switch, off/--paper by default).
+   This is the original raw-accent recipe, carried over unchanged, with
+   one adjustment: a `filter` (not part of the original) nudges it down
+   in saturation and up in brightness slightly, so the colored wash reads
+   as a little softer/lighter without going back to redoing the color-mix
+   percentages by hand. `filter` here applies to this element's own
+   rendered output (gradient + blur together), which is the right tool
+   for a blanket saturation/brightness nudge — unlike `backdrop-filter`,
+   which would only affect what's blurred *behind* the element, not the
+   tint painted on top of it.
+   Scoped with html[data-theme="light"] (not just a bare attribute
+   selector) so it can never end up competing with the dark-mode override
+   below on specificity/source order — the two are mutually exclusive by
+   theme, so whichever theme is active is unambiguous regardless of which
+   rule appears later in the file. */
+html[data-theme="light"][data-vivid-glass] .sv-header-immersive::before {
+  filter: saturate(88%) brightness(1.08);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 40%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 24%, transparent) 32%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 60%,
+    transparent 100%
+  );
 }
 /* Dark mode override: low-strength --accent tint instead of --paper (see
    comment above), and deliberately kept faint — an earlier pass at this
@@ -872,7 +895,9 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
    which came through as a glowing, oversaturated wash against dark
    mode's near-black page. These percentages are roughly half that, tuned
    down until the color reads as a subtle theme-matching cast rather than
-   a bright highlight. */
+   a bright highlight. Applies regardless of the vivid toggle — that
+   switch only affects light mode (see the [data-vivid-glass] rule
+   above), since dark mode's tint already reads clearly on its own. */
 html[data-theme="dark"] .sv-header-immersive::before {
   background: linear-gradient(
     to bottom,

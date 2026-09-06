@@ -164,6 +164,11 @@ const state = {
   devTradMongolian: false, // see refreshLangPicker()
   devCredits: false,       // see renderCredits()
   devHideDescriptions: false, // see applyDevOptions() — toggles .settings-desc-hideable
+  // devVividGlass: OFF by default (the subtler frosted-white song header
+  // glass). ON switches it to the more colorful accent-tinted variant —
+  // see the html[data-vivid-glass] rule in css/style.css. Light mode
+  // only; dark mode's song header glass doesn't change either way.
+  devVividGlass: false,
 };
 
 // Registry of every page the router (showPage/bindNav) knows about. Adding
@@ -1341,6 +1346,13 @@ function applyDevOptions() {
   const hideDescToggle = document.getElementById('dev-hide-desc-toggle');
   if (hideDescToggle) hideDescToggle.setAttribute('aria-checked', String(state.devHideDescriptions));
   document.documentElement.toggleAttribute('data-hide-setting-desc', state.devHideDescriptions);
+
+  // See css/style.css: html[data-theme="light"][data-vivid-glass]
+  // .sv-header-immersive::before — light mode only, dark mode's own
+  // override is unconditional either way.
+  const vividGlassToggle = document.getElementById('dev-vivid-glass-toggle');
+  if (vividGlassToggle) vividGlassToggle.setAttribute('aria-checked', String(state.devVividGlass));
+  document.documentElement.toggleAttribute('data-vivid-glass', state.devVividGlass);
 }
 
 function initDevOptions() {
@@ -1373,6 +1385,10 @@ function initDevOptions() {
   });
   document.getElementById('dev-hide-desc-toggle').addEventListener('click', () => {
     state.devHideDescriptions = !state.devHideDescriptions;
+    applyDevOptions();
+  });
+  document.getElementById('dev-vivid-glass-toggle').addEventListener('click', () => {
+    state.devVividGlass = !state.devVividGlass;
     applyDevOptions();
   });
 }
@@ -1475,6 +1491,8 @@ function applyLanguage() {
     't-devCreditsSub': 'devCreditsSub',
     't-devHideDescTitle': 'devHideDescTitle',
     't-devHideDescSub': 'devHideDescSub',
+    't-devVividGlassTitle': 'devVividGlassTitle',
+    't-devVividGlassSub': 'devVividGlassSub',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);

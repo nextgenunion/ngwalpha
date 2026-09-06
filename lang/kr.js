@@ -173,4 +173,6 @@ window.SONGBOOK_LANG.kr = {
   devCreditsSub: "정보 페이지에 크레딧 목록을 표시합니다",
   devHideDescTitle: "설정 설명 숨기기",
   devHideDescSub: "일부 설정 항목 아래의 설명 텍스트를 숨깁니다",
+  devVividGlassTitle: "곡 상단 유리 효과 선명하게",
+  devVividGlassSub: "곡 화면 상단의 프로스트 유리 효과를 기본값인 흰색 계열 대신 더 화려한 색상으로 전환합니다. 라이트 모드에만 적용되며 다크 모드는 영향을 받지 않습니다.",
 };
