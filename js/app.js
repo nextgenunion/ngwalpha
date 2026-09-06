@@ -2128,6 +2128,29 @@ function updateSongRowContent(li, song, hasNumbers, q) {
 // for those (see its one call site in renderSongList).
 // ---------------------------------------------------------
 
+// A handful of Cyrillic capitals are visually identical, in this UI's
+// fonts, to a Latin capital — Cyrillic А/В/Е/К/М/Н/О/Р/С/Т/Х render as the
+// exact same glyph shapes as Latin A/B/E/K/M/H/O/P/C/T/X. Without this map,
+// a Mongolian-source title starting with Cyrillic "А" and an English-source
+// title starting with Latin "A" would land in two different scroll-index
+// buckets that look identical on the rail — so this folds the Cyrillic
+// lookalike onto its Latin twin before bucketing.
+const CYRILLIC_LATIN_HOMOGLYPHS = {
+  'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M',
+  'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X'
+};
+
+// Canonicalizes a title's leading character into the scroll-index bucket
+// label it belongs in: a leading digit always collapses to a single '#'
+// bucket (rather than separate 1/2/3… entries fragmenting the alphabetic
+// rail), and CYRILLIC_LATIN_HOMOGLYPHS above merges lookalike letters.
+function scrollIndexLetter(title) {
+  const raw = (title || '').trim().charAt(0);
+  if (!raw || /[0-9]/.test(raw)) return '#';
+  const upper = raw.toUpperCase();
+  return CYRILLIC_LATIN_HOMOGLYPHS[upper] || upper;
+}
+
 // Groups the already-sorted list into buckets and records, for each
 // bucket, the index (into that same sorted array) of the first song in
 // it — that index is later used to jump straight to that song's row (see
@@ -2140,14 +2163,14 @@ function updateSongRowContent(li, song, hasNumbers, q) {
 function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
   const entries = [];
   if (sortBy === 'num' && hasNumbers) {
-    // Buckets of ten (0, 10, 20, 30…) rather than one entry per song
-    // number — one entry per song would be far too dense to tap
-    // accurately, and "tens" is the same granularity a hymnal's own
-    // printed edge-index typically uses.
+    // Buckets of fifty (0, 50, 100, 150…) rather than ten — tens produced
+    // far too many, too-thin entries to tap accurately once a songbook ran
+    // past a couple hundred songs; fifties keep the rail legible and give
+    // each entry a comfortably large tap target.
     let lastBucket = null;
     sortedSongs.forEach((song, i) => {
       if (typeof song.number !== 'number') return;
-      const bucket = Math.floor(song.number / 10) * 10;
+      const bucket = Math.floor(song.number / 50) * 50;
       if (bucket !== lastBucket) {
         entries.push({ label: String(bucket), index: i });
         lastBucket = bucket;
@@ -2156,7 +2179,7 @@ function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
   } else {
     let lastLetter = null;
     sortedSongs.forEach((song, i) => {
-      const letter = (song.title || '').trim().charAt(0).toUpperCase() || '#';
+      const letter = scrollIndexLetter(song.title);
       if (letter !== lastLetter) {
         entries.push({ label: letter, index: i });
         lastLetter = letter;
@@ -2178,6 +2201,13 @@ let scrollIndexEntries = [];
 function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
   const container = document.getElementById('song-scroll-index');
   if (!container) return;
+  // The rail no longer floats on top of the header/search/sort/list — see
+  // #page-songs.has-scroll-index in css/style.css, which gives .page-inner
+  // extra right padding to make room for it instead. This class is the
+  // single on/off switch for that layout, kept in lockstep with the rail's
+  // own `hidden` below so the reserved space only ever appears while the
+  // rail itself is actually showing.
+  const page = document.getElementById('page-songs');
 
   // A search query narrows the list to a subset that may skip whole
   // buckets/letters entirely — "jump to the S section" stops meaning
@@ -2187,6 +2217,7 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
     scrollIndexEntries = [];
     container.hidden = true;
     container.innerHTML = '';
+    if (page) page.classList.remove('has-scroll-index');
     return;
   }
 
@@ -2199,10 +2230,12 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
   if (entries.length < 2) {
     container.hidden = true;
     container.innerHTML = '';
+    if (page) page.classList.remove('has-scroll-index');
     return;
   }
 
   container.hidden = false;
+  if (page) page.classList.add('has-scroll-index');
   container.innerHTML = entries
     .map((entry, i) => `<span class="scroll-index-item" data-idx="${i}">${escapeHtml(entry.label)}</span>`)
     .join('');

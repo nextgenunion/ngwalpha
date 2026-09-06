@@ -112,6 +112,16 @@
      the edge on tablets. */
   --page-pad: 18px;
 
+  /* Songbook fast-scroll rail (see .scroll-index below) sizing, shared
+     between the rail itself, its "you are here" bubble, and the extra
+     .page-inner padding-right that reserves room for it, so all three
+     stay in lockstep from one pair of numbers. --scroll-index-inset is
+     the gap from the content column's own edge to the rail's outer edge;
+     --scroll-index-w is the rail's tap width. */
+  --scroll-index-inset: 6px;
+  --scroll-index-w: 30px;
+  --scroll-index-right: max(var(--scroll-index-inset), calc((100vw - 720px) / 2 + var(--scroll-index-inset)));
+
   color-scheme: light;
 }
 @media (max-width: 480px) {
@@ -742,7 +752,7 @@ html[data-hide-artist] #song-list .song-row-sub {
 }
 
 /* ---------- song list fast-scroll index ----------
-   The vertical A-Z/0-10-20… strip along the right edge of the Songbook
+   The vertical A-Z/0-50-100… strip along the right edge of the Songbook
    list (#song-list specifically — see js/app.js's updateSongScrollIndex),
    for jumping straight to a section instead of scrolling through the
    whole list, the same idea as the alphabet rail in a phone's contacts
@@ -753,32 +763,43 @@ html[data-hide-artist] #song-list .song-row-sub {
    scrolling and stay anchored to the viewport, not the scrolled content),
    spanning from just under the status bar to just above the bottom nav
    regardless of where .page-inner's header/search/sort row have scrolled
-   to — it's intentionally allowed to float over that header when the list
-   is scrolled to the top, the same way a phone's index rail floats over
-   whatever's behind it, rather than being repositioned to start below the
-   header via JS layout measurement (which would need to re-run on every
-   resize/orientation change/language switch/font-size change and would
-   still be wrong the instant any of those changed).
+   to.
 
-   right: keeps the strip pinned just inside the right edge of the
-   content column, not the physical viewport edge — the same `max(...,
+   Unlike a phone's own index rail, this one does NOT float on top of the
+   list/header/search/sort row underneath it — #page-songs.has-scroll-index
+   below gives .page-inner extra right padding instead, so the rail gets
+   its own reserved lane beside the content and never sits over anything
+   tappable. js/app.js's updateSongScrollIndex() toggles that class in
+   lockstep with this element's own `hidden`.
+
+   right: keeps the rail pinned just inside the right edge of the content
+   column, not the physical viewport edge — the same `max(...,
    (100vw - 720px)/2 + …)` trick .page-inner's own 720px cap implies, so it
    still sits sensibly close to the list on a wide/desktop window instead
-   of floating in the middle of empty margin. */
+   of floating in the middle of empty margin. Shared as --scroll-index-right
+   (see :root) so the bubble below can anchor off the same value. */
 .scroll-index {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 10px);
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
-  right: max(2px, calc((100vw - 720px) / 2 + 2px));
+  right: var(--scroll-index-right);
   z-index: 12;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  width: 18px;
-  padding: 8px 0;
+  width: var(--scroll-index-w);
+  padding: 10px 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--paper) 45%, transparent);
+  /* Same solid-surface-with-hairline-and-shadow language as .search-bar
+     and .sort-btn (rather than the previous translucent blur) — now that
+     the rail lives in its own reserved lane instead of floating over
+     content, it can read as one more control alongside those instead of
+     an overlay, which is what actually makes it look like it "belongs"
+     with the rest of the screen. */
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-1);
   /* Purely a tap/drag surface, not a scrollable area of its own — this
      stops touch drags along the strip from also scrolling the page
      underneath it on mobile. */
@@ -788,29 +809,39 @@ html[data-hide-artist] #song-list .song-row-sub {
 
 .scroll-index-item {
   flex: 0 0 auto;
-  width: 100%;
+  width: 22px;
+  min-height: 22px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   text-align: center;
   font-family: var(--font-body);
-  font-size: 0.56rem;
-  line-height: 1.15;
+  font-size: 0.64rem;
+  line-height: 1;
   font-weight: 700;
   color: var(--ink-faint);
   cursor: pointer;
-  transition: color .12s ease, transform .12s ease;
+  transition: color .12s ease, background-color .12s ease, transform .12s ease;
 }
 .scroll-index-item.is-active {
   color: var(--accent-strong);
-  transform: scale(1.3);
+  background: var(--accent-tint);
+  transform: scale(1.2);
 }
 
 /* The larger "you are here" bubble that appears next to the thumb while
    dragging (or right after a tap) — same idea as the big letter overlay
    iOS Contacts shows mid-scrub, big enough to actually read while a
    finger is covering the strip itself, but not shown at all otherwise so
-   it never distracts during normal list scrolling. */
+   it never distracts during normal list scrolling. Anchored off the same
+   --scroll-index-right the rail itself uses, offset out by the rail's own
+   width plus a gap, so it always sits just to the left of the rail
+   regardless of viewport width. */
 .scroll-index-bubble {
   position: fixed;
-  right: 30px;
+  right: calc(var(--scroll-index-right) + var(--scroll-index-w) + 14px);
   z-index: 13;
   width: 44px;
   height: 44px;
@@ -832,6 +863,17 @@ html[data-hide-artist] #song-list .song-row-sub {
 .scroll-index-bubble.is-visible {
   opacity: 1;
   transform: scale(1);
+}
+
+/* Reserves the rail's lane: extra right padding on the Songs page's own
+   .page-inner, added only while the rail actually has something to show
+   (class toggled by updateSongScrollIndex() in js/app.js — see the note
+   on .scroll-index above). Sized off the same tokens the rail and bubble
+   use, plus a little breathing room, so content never sits under or
+   crowds against the rail on any viewport width, phone or desktop. */
+#page-songs.has-scroll-index .page-inner {
+  padding-right: calc(var(--page-pad) + var(--scroll-index-inset) + var(--scroll-index-w) + 10px);
+  transition: padding-right .18s ease;
 }
 
 /* Playlists page: when Favorites is the only playlist, this text sits right
