@@ -294,6 +294,16 @@ button, a {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
+  /* Scrolling itself stays native (mouse wheel, trackpad, drag-the-native-
+     bar all still work) — this only hides the *visual* track/handle. On
+     the Songs page specifically it was sitting right on top of our own
+     fast-scroll thumb (.scroll-thumb below) and fighting it for the same
+     strip of screen on desktop browsers; hidden here on every .page
+     rather than just #page-songs so the app doesn't show a native
+     scrollbar on some pages and not others. Same technique already used
+     for .sort-row's horizontal scroller just below. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   /* Moved here from body (see the comment there) so each page is opaque
      on its own. No background-attachment: fixed needed — .page's own box
      never moves (it's position:fixed to the viewport already), so the
@@ -323,6 +333,7 @@ button, a {
     radial-gradient(1100px 950px at 100% -5%, color-mix(in srgb, var(--accent) 35%, var(--paper)), color-mix(in srgb, var(--accent) 18%, var(--paper)) 45%, var(--paper) 76%),
     var(--paper);
 }
+.page::-webkit-scrollbar { display: none; }
 .page-inner {
   max-width: 720px;
   margin: 0 auto;
@@ -767,15 +778,64 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 }
 .scroll-index[hidden] { display: none; }
 
+/* Search shortcut pinned to the top of the rail — tapping it jumps
+   #page-songs back to its very top (where the real search bar lives) and
+   focuses #search-input, so it reads as "the search section of the
+   scrollbar" rather than a random extra icon. Reuses the exact same
+   search glyph as .search-icon (data-icon="search" — see ICON_FILES in
+   js/app.js) so it's recognizable as the same action. Sits centered in
+   the 26px-wide touch target (left/right:0 + margin auto) rather than
+   sharing the thumb's right:8px offset, since it isn't part of the
+   thumb's up/down travel. bindScrollIndexInteraction() in js/app.js stops
+   its own pointerdown/click from bubbling to the track, so tapping it
+   never also registers as a drag-to-top. */
+.scroll-index-search {
+  position: absolute;
+  top: 0;
+  left: 0; right: 0;
+  margin: 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  opacity: 0.3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  /* transform included alongside opacity/background-color so this rule
+     (more specific than the global button:where(...) reset above) doesn't
+     drop that reset's own transform transition — otherwise the shared
+     :active press-scale would apply with no easing on this button only. */
+  transition: opacity .3s ease, background-color .2s ease, transform var(--press-duration-out) var(--press-ease);
+}
+.scroll-index-search svg {
+  width: 12px;
+  height: 12px;
+  fill: var(--paper);
+}
+html[data-theme="dark"] .scroll-index-search { background: var(--accent); }
+html[data-theme="dark"] .scroll-index-search svg { fill: var(--paper-dim); }
+/* Same brighten-on-activity treatment as the thumb, so the whole rail —
+   button included — reads as one control waking up together. */
+.scroll-index.is-active .scroll-index-search { opacity: 0.95; }
+
 /* The visible part: a small pill, not the full width of the touch target
    above it — kept slim and quiet on purpose (Samsung/One-UI's own fast-
    scroll thumb is a thin sliver, not a wide bar) so it reads as a subtle
    scrollbar accent rather than another button-like control. Its resting
    opacity is low but non-zero — "not so noticeable" per the reference,
    not invisible — so it's still discoverable and tappable while idle
-   (see .is-active below for the brightened state). */
+   (see .is-active below for the brightened state).
+   `top` is pushed down past the search button above (22px tall) plus a
+   small gap, rather than the default top:0 — see SCROLL_INDEX_TOP_RESERVE
+   in js/app.js, which must stay equal to this value so the drag travel
+   math lines up with where the thumb actually starts. */
 .scroll-thumb {
   position: absolute;
+  top: 30px;
   right: 8px;
   width: 5px;
   height: 34px;
@@ -810,7 +870,16 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
    under the finger. Number labels use the same monospace font as the
    song-number badges (.song-badge) elsewhere in this list; letter labels
    use the app's own default UI font — see .scroll-index-bubble.is-numeric
-   below for the switch between the two. */
+   below for the switch between the two.
+   Tinted glassmorphism rather than a flat fill: a translucent wash of the
+   current accent (so it re-tints itself automatically with every
+   data-accent option above, light or dark) over backdrop-filter blur, a
+   faint light-catching top edge, and a soft outer border — so the row
+   scrolling underneath stays dimly visible through it instead of being
+   fully hidden. color-mix() + backdrop-filter both need a fallback for
+   browsers without them (older Safari/Firefox): @supports below swaps
+   back to the old solid fill there rather than leaving a blurry glass
+   pane behind non-blurred, potentially low-contrast text. */
 .scroll-index-bubble {
   position: fixed;
   right: 40px;
@@ -821,21 +890,42 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-strong) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--paper) 45%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
   color: var(--paper);
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 700;
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper) 35%, transparent);
   pointer-events: none;
   opacity: 0;
   transform: scale(0.85) translateX(4px);
   transform-origin: right center;
-  transition: opacity .16s ease, transform .22s var(--press-ease);
+  transition: opacity .16s ease, transform .22s var(--press-ease), background-color .35s ease, border-color .35s ease;
+}
+/* Browsers with neither color-mix() nor backdrop-filter (support always
+   comes as a pair on the engines that lack them) fall back to the
+   original flat, fully-opaque fill so the label stays legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .scroll-index-bubble {
+    background: var(--accent-strong);
+    border-color: transparent;
+  }
+  html[data-theme="dark"] .scroll-index-bubble { background: var(--accent); }
 }
 /* Same --accent-strong-as-a-fill correction as .scroll-thumb above — see
-   that comment for why dark mode needs --accent/--paper-dim instead. */
-html[data-theme="dark"] .scroll-index-bubble { background: var(--accent); color: var(--paper-dim); }
+   that comment for why dark mode needs --accent/--paper-dim instead. The
+   border/inset-highlight stay mixed against --paper-dim (dark mode's
+   actual light-on-dark edge) rather than --paper, so the glass edge still
+   reads as a highlight and not a near-invisible near-black line. */
+html[data-theme="dark"] .scroll-index-bubble {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--paper-dim) 55%, transparent);
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper-dim) 40%, transparent);
+  color: var(--paper-dim);
+}
 .scroll-index-bubble.is-numeric {
   font-family: var(--font-mono);
   font-size: 0.92rem;

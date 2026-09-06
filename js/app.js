@@ -2125,14 +2125,14 @@ function scrollIndexLetter(title) {
 function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
   const entries = [];
   if (sortBy === 'num' && hasNumbers) {
-    // Buckets of fifty (0, 50, 100, 150…) rather than one entry per song
-    // number or even per ten — a continuous drag already covers the fine
-    // positions between buckets, so this just keeps the popup's number
-    // changing at a sensible, readable rate as you drag.
+    // Buckets of ten (0, 10, 20, 30…) rather than one entry per song
+    // number — a continuous drag already covers the fine positions
+    // between buckets, so this just keeps the popup's number changing at
+    // a sensible, readable rate as you drag.
     let lastBucket = null;
     sortedSongs.forEach((song, i) => {
       if (typeof song.number !== 'number') return;
-      const bucket = Math.floor(song.number / 50) * 50;
+      const bucket = Math.floor(song.number / 10) * 10;
       if (bucket !== lastBucket) {
         entries.push({ label: String(bucket), index: i });
         lastBucket = bucket;
@@ -2235,6 +2235,13 @@ function labelForScrollTop(scrollTop) {
   return current.label;
 }
 
+// Must match .scroll-thumb's `top` in css/style.css — the space the
+// search-shortcut button (#song-scroll-search) reserves at the top of the
+// rail. The thumb's resting position already starts below that (via CSS
+// `top: 30px`), so the *travel* distance below has to be shortened by the
+// same amount or the thumb would run past the bottom of the track.
+const SCROLL_INDEX_TOP_RESERVE = 30;
+
 // Moves the thumb to match #page-songs' current scroll position —
 // continuous/proportional, like a normal scrollbar, not stepped between
 // buckets. Called on every scroll event and right after a fresh render.
@@ -2243,7 +2250,7 @@ function updateScrollThumbPosition() {
   const thumb = document.getElementById('song-scroll-thumb');
   const pageEl = document.getElementById('page-songs');
   if (!track || !thumb || !pageEl || track.hidden) return;
-  const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight);
+  const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight - SCROLL_INDEX_TOP_RESERVE);
   const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
   const ratio = Math.min(1, Math.max(0, pageEl.scrollTop / maxScroll));
   thumb.style.transform = `translateY(${ratio * travel}px)`;
@@ -2282,6 +2289,23 @@ function bindScrollIndexInteraction() {
   const bubble = document.getElementById('song-scroll-index-bubble');
   const pageEl = document.getElementById('page-songs');
   if (!track || !pageEl) return;
+
+  // Search shortcut at the top of the rail (see the button's markup and
+  // .scroll-index-search in css/style.css). It sits inside the same
+  // pointerdown-driven track, so its own pointerdown/click has to be
+  // stopped from bubbling up to the track's listeners below — otherwise
+  // tapping it would also register as "drag the thumb to this position"
+  // and immediately jump-scroll based on the button's own on-screen spot.
+  const searchBtn = document.getElementById('song-scroll-search');
+  if (searchBtn) {
+    searchBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    searchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pageEl.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+    });
+  }
 
   // Ordinary swipe-scrolling of the list: brings the thumb to full opacity
   // and keeps it tracking the scroll position in real time, but never
