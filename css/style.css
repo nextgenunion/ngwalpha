@@ -115,11 +115,14 @@
   /* Songbook fast-scroll rail (see .scroll-index below) sizing, shared
      between the rail itself, its "you are here" bubble, and the extra
      .page-inner padding-right that reserves room for it, so all three
-     stay in lockstep from one pair of numbers. --scroll-index-inset is
-     the gap from the content column's own edge to the rail's outer edge;
-     --scroll-index-w is the rail's tap width. */
-  --scroll-index-inset: 6px;
-  --scroll-index-w: 30px;
+     stay in lockstep from one pair of numbers. Deliberately tiny — this
+     is meant to read as a thin strip of small text (like a phone's own
+     contacts-app index), not a control with its own visible footprint,
+     so the reserved lane it needs is equally small. --scroll-index-inset
+     is the gap from the content column's own edge to the rail's outer
+     edge; --scroll-index-w is the rail's tap width. */
+  --scroll-index-inset: 4px;
+  --scroll-index-w: 16px;
   --scroll-index-right: max(var(--scroll-index-inset), calc((100vw - 720px) / 2 + var(--scroll-index-inset)));
 
   color-scheme: light;
@@ -765,12 +768,11 @@ html[data-hide-artist] #song-list .song-row-sub {
    regardless of where .page-inner's header/search/sort row have scrolled
    to.
 
-   Unlike a phone's own index rail, this one does NOT float on top of the
-   list/header/search/sort row underneath it — #page-songs.has-scroll-index
-   below gives .page-inner extra right padding instead, so the rail gets
-   its own reserved lane beside the content and never sits over anything
-   tappable. js/app.js's updateSongScrollIndex() toggles that class in
-   lockstep with this element's own `hidden`.
+   Deliberately no card/pill chrome — this is meant to read as a thin
+   strip of small text sitting quietly in the margin (the same way a
+   phone's own contacts-app index looks: just letters, no visible
+   background), not another button-like control competing with the
+   search bar and sort pills for attention.
 
    right: keeps the rail pinned just inside the right edge of the content
    column, not the physical viewport edge — the same `max(...,
@@ -789,17 +791,7 @@ html[data-hide-artist] #song-list .song-row-sub {
   justify-content: space-between;
   align-items: center;
   width: var(--scroll-index-w);
-  padding: 10px 0;
-  border-radius: 999px;
-  /* Same solid-surface-with-hairline-and-shadow language as .search-bar
-     and .sort-btn (rather than the previous translucent blur) — now that
-     the rail lives in its own reserved lane instead of floating over
-     content, it can read as one more control alongside those instead of
-     an overlay, which is what actually makes it look like it "belongs"
-     with the rest of the screen. */
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-1);
+  padding: 6px 0;
   /* Purely a tap/drag surface, not a scrollable area of its own — this
      stops touch drags along the strip from also scrolling the page
      underneath it on mobile. */
@@ -809,26 +801,19 @@ html[data-hide-artist] #song-list .song-row-sub {
 
 .scroll-index-item {
   flex: 0 0 auto;
-  width: 22px;
-  min-height: 22px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
+  width: 100%;
   text-align: center;
   font-family: var(--font-body);
-  font-size: 0.64rem;
-  line-height: 1;
+  font-size: 0.6rem;
+  line-height: 1.2;
   font-weight: 700;
   color: var(--ink-faint);
   cursor: pointer;
-  transition: color .12s ease, background-color .12s ease, transform .12s ease;
+  transition: color .12s ease, transform .12s ease;
 }
 .scroll-index-item.is-active {
   color: var(--accent-strong);
-  background: var(--accent-tint);
-  transform: scale(1.2);
+  transform: scale(1.25);
 }
 
 /* The larger "you are here" bubble that appears next to the thumb while
@@ -841,7 +826,7 @@ html[data-hide-artist] #song-list .song-row-sub {
    regardless of viewport width. */
 .scroll-index-bubble {
   position: fixed;
-  right: calc(var(--scroll-index-right) + var(--scroll-index-w) + 14px);
+  right: calc(var(--scroll-index-right) + var(--scroll-index-w) + 10px);
   z-index: 13;
   width: 44px;
   height: 44px;
@@ -872,7 +857,7 @@ html[data-hide-artist] #song-list .song-row-sub {
    use, plus a little breathing room, so content never sits under or
    crowds against the rail on any viewport width, phone or desktop. */
 #page-songs.has-scroll-index .page-inner {
-  padding-right: calc(var(--page-pad) + var(--scroll-index-inset) + var(--scroll-index-w) + 10px);
+  padding-right: calc(var(--page-pad) + var(--scroll-index-inset) + var(--scroll-index-w) + 4px);
   transition: padding-right .18s ease;
 }
 
