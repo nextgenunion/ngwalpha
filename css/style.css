@@ -806,7 +806,7 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
    the plain "Дууны ном" bar that used to live here. Two things have to
    fade together, not just one, or this reads as a bar with an edge again
    instead of a dissolve:
-     - the tint (background: a paper-tinted gradient going to fully
+     - the tint (background: an accent-tinted gradient going to fully
        transparent) — without this the frosted color itself would stop
        with a visible line
      - the blur strength itself (mask-image, same gradient shape) — glass
@@ -817,11 +817,20 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
        blur intensity along with the tint, so both hit zero together and
        the effect genuinely dissolves into .page's own gradient rather
        than stopping.
-   Sized to clear the icon row generously and finish fading out before
-   the title (env(safe-area-inset-top) keeps it proportional to the
-   notch/status-bar height instead of a fixed guess). Purely decorative
-   (pointer-events: none) so it never intercepts taps meant for the back/
-   heart/kebab buttons floating in front of it. */
+   Tinted with var(--accent) (not var(--paper)): --paper is near-black in
+   dark mode, so a paper-based tint read as a plain darkened overlay
+   instead of glass — it lost the color entirely. --accent stays a bright,
+   theme-matching hue in both themes, so the wash tints toward whatever
+   accent color is active instead of just dimming the screen.
+   Tall and slow to fade on purpose: this stands in for the app's actual
+   top bar now, so it should read as one continuous surface that carries
+   past the icon row and only finishes dissolving right around the title —
+   not a small blur confined to the icons with a hard gap of plain
+   background before the title starts. Sized off
+   env(safe-area-inset-top) so it scales with the notch/status-bar height
+   instead of a fixed guess. Purely decorative (pointer-events: none) so
+   it never intercepts taps meant for the back/heart/kebab buttons
+   floating in front of it. */
 .sv-header-immersive::before {
   content: "";
   position: absolute;
@@ -829,16 +838,16 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   left: 50%;
   width: 100vw;
   transform: translateX(-50%);
-  height: calc(env(safe-area-inset-top) + 130px);
+  height: calc(env(safe-area-inset-top) + 210px);
   z-index: -1;
   pointer-events: none;
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--paper) 55%, transparent) 0%,
-    color-mix(in srgb, var(--paper) 32%, transparent) 32%,
-    color-mix(in srgb, var(--paper) 10%, transparent) 60%,
+    color-mix(in srgb, var(--accent) 40%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 24%, transparent) 32%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 60%,
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
@@ -872,8 +881,14 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
    this layout, easiest thing to move/cut if it doesn't read well. */
 .sv-title-centered { text-align: center; }
 .sv-title-centered .sv-number { display: block; margin-bottom: 1px; }
-.sv-title-centered .sv-artist { margin: 0; }
 .sv-title-centered #sv-title { margin-top: 4px; }
+/* Artist now sits below the title (was above it) — margin moves with it,
+   and this is sized down from the base .sv-artist (0.9rem) specifically
+   for this centered layout, so it reads as a caption under the title
+   rather than competing with it. Scoped to .sv-title-centered so the
+   playlist header's reused .sv-artist (the song-count line, id="pv-count")
+   is untouched. */
+.sv-title-centered .sv-artist { margin: 3px 0 0; font-size: 0.78rem; }
 #sv-title, #pv-title {
   font-size: 1.5rem;
   line-height: 1.2;
