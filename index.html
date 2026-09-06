@@ -166,11 +166,22 @@
     <span id="t-topbarAppName">Дууны ном</span>
   </div>
 
-  <header class="song-view-header">
-    <div id="sv-back-slot" class="sv-header-back-slot">
-      <button id="back-btn" class="icon-btn" aria-label="Back to song list">
+  <header class="song-view-header sv-header-immersive">
+    <div class="sv-header-top">
+      <button id="back-btn" class="icon-btn icon-btn-float" aria-label="Back to song list">
         <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
       </button>
+      <div class="sv-header-actions">
+        <button id="sv-favorite-btn" class="icon-btn icon-btn-float" aria-label="Add to favorites" aria-pressed="false">
+          <svg data-icon="heart-outline" viewBox="0 0 24 24"></svg>
+        </button>
+        <!-- Always shown now — "Add to playlist" lives in here for every
+             song, with Edit/Delete added on top only when the open song
+             came from state.sources.user (see openSongViewMenu()). -->
+        <button id="sv-menu-btn" class="icon-btn icon-btn-float" aria-label="Song options">
+          <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
+        </button>
+      </div>
     </div>
     <div class="song-view-title sv-title-centered">
       <span id="sv-number" class="sv-number"></span>
@@ -178,15 +189,6 @@
       <h2 id="sv-title"></h2>
       <p id="sv-alt-title" class="sv-alt-title" hidden></p>
     </div>
-    <!-- Always shown now — "Add to playlist" lives in here for every song,
-         with Edit/Delete added on top only when the open song came from
-         state.sources.user (see openSongViewMenu()). -->
-    <button id="sv-menu-btn" class="icon-btn" aria-label="Song options">
-      <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
-    </button>
-    <button id="sv-favorite-btn" class="icon-btn" aria-label="Add to favorites" aria-pressed="false">
-      <svg data-icon="heart-outline" viewBox="0 0 24 24"></svg>
-    </button>
   </header>
 
   <div class="transpose-bar">

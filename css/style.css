@@ -776,17 +776,30 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 #sv-favorite-btn, #sv-menu-btn { width: 34px; height: 34px; }
 #sv-favorite-btn svg, #sv-menu-btn svg { width: 18px; height: 18px; }
 
-/* Song-view header centering: the right side (kebab 34px + gap 8px + heart
-   34px = 76px) is wider than the back button alone (38px), so without
-   this the centered title would sit ~19px left of true center. #sv-back-
-   slot reserves that same 76px on the left (button itself stays 38px and
-   pinned to the left edge — see #sv-back-slot { display:flex } below —
-   only the invisible reserved width changes), so both sides match and
-   the title centers correctly. (This app briefly A/B-tested relocating
-   the heart next to the transpose controls instead — settled on keeping
-   both icons in the header, order back → kebab → heart, matching the
-   common back/overflow-menu/primary-action pattern.) */
-.sv-header-back-slot { flex-shrink: 0; width: 76px; display: flex; }
+/* Immersive song-view header (see index.html: .sv-header-immersive) — a
+   tinted card instead of a plain bar. Back/heart/kebab float as their own
+   circles in a top row; title/artist/number sit inside the tint below,
+   full width and centered. Scoped to this modifier class only, so the
+   plain .song-view-header used by playlist-view, dev-options, the song
+   editor, etc. is untouched. */
+.sv-header-immersive {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  background: var(--accent-tint);
+  border-radius: var(--radius-l);
+  padding: 14px 14px 18px;
+  margin: 10px 0 0;
+}
+.sv-header-top { display: flex; align-items: center; justify-content: space-between; }
+.sv-header-actions { display: flex; align-items: center; gap: 8px; }
+/* Floating circles need to stand out against the tinted card behind them
+   (a plain --surface fill would nearly disappear into --accent-tint in
+   light mode), so these get the card's own paper color plus a touch of
+   shadow instead of the ordinary .icon-btn border/surface treatment. */
+.icon-btn-float { background: var(--paper); border-color: transparent; box-shadow: var(--shadow-1); }
+
+.sv-header-immersive .song-view-title { flex: none; width: 100%; padding-top: 0; margin-top: 14px; }
 
 .song-view-title { flex: 1; min-width: 0; padding-top: 2px; }
 .sv-number {
