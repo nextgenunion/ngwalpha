@@ -6,8 +6,8 @@ window.SONGBOOK_LANG.mn = {
 
   appTitle: "Дууны ном",
   searchPlaceholder: "Гарчиг, дугаар, эсвэл үгээр хайх…",
-  sortByAlpha: "Цагаан толгойгоор",
-  sortByNumber: "Дугаараар",
+  sortByAlpha: "АБВ",
+  sortByNumber: "123",
   sortAsc: "Өсөх",
   sortDesc: "Буурах",
   resultsAll: (n) => `${n} дуу`,
@@ -175,4 +175,6 @@ window.SONGBOOK_LANG.mn = {
   devHideDescSub: "Тохиргооны зарим мөрийн доорх тайлбар бичвэрийг нуух",
   devVividGlassTitle: "Дууны хуудасны шилэн эффектийг тод болгох",
   devVividGlassSub: "Дууны хуудасны толгой хэсгийн цайвар шилэн дэвсгэрийг илүү өнгөлөг болгоно. Зөвхөн цайвар горимд нөлөөлнө — бараан горимд өөрчлөлт ороохгүй.",
+  devHideArtistTitle: "Дуучны нэрийг нуух",
+  devHideArtistSub: "Дууны номын жагсаалт дахь дуу бүрийн гарчгийн доорх дуучин/хамтлагийн мөрийг нуух",
 };

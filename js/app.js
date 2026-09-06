@@ -169,6 +169,11 @@ const state = {
   // see the html[data-vivid-glass] rule in css/style.css. Light mode
   // only; dark mode's song header glass doesn't change either way.
   devVividGlass: false,
+  // devHideArtist: OFF by default. ON hides the artist/band line under
+  // each song's title in the Songbook list specifically (#song-list —
+  // see the html[data-hide-artist] rule in css/style.css) — User Songs
+  // and playlist song-pickers keep showing it either way.
+  devHideArtist: false,
 };
 
 // Registry of every page the router (showPage/bindNav) knows about. Adding
@@ -391,6 +396,7 @@ async function init() {
   safe('loadPrefs', loadPrefs);
   safe('bindNav', bindNav);
   safe('bindSongsPage', bindSongsPage);
+  safe('bindScrollIndexInteraction', bindScrollIndexInteraction);
   safe('bindSongView', bindSongView);
   safe('bindUserSongsPage', bindUserSongsPage);
   safe('bindSongEditor', bindSongEditor);
@@ -1353,6 +1359,13 @@ function applyDevOptions() {
   const vividGlassToggle = document.getElementById('dev-vivid-glass-toggle');
   if (vividGlassToggle) vividGlassToggle.setAttribute('aria-checked', String(state.devVividGlass));
   document.documentElement.toggleAttribute('data-vivid-glass', state.devVividGlass);
+
+  // Hides the artist/band sub-line under each song's title in the
+  // Songbook list only — see the html[data-hide-artist] #song-list rule
+  // in css/style.css.
+  const hideArtistToggle = document.getElementById('dev-hide-artist-toggle');
+  if (hideArtistToggle) hideArtistToggle.setAttribute('aria-checked', String(state.devHideArtist));
+  document.documentElement.toggleAttribute('data-hide-artist', state.devHideArtist);
 }
 
 function initDevOptions() {
@@ -1389,6 +1402,10 @@ function initDevOptions() {
   });
   document.getElementById('dev-vivid-glass-toggle').addEventListener('click', () => {
     state.devVividGlass = !state.devVividGlass;
+    applyDevOptions();
+  });
+  document.getElementById('dev-hide-artist-toggle').addEventListener('click', () => {
+    state.devHideArtist = !state.devHideArtist;
     applyDevOptions();
   });
 }
@@ -1493,6 +1510,8 @@ function applyLanguage() {
     't-devHideDescSub': 'devHideDescSub',
     't-devVividGlassTitle': 'devVividGlassTitle',
     't-devVividGlassSub': 'devVividGlassSub',
+    't-devHideArtistTitle': 'devHideArtistTitle',
+    't-devHideArtistSub': 'devHideArtistSub',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1970,6 +1989,7 @@ function renderSongList(opts = {}) {
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
     emptyEl.hidden = true;
     countEl.textContent = '';
+    if (listElId === 'song-list') updateSongScrollIndex([], false, '');
     if (animate) animateListRefresh(listEl, emptyEl, countEl);
     return;
   }
@@ -1991,6 +2011,12 @@ function renderSongList(opts = {}) {
   // true" default, which would try to show a number none of these songs
   // actually have.
   const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+
+  // The fast-scroll rail (see updateSongScrollIndex()) only exists on the
+  // Songbook page's own list — User Songs and playlist song-pickers reuse
+  // this same function against their own listElId but have no rail in
+  // their markup to update.
+  if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, query);
 
   const q = query;
 
@@ -2089,6 +2115,171 @@ function updateSongRowContent(li, song, hasNumbers, q) {
       ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
     </span>
   `;
+}
+
+// ---------------------------------------------------------
+// Songbook fast-scroll index — the vertical A-Z/0-10-20… rail along the
+// right edge of the Songbook list (see #song-scroll-index in index.html
+// and its CSS in css/style.css) for jumping straight to a section instead
+// of scrolling through the whole list, the same idea as the alphabet rail
+// in a phone's Contacts app or a music player's song list. Songbook-only
+// (#song-list specifically) — User Songs and playlist song-pickers have
+// no rail in their markup, so updateSongScrollIndex() below is a no-op
+// for those (see its one call site in renderSongList).
+// ---------------------------------------------------------
+
+// Groups the already-sorted list into buckets and records, for each
+// bucket, the index (into that same sorted array) of the first song in
+// it — that index is later used to jump straight to that song's row (see
+// jumpToSongIndex()). Only detects where a bucket *changes* from the
+// previous song, so it automatically reads correctly whichever direction
+// the list is sorted in (ascending or descending) without needing to know
+// which — sortSongs() already applied that direction before this ever
+// runs, so "the next bucket" just falls out of walking the array in
+// order either way.
+function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
+  const entries = [];
+  if (sortBy === 'num' && hasNumbers) {
+    // Buckets of ten (0, 10, 20, 30…) rather than one entry per song
+    // number — one entry per song would be far too dense to tap
+    // accurately, and "tens" is the same granularity a hymnal's own
+    // printed edge-index typically uses.
+    let lastBucket = null;
+    sortedSongs.forEach((song, i) => {
+      if (typeof song.number !== 'number') return;
+      const bucket = Math.floor(song.number / 10) * 10;
+      if (bucket !== lastBucket) {
+        entries.push({ label: String(bucket), index: i });
+        lastBucket = bucket;
+      }
+    });
+  } else {
+    let lastLetter = null;
+    sortedSongs.forEach((song, i) => {
+      const letter = (song.title || '').trim().charAt(0).toUpperCase() || '#';
+      if (letter !== lastLetter) {
+        entries.push({ label: letter, index: i });
+        lastLetter = letter;
+      }
+    });
+  }
+  return entries;
+}
+
+// Rebuilds the rail's contents from whatever the Songbook list's most
+// recent render actually produced. Called from renderSongList() itself
+// (see its one `if (listElId === 'song-list')` call site) so the rail
+// always reflects the current source, sort, and direction with no
+// separate wiring at each of their own call sites (search input, both
+// sort-button groups, db switch, language change all already funnel
+// through renderSongList).
+let scrollIndexEntries = [];
+
+function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
+  const container = document.getElementById('song-scroll-index');
+  if (!container) return;
+
+  // A search query narrows the list to a subset that may skip whole
+  // buckets/letters entirely — "jump to the S section" stops meaning
+  // anything coherent once the list itself isn't the full songbook
+  // anymore, so the rail just steps aside until the search is cleared.
+  if (query) {
+    scrollIndexEntries = [];
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  const entries = computeScrollIndexEntries(sortedSongs, state.sortBy, hasNumbers);
+  scrollIndexEntries = entries;
+
+  // Fewer than two entries means the whole list is already one bucket —
+  // nothing to jump between, so showing an empty-feeling rail with a
+  // single label would just be clutter.
+  if (entries.length < 2) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+
+  container.hidden = false;
+  container.innerHTML = entries
+    .map((entry, i) => `<span class="scroll-index-item" data-idx="${i}">${escapeHtml(entry.label)}</span>`)
+    .join('');
+}
+
+// Scrolls #song-list so the song at scrollIndexEntries[idx] sits at the
+// top. 'auto' (instant) while actively dragging the rail so the list keeps
+// pace with the finger frame-by-frame instead of queuing up a string of
+// overlapping smooth-scroll animations; a plain tap (dragging still false
+// at the moment activate() fires) gets the smooth version.
+function jumpToSongIndex(idx, opts = {}) {
+  const entry = scrollIndexEntries[idx];
+  if (!entry) return;
+  const listEl = document.getElementById('song-list');
+  const li = listEl && listEl.children[entry.index];
+  if (!li) return;
+  li.scrollIntoView({ block: 'start', behavior: opts.instant ? 'auto' : 'smooth' });
+}
+
+function highlightScrollIndexItem(idx) {
+  const container = document.getElementById('song-scroll-index');
+  if (!container) return;
+  container.querySelectorAll('.scroll-index-item').forEach(el => {
+    el.classList.toggle('is-active', Number(el.dataset.idx) === idx);
+  });
+}
+
+// Tap-to-jump and drag-to-scrub on the rail as a single pointerdown/
+// pointermove/pointerup trio — Pointer Events unify mouse and touch, so
+// this covers both a desktop click and a phone drag with one code path.
+// A tap is simply a pointerdown with no follow-up pointermove, so it's
+// handled by the exact same activate() call a drag uses; there's no
+// separate "was this a tap or a drag" branch to get wrong.
+function bindScrollIndexInteraction() {
+  const container = document.getElementById('song-scroll-index');
+  const bubble = document.getElementById('song-scroll-index-bubble');
+  if (!container) return;
+
+  let dragging = false;
+
+  function entryIndexFromClientY(clientY) {
+    const rect = container.getBoundingClientRect();
+    if (rect.height === 0) return 0;
+    const ratio = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+    return Math.round(ratio * (scrollIndexEntries.length - 1));
+  }
+
+  function activate(clientY) {
+    if (!scrollIndexEntries.length) return;
+    const idx = entryIndexFromClientY(clientY);
+    highlightScrollIndexItem(idx);
+    jumpToSongIndex(idx, { instant: dragging });
+    if (bubble) {
+      bubble.textContent = scrollIndexEntries[idx].label;
+      bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
+      bubble.classList.add('is-visible');
+    }
+  }
+
+  container.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    if (container.setPointerCapture) container.setPointerCapture(e.pointerId);
+    activate(e.clientY);
+    e.preventDefault();
+  });
+  container.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    activate(e.clientY);
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    if (bubble) bubble.classList.remove('is-visible');
+    highlightScrollIndexItem(-1);
+  };
+  container.addEventListener('pointerup', endDrag);
+  container.addEventListener('pointercancel', endDrag);
 }
 
 // Whole-block opacity/translate dip-and-recover. Ordinary search/sort

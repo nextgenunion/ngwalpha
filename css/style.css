@@ -660,6 +660,15 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 /* ---------- song list ---------- */
 .song-list { list-style: none; margin: 0; padding: 0; }
 
+/* Developer option: "Hide artist names" (see state.devHideArtist /
+   #dev-hide-artist-toggle in js/app.js). Scoped to #song-list specifically
+   — the main Songbook list's own <ul> id — so User Songs and playlist
+   song-pickers keep showing the artist line either way; only the
+   songbook's own list is affected. */
+html[data-hide-artist] #song-list .song-row-sub {
+  display: none;
+}
+
 .song-row {
   display: flex;
   align-items: center;
@@ -730,6 +739,99 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   margin-top: 48px;
   padding: 0 20px;
   line-height: 1.5;
+}
+
+/* ---------- song list fast-scroll index ----------
+   The vertical A-Z/0-10-20… strip along the right edge of the Songbook
+   list (#song-list specifically — see js/app.js's updateSongScrollIndex),
+   for jumping straight to a section instead of scrolling through the
+   whole list, the same idea as the alphabet rail in a phone's contacts
+   app or a music player's song list.
+
+   A fixed sibling of .page-inner (not inside it — same reasoning as
+   .about-legal-footer above: it needs to sit outside that element's own
+   scrolling and stay anchored to the viewport, not the scrolled content),
+   spanning from just under the status bar to just above the bottom nav
+   regardless of where .page-inner's header/search/sort row have scrolled
+   to — it's intentionally allowed to float over that header when the list
+   is scrolled to the top, the same way a phone's index rail floats over
+   whatever's behind it, rather than being repositioned to start below the
+   header via JS layout measurement (which would need to re-run on every
+   resize/orientation change/language switch/font-size change and would
+   still be wrong the instant any of those changed).
+
+   right: keeps the strip pinned just inside the right edge of the
+   content column, not the physical viewport edge — the same `max(...,
+   (100vw - 720px)/2 + …)` trick .page-inner's own 720px cap implies, so it
+   still sits sensibly close to the list on a wide/desktop window instead
+   of floating in the middle of empty margin. */
+.scroll-index {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
+  right: max(2px, calc((100vw - 720px) / 2 + 2px));
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 18px;
+  padding: 8px 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 45%, transparent);
+  /* Purely a tap/drag surface, not a scrollable area of its own — this
+     stops touch drags along the strip from also scrolling the page
+     underneath it on mobile. */
+  touch-action: none;
+}
+.scroll-index[hidden] { display: none; }
+
+.scroll-index-item {
+  flex: 0 0 auto;
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 0.56rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color .12s ease, transform .12s ease;
+}
+.scroll-index-item.is-active {
+  color: var(--accent-strong);
+  transform: scale(1.3);
+}
+
+/* The larger "you are here" bubble that appears next to the thumb while
+   dragging (or right after a tap) — same idea as the big letter overlay
+   iOS Contacts shows mid-scrub, big enough to actually read while a
+   finger is covering the strip itself, but not shown at all otherwise so
+   it never distracts during normal list scrolling. */
+.scroll-index-bubble {
+  position: fixed;
+  right: 30px;
+  z-index: 13;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity .1s ease, transform .1s ease;
+}
+.scroll-index-bubble.is-visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* Playlists page: when Favorites is the only playlist, this text sits right
