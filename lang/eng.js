@@ -10,8 +10,8 @@ window.SONGBOOK_LANG.en = {
 
   appTitle: "Songbook",
   searchPlaceholder: "Search title, number, or a lyric…",
-  sortByAlpha: "ABC",
-  sortByNumber: "123",
+  sortByAlpha: "Alphabet",
+  sortByNumber: "Number",
   sortAsc: "Ascending",
   sortDesc: "Descending",
   resultsAll: (n) => `${n} songs`,
@@ -179,6 +179,4 @@ window.SONGBOOK_LANG.en = {
   devHideDescSub: "Hides the description text under some settings rows",
   devVividGlassTitle: "Vivid song header glass",
   devVividGlassSub: "Switches the song page's glass header from the default frosted-white look to a more colorful tint. Light mode only — dark mode is unaffected.",
-  devHideArtistTitle: "Hide artist names",
-  devHideArtistSub: "Hides the artist/band line under each song's title in the Songbook list",
 };

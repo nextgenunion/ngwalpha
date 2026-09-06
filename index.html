@@ -84,11 +84,16 @@
   <p id="empty-state" class="empty-state" hidden></p>
  </div>
 
- <!-- Fast-scroll A-Z/number index for the songbook list only (not User
-      Songs or Playlists) — see updateSongScrollIndex()/bindScrollIndex()
-      in js/app.js. Populated in JS; hidden whenever a search is active or
-      there's nothing meaningful to jump between. -->
- <div id="song-scroll-index" class="scroll-index" hidden aria-hidden="true"></div>
+ <!-- Fast-scroll indicator for the songbook list only (not User Songs or
+      Playlists) — see updateSongScrollIndex()/bindScrollIndexInteraction()
+      in js/app.js. A small One-UI/Pixel-style scrollbar thumb, not a
+      permanently-visible A-Z rail: rests as a faint sliver, brightens on
+      scroll, and only pops up its letter/number bubble while the thumb
+      itself is being dragged. Hidden in markup; shown in JS whenever
+      there's something meaningful to jump between. -->
+ <div id="song-scroll-index" class="scroll-index" hidden aria-hidden="true">
+  <div id="song-scroll-thumb" class="scroll-thumb"></div>
+ </div>
  <div id="song-scroll-index-bubble" class="scroll-index-bubble" aria-hidden="true"></div>
 </main>
 
@@ -589,15 +594,6 @@
         <span class="settings-row-sub" id="t-devVividGlassSub">Switches the song page's glass header from the default frosted-white look to a more colorful tint. Light mode only — dark mode is unaffected.</span>
       </div>
       <button id="dev-vivid-glass-toggle" class="switch" role="switch" aria-checked="false" aria-label="Vivid song header glass">
-        <span class="switch-knob"></span>
-      </button>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-devHideArtistTitle">Hide artist names</span>
-        <span class="settings-row-sub" id="t-devHideArtistSub">Hides the artist/band line under each song's title in the Songbook list</span>
-      </div>
-      <button id="dev-hide-artist-toggle" class="switch" role="switch" aria-checked="false" aria-label="Hide artist names">
         <span class="switch-knob"></span>
       </button>
     </div>

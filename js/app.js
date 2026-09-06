@@ -169,11 +169,6 @@ const state = {
   // see the html[data-vivid-glass] rule in css/style.css. Light mode
   // only; dark mode's song header glass doesn't change either way.
   devVividGlass: false,
-  // devHideArtist: OFF by default. ON hides the artist/band line under
-  // each song's title in the Songbook list specifically (#song-list —
-  // see the html[data-hide-artist] rule in css/style.css) — User Songs
-  // and playlist song-pickers keep showing it either way.
-  devHideArtist: false,
 };
 
 // Registry of every page the router (showPage/bindNav) knows about. Adding
@@ -1359,13 +1354,6 @@ function applyDevOptions() {
   const vividGlassToggle = document.getElementById('dev-vivid-glass-toggle');
   if (vividGlassToggle) vividGlassToggle.setAttribute('aria-checked', String(state.devVividGlass));
   document.documentElement.toggleAttribute('data-vivid-glass', state.devVividGlass);
-
-  // Hides the artist/band sub-line under each song's title in the
-  // Songbook list only — see the html[data-hide-artist] #song-list rule
-  // in css/style.css.
-  const hideArtistToggle = document.getElementById('dev-hide-artist-toggle');
-  if (hideArtistToggle) hideArtistToggle.setAttribute('aria-checked', String(state.devHideArtist));
-  document.documentElement.toggleAttribute('data-hide-artist', state.devHideArtist);
 }
 
 function initDevOptions() {
@@ -1402,10 +1390,6 @@ function initDevOptions() {
   });
   document.getElementById('dev-vivid-glass-toggle').addEventListener('click', () => {
     state.devVividGlass = !state.devVividGlass;
-    applyDevOptions();
-  });
-  document.getElementById('dev-hide-artist-toggle').addEventListener('click', () => {
-    state.devHideArtist = !state.devHideArtist;
     applyDevOptions();
   });
 }
@@ -1510,8 +1494,6 @@ function applyLanguage() {
     't-devHideDescSub': 'devHideDescSub',
     't-devVividGlassTitle': 'devVividGlassTitle',
     't-devVividGlassSub': 'devVividGlassSub',
-    't-devHideArtistTitle': 'devHideArtistTitle',
-    't-devHideArtistSub': 'devHideArtistSub',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1989,8 +1971,8 @@ function renderSongList(opts = {}) {
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
     emptyEl.hidden = true;
     countEl.textContent = '';
-    if (listElId === 'song-list') updateSongScrollIndex([], false, '');
     if (animate) animateListRefresh(listEl, emptyEl, countEl);
+    if (listElId === 'song-list') updateSongScrollIndex([], false, '');
     return;
   }
 
@@ -2012,12 +1994,6 @@ function renderSongList(opts = {}) {
   // actually have.
   const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
 
-  // The fast-scroll rail (see updateSongScrollIndex()) only exists on the
-  // Songbook page's own list — User Songs and playlist song-pickers reuse
-  // this same function against their own listElId but have no rail in
-  // their markup to update.
-  if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, query);
-
   const q = query;
 
   if (!animate || prefersReducedMotion()) {
@@ -2026,6 +2002,11 @@ function renderSongList(opts = {}) {
     // no reason to pay for the diff below.
     listEl.innerHTML = '';
     filtered.forEach(song => listEl.appendChild(buildSongRow(song, hasNumbers, q, sourceKey)));
+    // The fast-scroll rail (see updateSongScrollIndex()) only exists on
+    // the Songbook list — User Songs and playlist song-pickers reuse this
+    // same function against their own listElId with no rail in their
+    // markup, so this is a no-op for those.
+    if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q);
     return;
   }
 
@@ -2093,39 +2074,22 @@ function renderSongList(opts = {}) {
   // results read top-to-bottom correctly while leaving rows finish
   // underneath.
   listEl.insertBefore(fragment, listEl.firstChild);
-}
 
-function buildSongRow(song, hasNumbers, q, sourceKey) {
-  const li = document.createElement('li');
-  li.dataset.rowKey = `${sourceKey}:${song.id}`;
-  const row = document.createElement('button');
-  row.className = 'song-row';
-  row.addEventListener('click', () => openSong(song, { sourceKey }));
-  li.appendChild(row);
-  updateSongRowContent(li, song, hasNumbers, q);
-  return li;
-}
-
-function updateSongRowContent(li, song, hasNumbers, q) {
-  const row = li.firstElementChild;
-  row.innerHTML = `
-    ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
-    <span class="song-row-text">
-      <span class="song-row-title">${highlight(song.title, q)}</span>
-      ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
-    </span>
-  `;
+  if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q);
 }
 
 // ---------------------------------------------------------
-// Songbook fast-scroll index — the vertical A-Z/0-10-20… rail along the
-// right edge of the Songbook list (see #song-scroll-index in index.html
-// and its CSS in css/style.css) for jumping straight to a section instead
-// of scrolling through the whole list, the same idea as the alphabet rail
-// in a phone's Contacts app or a music player's song list. Songbook-only
-// (#song-list specifically) — User Songs and playlist song-pickers have
-// no rail in their markup, so updateSongScrollIndex() below is a no-op
-// for those (see its one call site in renderSongList).
+// Songbook fast-scroll indicator — a small One-UI/Pixel-style scrollbar
+// thumb along the right edge of the Songbook list (#song-list
+// specifically; see #song-scroll-index/#song-scroll-thumb in index.html
+// and its CSS in css/style.css). Not a permanently-visible A-Z rail: it
+// rests as a faint, still-touchable sliver when the list is still,
+// brightens to fully solid the instant the list scrolls — by an ordinary
+// touch-swipe OR by dragging the thumb itself — and only pops up a
+// letter/number bubble while the thumb is actually being dragged.
+// Songbook-only (#song-list specifically) — User Songs and playlist
+// song-pickers have no rail in their markup, so updateSongScrollIndex()
+// below is a no-op for those (see its call sites in renderSongList).
 // ---------------------------------------------------------
 
 // A handful of Cyrillic capitals are visually identical, in this UI's
@@ -2133,7 +2097,7 @@ function updateSongRowContent(li, song, hasNumbers, q) {
 // exact same glyph shapes as Latin A/B/E/K/M/H/O/P/C/T/X. Without this map,
 // a Mongolian-source title starting with Cyrillic "А" and an English-source
 // title starting with Latin "A" would land in two different scroll-index
-// buckets that look identical on the rail — so this folds the Cyrillic
+// buckets that look identical on the popup — so this folds the Cyrillic
 // lookalike onto its Latin twin before bucketing.
 const CYRILLIC_LATIN_HOMOGLYPHS = {
   'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M',
@@ -2143,7 +2107,7 @@ const CYRILLIC_LATIN_HOMOGLYPHS = {
 // Canonicalizes a title's leading character into the scroll-index bucket
 // label it belongs in: a leading digit always collapses to a single '#'
 // bucket (rather than separate 1/2/3… entries fragmenting the alphabetic
-// rail), and CYRILLIC_LATIN_HOMOGLYPHS above merges lookalike letters.
+// index), and CYRILLIC_LATIN_HOMOGLYPHS above merges lookalike letters.
 function scrollIndexLetter(title) {
   const raw = (title || '').trim().charAt(0);
   if (!raw || /[0-9]/.test(raw)) return '#';
@@ -2153,20 +2117,18 @@ function scrollIndexLetter(title) {
 
 // Groups the already-sorted list into buckets and records, for each
 // bucket, the index (into that same sorted array) of the first song in
-// it — that index is later used to jump straight to that song's row (see
-// jumpToSongIndex()). Only detects where a bucket *changes* from the
-// previous song, so it automatically reads correctly whichever direction
-// the list is sorted in (ascending or descending) without needing to know
-// which — sortSongs() already applied that direction before this ever
-// runs, so "the next bucket" just falls out of walking the array in
-// order either way.
+// it. Only detects where a bucket *changes* from the previous song, so it
+// automatically reads correctly whichever direction the list is sorted in
+// (ascending or descending) without needing to know which — sortSongs()
+// already applied that direction before this ever runs, so "the next
+// bucket" just falls out of walking the array in order either way.
 function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
   const entries = [];
   if (sortBy === 'num' && hasNumbers) {
-    // Buckets of fifty (0, 50, 100, 150…) rather than ten — tens produced
-    // far too many, too-thin entries to tap accurately once a songbook ran
-    // past a couple hundred songs; fifties keep the rail legible and give
-    // each entry a comfortably large tap target.
+    // Buckets of fifty (0, 50, 100, 150…) rather than one entry per song
+    // number or even per ten — a continuous drag already covers the fine
+    // positions between buckets, so this just keeps the popup's number
+    // changing at a sensible, readable rate as you drag.
     let lastBucket = null;
     sortedSongs.forEach((song, i) => {
       if (typeof song.number !== 'number') return;
@@ -2189,130 +2151,212 @@ function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
   return entries;
 }
 
-// Rebuilds the rail's contents from whatever the Songbook list's most
-// recent render actually produced. Called from renderSongList() itself
-// (see its one `if (listElId === 'song-list')` call site) so the rail
-// always reflects the current source, sort, and direction with no
-// separate wiring at each of their own call sites (search input, both
-// sort-button groups, db switch, language change all already funnel
-// through renderSongList).
+// Populated by updateSongScrollIndex() below; each entry also gets a
+// `.top` (see measureScrollIndexEntries) recording where its first song's
+// row actually sits within the Songbook page's scrollable content, so a
+// scrollTop reached mid-drag can be mapped back to "which bucket is this"
+// (see labelForScrollTop()). Whether those buckets are numbers or letters
+// for the *current* render — needed so the popup knows which font/style
+// to use — is tracked alongside in scrollIndexIsNumeric.
 let scrollIndexEntries = [];
+let scrollIndexIsNumeric = false;
 
+// #page-songs is the actual scrolling element (see .page's overflow-y:auto
+// in css/style.css) — #song-list itself doesn't scroll on its own — so
+// every row's position has to be measured relative to that, not the
+// viewport or #song-list.
+function measureScrollIndexEntries(entries) {
+  const listEl = document.getElementById('song-list');
+  const pageEl = document.getElementById('page-songs');
+  if (!listEl || !pageEl) return entries;
+  const pageTop = pageEl.getBoundingClientRect().top;
+  const baseScroll = pageEl.scrollTop;
+  entries.forEach(entry => {
+    const li = listEl.children[entry.index];
+    entry.top = li ? (li.getBoundingClientRect().top - pageTop + baseScroll) : 0;
+  });
+  return entries;
+}
+
+// Rebuilds scrollIndexEntries from whatever the Songbook list's most
+// recent render actually produced, and re-syncs the thumb to the list's
+// current scroll position. Called from renderSongList() itself (see its
+// two `if (listElId === 'song-list')` call sites) so the indicator always
+// reflects the current source, sort, and direction with no separate
+// wiring at each of their own call sites (search input, both sort-button
+// groups, db switch, language change all already funnel through
+// renderSongList).
 function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
-  const container = document.getElementById('song-scroll-index');
-  if (!container) return;
-  // The rail no longer floats on top of the header/search/sort/list — see
-  // #page-songs.has-scroll-index in css/style.css, which gives .page-inner
-  // extra right padding to make room for it instead. This class is the
-  // single on/off switch for that layout, kept in lockstep with the rail's
-  // own `hidden` below so the reserved space only ever appears while the
-  // rail itself is actually showing.
-  const page = document.getElementById('page-songs');
+  const track = document.getElementById('song-scroll-index');
+  if (!track) return;
 
   // A search query narrows the list to a subset that may skip whole
   // buckets/letters entirely — "jump to the S section" stops meaning
   // anything coherent once the list itself isn't the full songbook
-  // anymore, so the rail just steps aside until the search is cleared.
+  // anymore, so the indicator just steps aside until the search is
+  // cleared.
   if (query) {
     scrollIndexEntries = [];
-    container.hidden = true;
-    container.innerHTML = '';
-    if (page) page.classList.remove('has-scroll-index');
+    track.hidden = true;
     return;
   }
 
+  const isNumeric = state.sortBy === 'num' && hasNumbers;
   const entries = computeScrollIndexEntries(sortedSongs, state.sortBy, hasNumbers);
-  scrollIndexEntries = entries;
 
   // Fewer than two entries means the whole list is already one bucket —
-  // nothing to jump between, so showing an empty-feeling rail with a
-  // single label would just be clutter.
+  // nothing meaningful to jump between, and a list that short rarely
+  // needs a scrollbar assist anyway.
   if (entries.length < 2) {
-    container.hidden = true;
-    container.innerHTML = '';
-    if (page) page.classList.remove('has-scroll-index');
+    scrollIndexEntries = [];
+    track.hidden = true;
     return;
   }
 
-  container.hidden = false;
-  if (page) page.classList.add('has-scroll-index');
-  container.innerHTML = entries
-    .map((entry, i) => `<span class="scroll-index-item" data-idx="${i}">${escapeHtml(entry.label)}</span>`)
-    .join('');
+  scrollIndexIsNumeric = isNumeric;
+  scrollIndexEntries = measureScrollIndexEntries(entries);
+  track.hidden = false;
+  updateScrollThumbPosition();
 }
 
-// Scrolls #song-list so the song at scrollIndexEntries[idx] sits at the
-// top. 'auto' (instant) while actively dragging the rail so the list keeps
-// pace with the finger frame-by-frame instead of queuing up a string of
-// overlapping smooth-scroll animations; a plain tap (dragging still false
-// at the moment activate() fires) gets the smooth version.
-function jumpToSongIndex(idx, opts = {}) {
-  const entry = scrollIndexEntries[idx];
-  if (!entry) return;
-  const listEl = document.getElementById('song-list');
-  const li = listEl && listEl.children[entry.index];
-  if (!li) return;
-  li.scrollIntoView({ block: 'start', behavior: opts.instant ? 'auto' : 'smooth' });
-}
-
-function highlightScrollIndexItem(idx) {
-  const container = document.getElementById('song-scroll-index');
-  if (!container) return;
-  container.querySelectorAll('.scroll-index-item').forEach(el => {
-    el.classList.toggle('is-active', Number(el.dataset.idx) === idx);
-  });
-}
-
-// Tap-to-jump and drag-to-scrub on the rail as a single pointerdown/
-// pointermove/pointerup trio — Pointer Events unify mouse and touch, so
-// this covers both a desktop click and a phone drag with one code path.
-// A tap is simply a pointerdown with no follow-up pointermove, so it's
-// handled by the exact same activate() call a drag uses; there's no
-// separate "was this a tap or a drag" branch to get wrong.
-function bindScrollIndexInteraction() {
-  const container = document.getElementById('song-scroll-index');
-  const bubble = document.getElementById('song-scroll-index-bubble');
-  if (!container) return;
-
-  let dragging = false;
-
-  function entryIndexFromClientY(clientY) {
-    const rect = container.getBoundingClientRect();
-    if (rect.height === 0) return 0;
-    const ratio = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
-    return Math.round(ratio * (scrollIndexEntries.length - 1));
+// Finds which bucket a given scrollTop currently falls in — the last
+// entry whose row hasn't scrolled past yet — the same "which section am I
+// in" logic a sticky section header would use. Assumes scrollIndexEntries
+// is already sorted top-to-bottom, which it always is: it's built by
+// walking the sorted song list in order.
+function labelForScrollTop(scrollTop) {
+  const entries = scrollIndexEntries;
+  if (!entries.length) return '';
+  let current = entries[0];
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].top <= scrollTop + 1) current = entries[i];
+    else break;
   }
+  return current.label;
+}
 
-  function activate(clientY) {
-    if (!scrollIndexEntries.length) return;
-    const idx = entryIndexFromClientY(clientY);
-    highlightScrollIndexItem(idx);
-    jumpToSongIndex(idx, { instant: dragging });
+// Moves the thumb to match #page-songs' current scroll position —
+// continuous/proportional, like a normal scrollbar, not stepped between
+// buckets. Called on every scroll event and right after a fresh render.
+function updateScrollThumbPosition() {
+  const track = document.getElementById('song-scroll-index');
+  const thumb = document.getElementById('song-scroll-thumb');
+  const pageEl = document.getElementById('page-songs');
+  if (!track || !thumb || !pageEl || track.hidden) return;
+  const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight);
+  const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
+  const ratio = Math.min(1, Math.max(0, pageEl.scrollTop / maxScroll));
+  thumb.style.transform = `translateY(${ratio * travel}px)`;
+}
+
+// Brings the indicator to full opacity (see .scroll-index.is-active in
+// css/style.css) and cancels any pending fade — used both by an ordinary
+// list scroll and by grabbing the thumb itself.
+function setScrollIndexActive(active) {
+  const track = document.getElementById('song-scroll-index');
+  if (track) track.classList.toggle('is-active', active);
+}
+
+let scrollIndexIdleTimer = null;
+let scrollIndexDragging = false;
+
+// Fades the indicator back to its quiet resting state a moment after
+// scrolling/dragging stops — never while still dragging (checked at fire
+// time, not at schedule time, so holding the thumb still mid-drag doesn't
+// fade it out from under your finger).
+function scheduleScrollIndexFade() {
+  if (scrollIndexIdleTimer) clearTimeout(scrollIndexIdleTimer);
+  scrollIndexIdleTimer = setTimeout(() => {
+    if (!scrollIndexDragging) setScrollIndexActive(false);
+  }, 900);
+}
+
+// Tap-to-jump and drag-to-scrub on the indicator as a single pointerdown/
+// pointermove/pointerup trio — Pointer Events unify mouse and touch, so
+// this covers both a desktop click and a phone drag with one code path. A
+// tap is simply a pointerdown with no follow-up pointermove, so it's
+// handled the same way a drag's first frame is: both just set the page's
+// scrollTop to whatever position was touched.
+function bindScrollIndexInteraction() {
+  const track = document.getElementById('song-scroll-index');
+  const bubble = document.getElementById('song-scroll-index-bubble');
+  const pageEl = document.getElementById('page-songs');
+  if (!track || !pageEl) return;
+
+  // Ordinary swipe-scrolling of the list: brings the thumb to full opacity
+  // and keeps it tracking the scroll position in real time, but never
+  // shows the popup bubble — that's reserved for actually grabbing the
+  // thumb (see pointerdown below), matching the reference behavior of a
+  // plain scroll vs. a deliberate scrub.
+  pageEl.addEventListener('scroll', () => {
+    if (track.hidden) return;
+    updateScrollThumbPosition();
+    setScrollIndexActive(true);
+    scheduleScrollIndexFade();
+  }, { passive: true });
+
+  function applyDrag(clientY) {
+    const rect = track.getBoundingClientRect();
+    const ratio = rect.height === 0 ? 0 : Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+    const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
+    pageEl.scrollTop = ratio * maxScroll;
+    updateScrollThumbPosition();
     if (bubble) {
-      bubble.textContent = scrollIndexEntries[idx].label;
+      const label = labelForScrollTop(pageEl.scrollTop);
+      bubble.textContent = label;
+      bubble.classList.toggle('is-numeric', scrollIndexIsNumeric);
       bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
-      bubble.classList.add('is-visible');
     }
   }
 
-  container.addEventListener('pointerdown', (e) => {
-    dragging = true;
-    if (container.setPointerCapture) container.setPointerCapture(e.pointerId);
-    activate(e.clientY);
+  track.addEventListener('pointerdown', (e) => {
+    if (track.hidden) return;
+    scrollIndexDragging = true;
+    if (track.setPointerCapture) track.setPointerCapture(e.pointerId);
+    setScrollIndexActive(true);
+    if (bubble) bubble.classList.add('is-visible');
+    applyDrag(e.clientY);
     e.preventDefault();
   });
-  container.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    activate(e.clientY);
+  track.addEventListener('pointermove', (e) => {
+    if (!scrollIndexDragging) return;
+    applyDrag(e.clientY);
   });
   const endDrag = () => {
-    if (!dragging) return;
-    dragging = false;
+    if (!scrollIndexDragging) return;
+    scrollIndexDragging = false;
     if (bubble) bubble.classList.remove('is-visible');
-    highlightScrollIndexItem(-1);
+    scheduleScrollIndexFade();
   };
-  container.addEventListener('pointerup', endDrag);
-  container.addEventListener('pointercancel', endDrag);
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
+
+  // A resize (rotation, on-screen keyboard, browser chrome show/hide) can
+  // change the track's own height or the page's scrollable range without
+  // firing a scroll event, so the thumb needs its own recompute here too.
+  window.addEventListener('resize', () => updateScrollThumbPosition());
+}
+
+function buildSongRow(song, hasNumbers, q, sourceKey) {
+  const li = document.createElement('li');
+  li.dataset.rowKey = `${sourceKey}:${song.id}`;
+  const row = document.createElement('button');
+  row.className = 'song-row';
+  row.addEventListener('click', () => openSong(song, { sourceKey }));
+  li.appendChild(row);
+  updateSongRowContent(li, song, hasNumbers, q);
+  return li;
+}
+
+function updateSongRowContent(li, song, hasNumbers, q) {
+  const row = li.firstElementChild;
+  row.innerHTML = `
+    ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
+    <span class="song-row-text">
+      <span class="song-row-title">${highlight(song.title, q)}</span>
+      ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
+    </span>
+  `;
 }
 
 // Whole-block opacity/translate dip-and-recover. Ordinary search/sort

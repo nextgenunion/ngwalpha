@@ -112,19 +112,6 @@
      the edge on tablets. */
   --page-pad: 18px;
 
-  /* Songbook fast-scroll rail (see .scroll-index below) sizing, shared
-     between the rail itself, its "you are here" bubble, and the extra
-     .page-inner padding-right that reserves room for it, so all three
-     stay in lockstep from one pair of numbers. Deliberately tiny — this
-     is meant to read as a thin strip of small text (like a phone's own
-     contacts-app index), not a control with its own visible footprint,
-     so the reserved lane it needs is equally small. --scroll-index-inset
-     is the gap from the content column's own edge to the rail's outer
-     edge; --scroll-index-w is the rail's tap width. */
-  --scroll-index-inset: 4px;
-  --scroll-index-w: 16px;
-  --scroll-index-right: max(var(--scroll-index-inset), calc((100vw - 720px) / 2 + var(--scroll-index-inset)));
-
   color-scheme: light;
 }
 @media (max-width: 480px) {
@@ -673,15 +660,6 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 /* ---------- song list ---------- */
 .song-list { list-style: none; margin: 0; padding: 0; }
 
-/* Developer option: "Hide artist names" (see state.devHideArtist /
-   #dev-hide-artist-toggle in js/app.js). Scoped to #song-list specifically
-   — the main Songbook list's own <ul> id — so User Songs and playlist
-   song-pickers keep showing the artist line either way; only the
-   songbook's own list is affected. */
-html[data-hide-artist] #song-list .song-row-sub {
-  display: none;
-}
-
 .song-row {
   display: flex;
   align-items: center;
@@ -754,44 +732,34 @@ html[data-hide-artist] #song-list .song-row-sub {
   line-height: 1.5;
 }
 
-/* ---------- song list fast-scroll index ----------
-   The vertical A-Z/0-50-100… strip along the right edge of the Songbook
-   list (#song-list specifically — see js/app.js's updateSongScrollIndex),
-   for jumping straight to a section instead of scrolling through the
-   whole list, the same idea as the alphabet rail in a phone's contacts
-   app or a music player's song list.
+/* ---------- song list fast-scroll indicator ----------
+   A small One-UI/Pixel-style scrollbar thumb along the right edge of the
+   Songbook list (#song-list specifically — see js/app.js's
+   updateSongScrollIndex/bindScrollIndexInteraction), not a permanently-
+   visible A-Z rail: it rests as a faint, still-touchable sliver while the
+   list is still, brightens to fully solid the instant the list scrolls —
+   by an ordinary touch-swipe OR by dragging the thumb itself — and only
+   pops up a letter/number bubble while the thumb is actually being
+   dragged (see .scroll-index-bubble below).
 
-   A fixed sibling of .page-inner (not inside it — same reasoning as
-   .about-legal-footer above: it needs to sit outside that element's own
-   scrolling and stay anchored to the viewport, not the scrolled content),
-   spanning from just under the status bar to just above the bottom nav
-   regardless of where .page-inner's header/search/sort row have scrolled
-   to.
+   .scroll-index itself is only the (invisible) touch target — a slim
+   fixed-position column along the right edge, tall enough to be easy to
+   grab without needing to be visually wide itself. It floats directly
+   over the list's own trailing edge (the same way a native OS scrollbar
+   or the reference screenshot's own thumb does) rather than reserving
+   layout space, since at this width/opacity it's not competing with the
+   list content the way a bigger, always-visible index would.
 
-   Deliberately no card/pill chrome — this is meant to read as a thin
-   strip of small text sitting quietly in the margin (the same way a
-   phone's own contacts-app index looks: just letters, no visible
-   background), not another button-like control competing with the
-   search bar and sort pills for attention.
-
-   right: keeps the rail pinned just inside the right edge of the content
-   column, not the physical viewport edge — the same `max(...,
-   (100vw - 720px)/2 + …)` trick .page-inner's own 720px cap implies, so it
-   still sits sensibly close to the list on a wide/desktop window instead
-   of floating in the middle of empty margin. Shared as --scroll-index-right
-   (see :root) so the bubble below can anchor off the same value. */
+   A fixed sibling of .page-inner (not inside it), so it stays anchored to
+   the viewport rather than the scrolled content, spanning from just under
+   the status bar to just above the bottom nav. */
 .scroll-index {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 10px);
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
-  right: var(--scroll-index-right);
+  top: calc(env(safe-area-inset-top) + 8px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px);
+  right: 0;
+  width: 26px;
   z-index: 12;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  width: var(--scroll-index-w);
-  padding: 6px 0;
   /* Purely a tap/drag surface, not a scrollable area of its own — this
      stops touch drags along the strip from also scrolling the page
      underneath it on mobile. */
@@ -799,66 +767,82 @@ html[data-hide-artist] #song-list .song-row-sub {
 }
 .scroll-index[hidden] { display: none; }
 
-.scroll-index-item {
-  flex: 0 0 auto;
-  width: 100%;
-  text-align: center;
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition: color .12s ease, transform .12s ease;
+/* The visible part: a small pill, not the full width of the touch target
+   above it — kept slim and quiet on purpose (Samsung/One-UI's own fast-
+   scroll thumb is a thin sliver, not a wide bar) so it reads as a subtle
+   scrollbar accent rather than another button-like control. Its resting
+   opacity is low but non-zero — "not so noticeable" per the reference,
+   not invisible — so it's still discoverable and tappable while idle
+   (see .is-active below for the brightened state). */
+.scroll-thumb {
+  position: absolute;
+  right: 8px;
+  width: 5px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  opacity: 0.3;
+  transform: translateY(0);
+  transition: opacity .3s ease, background-color .2s ease;
+  will-change: transform;
 }
-.scroll-index-item.is-active {
-  color: var(--accent-strong);
-  transform: scale(1.25);
+/* --accent-strong inverts to a pale text-tint in dark mode (readable as
+   text on a dark surface — see .btn-secondary) rather than a fill; using
+   it as a solid background here would leave the thumb washed-out pale
+   against the dark chrome, the same mismatch .btn-primary/.seg-toggle-thumb
+   already correct for by switching to --accent in dark mode. Mirrored here
+   so the thumb reads as a solid, on-brand fill in both themes. */
+html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
+/* Toggled by JS on scroll/drag start and removed a moment after either
+   stops (see setScrollIndexActive()/scheduleScrollIndexFade() in
+   js/app.js) — "when you scroll the handle appears... when you stop it
+   goes into transparent" from the brief. */
+.scroll-index.is-active .scroll-thumb {
+  opacity: 0.95;
 }
 
-/* The larger "you are here" bubble that appears next to the thumb while
-   dragging (or right after a tap) — same idea as the big letter overlay
-   iOS Contacts shows mid-scrub, big enough to actually read while a
-   finger is covering the strip itself, but not shown at all otherwise so
-   it never distracts during normal list scrolling. Anchored off the same
-   --scroll-index-right the rail itself uses, offset out by the rail's own
-   width plus a gap, so it always sits just to the left of the rail
-   regardless of viewport width. */
+/* The small "you are here" popup that appears only while the thumb is
+   being dragged (see bindScrollIndexInteraction()'s pointerdown/pointerup
+   in js/app.js) — never during a plain swipe-scroll, matching the
+   reference screenshot's own behavior. A modest gap from the thumb
+   (unlike the reference image's much larger gap, per the brief) rather
+   than sitting right on top of it, so it doesn't cover the row currently
+   under the finger. Number labels use the same monospace font as the
+   song-number badges (.song-badge) elsewhere in this list; letter labels
+   use the app's own default UI font — see .scroll-index-bubble.is-numeric
+   below for the switch between the two. */
 .scroll-index-bubble {
   position: fixed;
-  right: calc(var(--scroll-index-right) + var(--scroll-index-w) + 10px);
+  right: 40px;
   z-index: 13;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  min-width: 40px;
+  padding: 7px 13px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--ink) 82%, transparent);
+  background: var(--accent-strong);
   color: var(--paper);
-  font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
   font-weight: 700;
   box-shadow: var(--shadow-2);
   pointer-events: none;
   opacity: 0;
-  transform: scale(0.8);
-  transition: opacity .1s ease, transform .1s ease;
+  transform: scale(0.85) translateX(4px);
+  transform-origin: right center;
+  transition: opacity .16s ease, transform .22s var(--press-ease);
+}
+/* Same --accent-strong-as-a-fill correction as .scroll-thumb above — see
+   that comment for why dark mode needs --accent/--paper-dim instead. */
+html[data-theme="dark"] .scroll-index-bubble { background: var(--accent); color: var(--paper-dim); }
+.scroll-index-bubble.is-numeric {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
 }
 .scroll-index-bubble.is-visible {
   opacity: 1;
-  transform: scale(1);
-}
-
-/* Reserves the rail's lane: extra right padding on the Songs page's own
-   .page-inner, added only while the rail actually has something to show
-   (class toggled by updateSongScrollIndex() in js/app.js — see the note
-   on .scroll-index above). Sized off the same tokens the rail and bubble
-   use, plus a little breathing room, so content never sits under or
-   crowds against the rail on any viewport width, phone or desktop. */
-#page-songs.has-scroll-index .page-inner {
-  padding-right: calc(var(--page-pad) + var(--scroll-index-inset) + var(--scroll-index-w) + 4px);
-  transition: padding-right .18s ease;
+  transform: scale(1) translateX(0);
 }
 
 /* Playlists page: when Favorites is the only playlist, this text sits right

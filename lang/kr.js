@@ -175,6 +175,4 @@ window.SONGBOOK_LANG.kr = {
   devHideDescSub: "일부 설정 항목 아래의 설명 텍스트를 숨깁니다",
   devVividGlassTitle: "곡 상단 유리 효과 선명하게",
   devVividGlassSub: "곡 화면 상단의 프로스트 유리 효과를 기본값인 흰색 계열 대신 더 화려한 색상으로 전환합니다. 라이트 모드에만 적용되며 다크 모드는 영향을 받지 않습니다.",
-  devHideArtistTitle: "아티스트 이름 숨기기",
-  devHideArtistSub: "찬양 목록에서 각 곡 제목 아래의 아티스트/밴드 줄을 숨깁니다",
 };
