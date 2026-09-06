@@ -116,9 +116,6 @@ const BEST_EFFORT_ASSETS = [
   './icons/svg/social-youtube.svg',
   './icons/svg/social-instagram.svg',
   './icons/svg/social-website.svg',
-  './icons/svg/sort-asc.svg',
-  './icons/svg/sort-desc.svg',
-  './icons/svg/reload.svg',
 ];
 
 function cacheBestEffort(cache, urls) {

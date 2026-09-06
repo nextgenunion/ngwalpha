@@ -265,9 +265,6 @@ const ICON_FILES = {
   'check': 'icons/svg/check.svg',
   'download': 'icons/svg/download.svg',
   'upload': 'icons/svg/upload.svg',
-  'sort-asc': 'icons/svg/sort-asc.svg',
-  'sort-desc': 'icons/svg/sort-desc.svg',
-  'reload': 'icons/svg/reload.svg',
   'social-facebook': 'icons/svg/social-facebook.svg',
   'social-youtube': 'icons/svg/social-youtube.svg',
   'social-instagram': 'icons/svg/social-instagram.svg',
@@ -1228,10 +1225,9 @@ function applyLyricsSpacing() {
 // titles/lyrics is unlikely to mean anything in the other, and leaving it
 // behind would just show a confusing "no results"). If the new source has
 // no song numbers (see DB_SOURCES' hasNumbers — the English database),
-// this also hides the ABC/123 sort-type button (there's no choice left to
-// make — everything sorts alphabetically) and snaps sortBy to 'alpha' so
-// the Songs page never gets stuck showing a sort control for a field that
-// doesn't exist; switching to a numbered source later restores it.
+// this also hides the "Sort by number" button and snaps sortBy to 'alpha'
+// so the Songs page never gets stuck showing a sort control for a field
+// that doesn't exist; switching to a numbered source later restores it.
 function applyDbSource(sourceKey) {
   state.activeDbSource = sourceKey;
   state.query = '';
@@ -1239,12 +1235,14 @@ function applyDbSource(sourceKey) {
   if (searchInput) searchInput.value = '';
 
   const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
-  const typeBtn = document.getElementById('sort-type-btn');
-  if (typeBtn) typeBtn.hidden = !hasNumbers;
+  const numBtn = document.querySelector('.sort-btn[data-sort-by="num"]');
+  const alphaBtn = document.querySelector('.sort-btn[data-sort-by="alpha"]');
+  if (numBtn) numBtn.hidden = !hasNumbers;
   if (!hasNumbers && state.sortBy === 'num') {
     state.sortBy = 'alpha';
+    if (numBtn) numBtn.setAttribute('aria-pressed', 'false');
+    if (alphaBtn) alphaBtn.setAttribute('aria-pressed', 'true');
   }
-  updateSortButtons();
 
   renderSongList();
 }
@@ -1506,10 +1504,13 @@ function applyLanguage() {
   document.getElementById('editor-key').placeholder = t('editorKeyPlaceholder');
   document.getElementById('editor-link').placeholder = t('editorLinkPlaceholder');
   document.getElementById('back-btn').setAttribute('aria-label', t('backAria'));
-  document.getElementById('transpose-reset').setAttribute('aria-label', t('transposeReset'));
+  document.getElementById('transpose-reset').textContent = t('transposeReset');
   document.getElementById('editor-save-btn').textContent = t('saveBtn');
 
-  updateSortButtons();
+  document.querySelector('.sort-btn[data-sort-by="alpha"]').textContent = t('sortByAlpha');
+  document.querySelector('.sort-btn[data-sort-by="num"]').textContent = t('sortByNumber');
+  document.querySelector('.sort-btn[data-sort-order="asc"]').textContent = t('sortAsc');
+  document.querySelector('.sort-btn[data-sort-order="desc"]').textContent = t('sortDesc');
 
   document.getElementById('db-option-en').textContent = t('dbOptionEnglish');
 
@@ -1791,38 +1792,6 @@ function runTabFadeTransition(fromEl, toEl) {
 // ---------------------------------------------------------
 // Songs page: search + sort + list rendering
 // ---------------------------------------------------------
-// The Songs page has two sort controls, each a single button that cycles
-// between two states rather than a pair of pressed/unpressed buttons:
-//   #sort-type-btn  — state.sortBy ('num' | 'alpha'), shown as the text
-//                      "123" or "ABC" (no icon).
-//   #sort-order-btn — state.sortOrder ('asc' | 'desc'), shown as an icon
-//                      that swaps between the two provided sort-direction
-//                      glyphs (icons/svg/sort-asc.svg, sort-desc.svg — see
-//                      ICON_FILES) via injectIcon().
-// This function syncs both buttons' visible label/icon and aria-label to
-// current state; call it whenever sortBy/sortOrder changes or the
-// language changes (see applyLanguage()).
-function updateSortButtons() {
-  const typeBtn = document.getElementById('sort-type-btn');
-  if (typeBtn) {
-    const isNum = state.sortBy === 'num';
-    typeBtn.textContent = isNum ? '123' : 'ABC';
-    typeBtn.setAttribute('aria-label', isNum ? t('sortByNumber') : t('sortByAlpha'));
-  }
-
-  const orderBtn = document.getElementById('sort-order-btn');
-  if (orderBtn) {
-    const isAsc = state.sortOrder !== 'desc';
-    orderBtn.setAttribute('aria-label', isAsc ? t('sortAsc') : t('sortDesc'));
-    const icon = orderBtn.querySelector('.sort-order-icon');
-    const nextIconName = isAsc ? 'sort-asc' : 'sort-desc';
-    if (icon && icon.dataset.icon !== nextIconName) {
-      icon.dataset.icon = nextIconName;
-      injectIcon(icon);
-    }
-  }
-}
-
 function bindSongsPage() {
   const input = document.getElementById('search-input');
   input.addEventListener('input', () => {
@@ -1830,16 +1799,22 @@ function bindSongsPage() {
     renderSongList({ animate: true });
   });
 
-  document.getElementById('sort-type-btn').addEventListener('click', () => {
-    state.sortBy = state.sortBy === 'num' ? 'alpha' : 'num';
-    updateSortButtons();
-    renderSongList({ animate: true });
+  document.querySelectorAll('.sort-btn[data-sort-by]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.sortBy = btn.dataset.sortBy;
+      document.querySelectorAll('.sort-btn[data-sort-by]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      renderSongList({ animate: true });
+    });
   });
 
-  document.getElementById('sort-order-btn').addEventListener('click', () => {
-    state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
-    updateSortButtons();
-    renderSongList({ animate: true });
+  document.querySelectorAll('.sort-btn[data-sort-order]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.sortOrder = btn.dataset.sortOrder;
+      document.querySelectorAll('.sort-btn[data-sort-order]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      renderSongList({ animate: true });
+    });
   });
 }
 
@@ -2063,7 +2038,6 @@ function renderSongList(opts = {}) {
       updateSongRowContent(li, song, hasNumbers, q);
     } else {
       li = buildSongRow(song, hasNumbers, q, sourceKey);
-      li.dataset.rowKey = key;
       li.classList.add('song-row-enter');
       li.addEventListener('animationend', function onEnd() {
         li.classList.remove('song-row-enter');
@@ -2097,6 +2071,7 @@ function renderSongList(opts = {}) {
 
 function buildSongRow(song, hasNumbers, q, sourceKey) {
   const li = document.createElement('li');
+  li.dataset.rowKey = `${sourceKey}:${song.id}`;
   const row = document.createElement('button');
   row.className = 'song-row';
   row.addEventListener('click', () => openSong(song, { sourceKey }));

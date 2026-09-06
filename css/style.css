@@ -587,10 +587,11 @@ body.nav-hidden .page-inner {
   scrollbar-width: none;
 }
 .sort-row::-webkit-scrollbar { display: none; }
-/* Each button here is a single control that cycles between two states
-   (ABC/123, ascending/descending — see updateSortButtons() in app.js)
-   rather than one of a pressed/unpressed pair, so there's no "active"
-   variant to style — just a plain, permanently-visible pill/circle. */
+.sort-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .sort-btn {
   flex-shrink: 0;
   border: 1px solid var(--line);
@@ -603,20 +604,15 @@ body.nav-hidden .page-inner {
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
 }
-/* Sort-order button is icon-only — a circle sized like the sort-type
-   pill's height rather than a wide pill with padding meant for text. */
-.sort-order-btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.sort-btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
 }
-.sort-order-btn .sort-order-icon {
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
+html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--paper-dim);
+  border-color: var(--accent);
 }
 
 .results-count {
@@ -1021,14 +1017,30 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .chip-btn:active { background: var(--accent-tint); }
 .chip-btn:disabled { opacity: .35; cursor: not-allowed; }
 .chip-btn:disabled:active { background: var(--paper); }
-/* transpose-reset is icon-only (see icons/svg/reload.svg via ICON_FILES) —
-   its translated label ("Буцаах" / "Reset") now lives in aria-label only,
-   so it just needs normal chip-btn circle sizing plus a smaller icon than
-   the 20px .icon-btn default to sit comfortably at 30px. */
-#transpose-reset svg {
-  width: 15px;
-  height: 15px;
-  fill: currentColor;
+/* transpose-reset ("Буцаах" / "Reset"): a short WORD, not a single glyph,
+   so this needs to be a pill sized to its own text — width: auto here is
+   what makes that happen. Long translated labels shouldn't look bigger
+   than necessary: the smaller font-size (0.75rem, down from chip-btn's
+   0.95rem) and tight horizontal padding keep the pill snug around the
+   actual text instead of ballooning out.
+   max-width + white-space: normal cap how wide this can grow — past that
+   cap the label wraps onto a second line and the button grows *taller*
+   instead of pushing past the edge of the transpose bar. height: auto
+   (overriding chip-btn's fixed 30px) plus min-height keeps single-line
+   labels looking identical to before while giving wrapped ones room to
+   extend downward. */
+.chip-btn-text {
+  width: auto;
+  height: auto;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 88px;
 }
 
 .font-controls {

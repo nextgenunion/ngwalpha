@@ -67,10 +67,14 @@
   </div>
 
   <div class="sort-row">
-    <button id="sort-type-btn" class="sort-btn sort-type-btn" type="button"></button>
-    <button id="sort-order-btn" class="sort-btn sort-order-btn" type="button">
-      <svg class="sort-order-icon" data-icon="sort-asc" viewBox="0 0 24 24" aria-hidden="true"></svg>
-    </button>
+    <div class="sort-group" role="group" aria-label="Sort by">
+      <button class="sort-btn" data-sort-by="num" aria-pressed="true"></button>
+      <button class="sort-btn" data-sort-by="alpha" aria-pressed="false"></button>
+    </div>
+    <div class="sort-group" role="group" aria-label="Sort order">
+      <button class="sort-btn" data-sort-order="asc" aria-pressed="true"></button>
+      <button class="sort-btn" data-sort-order="desc" aria-pressed="false"></button>
+    </div>
   </div>
 
   <p id="results-count" class="results-count"></p>
@@ -189,9 +193,7 @@
       <button id="transpose-down" class="chip-btn" aria-label="Transpose down one semitone">−</button>
       <span id="transpose-offset" class="transpose-offset">0</span>
       <button id="transpose-up" class="chip-btn" aria-label="Transpose up one semitone">+</button>
-      <button id="transpose-reset" class="chip-btn" type="button">
-        <svg data-icon="reload" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      </button>
+      <button id="transpose-reset" class="chip-btn chip-btn-text"></button>
     </div>
   </div>
 
