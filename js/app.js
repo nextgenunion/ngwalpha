@@ -2219,6 +2219,15 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
   updateScrollThumbPosition();
 }
 
+// Returned by labelForScrollTop() below instead of a real bucket label
+// when the drag position is still above the very first bucket — i.e.
+// still within the header/search-bar area at the top of the Songbook
+// page, where no letter/number applies yet. applyDrag() checks for this
+// exact value to swap the bubble into its icon state (see
+// .scroll-index-bubble.is-search in css/style.css) rather than printing
+// it as text.
+const SCROLL_INDEX_SEARCH_LABEL = '__search__';
+
 // Finds which bucket a given scrollTop currently falls in — the last
 // entry whose row hasn't scrolled past yet — the same "which section am I
 // in" logic a sticky section header would use. Assumes scrollIndexEntries
@@ -2227,6 +2236,9 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
 function labelForScrollTop(scrollTop) {
   const entries = scrollIndexEntries;
   if (!entries.length) return '';
+  // Above the first bucket's own row — still in the search-bar/header
+  // area, not any lettered/numbered section yet.
+  if (scrollTop < entries[0].top - 1) return SCROLL_INDEX_SEARCH_LABEL;
   let current = entries[0];
   for (let i = 0; i < entries.length; i++) {
     if (entries[i].top <= scrollTop + 1) current = entries[i];
@@ -2234,13 +2246,6 @@ function labelForScrollTop(scrollTop) {
   }
   return current.label;
 }
-
-// Must match .scroll-thumb's `top` in css/style.css — the space the
-// search-shortcut button (#song-scroll-search) reserves at the top of the
-// rail. The thumb's resting position already starts below that (via CSS
-// `top: 30px`), so the *travel* distance below has to be shortened by the
-// same amount or the thumb would run past the bottom of the track.
-const SCROLL_INDEX_TOP_RESERVE = 30;
 
 // Moves the thumb to match #page-songs' current scroll position —
 // continuous/proportional, like a normal scrollbar, not stepped between
@@ -2250,7 +2255,7 @@ function updateScrollThumbPosition() {
   const thumb = document.getElementById('song-scroll-thumb');
   const pageEl = document.getElementById('page-songs');
   if (!track || !thumb || !pageEl || track.hidden) return;
-  const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight - SCROLL_INDEX_TOP_RESERVE);
+  const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight);
   const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
   const ratio = Math.min(1, Math.max(0, pageEl.scrollTop / maxScroll));
   thumb.style.transform = `translateY(${ratio * travel}px)`;
@@ -2290,23 +2295,6 @@ function bindScrollIndexInteraction() {
   const pageEl = document.getElementById('page-songs');
   if (!track || !pageEl) return;
 
-  // Search shortcut at the top of the rail (see the button's markup and
-  // .scroll-index-search in css/style.css). It sits inside the same
-  // pointerdown-driven track, so its own pointerdown/click has to be
-  // stopped from bubbling up to the track's listeners below — otherwise
-  // tapping it would also register as "drag the thumb to this position"
-  // and immediately jump-scroll based on the button's own on-screen spot.
-  const searchBtn = document.getElementById('song-scroll-search');
-  if (searchBtn) {
-    searchBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-    searchBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      pageEl.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-      const input = document.getElementById('search-input');
-      if (input) input.focus();
-    });
-  }
-
   // Ordinary swipe-scrolling of the list: brings the thumb to full opacity
   // and keeps it tracking the scroll position in real time, but never
   // shows the popup bubble — that's reserved for actually grabbing the
@@ -2327,8 +2315,11 @@ function bindScrollIndexInteraction() {
     updateScrollThumbPosition();
     if (bubble) {
       const label = labelForScrollTop(pageEl.scrollTop);
-      bubble.textContent = label;
-      bubble.classList.toggle('is-numeric', scrollIndexIsNumeric);
+      const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
+      const labelEl = document.getElementById('song-scroll-index-bubble-label');
+      if (labelEl) labelEl.textContent = isSearch ? '' : label;
+      bubble.classList.toggle('is-search', isSearch);
+      bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
       bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
     }
   }

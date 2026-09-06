@@ -92,15 +92,18 @@
       itself is being dragged. Hidden in markup; shown in JS whenever
       there's something meaningful to jump between. -->
  <div id="song-scroll-index" class="scroll-index" hidden aria-hidden="true">
-  <!-- Search shortcut at the top of the rail — jumps back to the top of
-       the Songbook page (the search bar) instead of scrubbing letters/
-       numbers. See bindScrollIndexInteraction() in js/app.js. -->
-  <button id="song-scroll-search" class="scroll-index-search" type="button" tabindex="-1" aria-hidden="true">
-   <svg data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
-  </button>
   <div id="song-scroll-thumb" class="scroll-thumb"></div>
  </div>
- <div id="song-scroll-index-bubble" class="scroll-index-bubble" aria-hidden="true"></div>
+ <!-- Icon shown instead of a letter/number when the thumb is dragged all
+      the way up into the header/search-bar area, above the first actual
+      bucket — see labelForScrollTop()'s SCROLL_INDEX_SEARCH_LABEL branch
+      in js/app.js and .scroll-index-bubble.is-search in css/style.css.
+      Reuses the exact same search glyph as the main search bar
+      (data-icon="search" — see ICON_FILES in js/app.js). -->
+ <div id="song-scroll-index-bubble" class="scroll-index-bubble" aria-hidden="true">
+  <svg class="scroll-index-bubble-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
+  <span id="song-scroll-index-bubble-label" class="scroll-index-bubble-label"></span>
+ </div>
 </main>
 
 <!-- ===== USER SONGS PAGE =====

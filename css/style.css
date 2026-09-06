@@ -778,64 +778,15 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 }
 .scroll-index[hidden] { display: none; }
 
-/* Search shortcut pinned to the top of the rail — tapping it jumps
-   #page-songs back to its very top (where the real search bar lives) and
-   focuses #search-input, so it reads as "the search section of the
-   scrollbar" rather than a random extra icon. Reuses the exact same
-   search glyph as .search-icon (data-icon="search" — see ICON_FILES in
-   js/app.js) so it's recognizable as the same action. Sits centered in
-   the 26px-wide touch target (left/right:0 + margin auto) rather than
-   sharing the thumb's right:8px offset, since it isn't part of the
-   thumb's up/down travel. bindScrollIndexInteraction() in js/app.js stops
-   its own pointerdown/click from bubbling to the track, so tapping it
-   never also registers as a drag-to-top. */
-.scroll-index-search {
-  position: absolute;
-  top: 0;
-  left: 0; right: 0;
-  margin: 0 auto;
-  width: 22px;
-  height: 22px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--accent-strong);
-  opacity: 0.3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-  /* transform included alongside opacity/background-color so this rule
-     (more specific than the global button:where(...) reset above) doesn't
-     drop that reset's own transform transition — otherwise the shared
-     :active press-scale would apply with no easing on this button only. */
-  transition: opacity .3s ease, background-color .2s ease, transform var(--press-duration-out) var(--press-ease);
-}
-.scroll-index-search svg {
-  width: 12px;
-  height: 12px;
-  fill: var(--paper);
-}
-html[data-theme="dark"] .scroll-index-search { background: var(--accent); }
-html[data-theme="dark"] .scroll-index-search svg { fill: var(--paper-dim); }
-/* Same brighten-on-activity treatment as the thumb, so the whole rail —
-   button included — reads as one control waking up together. */
-.scroll-index.is-active .scroll-index-search { opacity: 0.95; }
-
 /* The visible part: a small pill, not the full width of the touch target
    above it — kept slim and quiet on purpose (Samsung/One-UI's own fast-
    scroll thumb is a thin sliver, not a wide bar) so it reads as a subtle
    scrollbar accent rather than another button-like control. Its resting
    opacity is low but non-zero — "not so noticeable" per the reference,
    not invisible — so it's still discoverable and tappable while idle
-   (see .is-active below for the brightened state).
-   `top` is pushed down past the search button above (22px tall) plus a
-   small gap, rather than the default top:0 — see SCROLL_INDEX_TOP_RESERVE
-   in js/app.js, which must stay equal to this value so the drag travel
-   math lines up with where the thumb actually starts. */
+   (see .is-active below for the brightened state). */
 .scroll-thumb {
   position: absolute;
-  top: 30px;
   right: 8px;
   width: 5px;
   height: 34px;
@@ -930,6 +881,19 @@ html[data-theme="dark"] .scroll-index-bubble {
   font-family: var(--font-mono);
   font-size: 0.92rem;
 }
+/* Swapped in by applyDrag() (js/app.js) once the thumb is dragged above
+   the very first letter/number bucket — that scroll range is the
+   header/search-bar area at the top of the Songbook page, so a bucket
+   label wouldn't mean anything there; the search icon marks it instead.
+   The icon is a plain sibling (not injected fresh each drag), so this
+   just toggles which of the two is shown rather than swapping markup. */
+.scroll-index-bubble-icon {
+  display: none;
+  width: 18px;
+  height: 18px;
+}
+.scroll-index-bubble.is-search .scroll-index-bubble-icon { display: block; }
+.scroll-index-bubble.is-search .scroll-index-bubble-label { display: none; }
 .scroll-index-bubble.is-visible {
   opacity: 1;
   transform: scale(1) translateX(0);
