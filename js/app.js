@@ -164,6 +164,7 @@ const state = {
   devTradMongolian: false, // see refreshLangPicker()
   devCredits: false,       // see renderCredits()
   devHideDescriptions: false, // see applyDevOptions() — toggles .settings-desc-hideable
+  devHeartInTranspose: false, // EXPERIMENTAL A/B test — see applyDevOptions()/applyHeartPlacement()
 };
 
 // Registry of every page the router (showPage/bindNav) knows about. Adding
@@ -1341,6 +1342,31 @@ function applyDevOptions() {
   const hideDescToggle = document.getElementById('dev-hide-desc-toggle');
   if (hideDescToggle) hideDescToggle.setAttribute('aria-checked', String(state.devHideDescriptions));
   document.documentElement.toggleAttribute('data-hide-setting-desc', state.devHideDescriptions);
+
+  const heartToggle = document.getElementById('dev-heart-in-transpose-toggle');
+  if (heartToggle) heartToggle.setAttribute('aria-checked', String(state.devHeartInTranspose));
+  applyHeartPlacement();
+}
+
+// EXPERIMENTAL — see state.devHeartInTranspose's comment and the CSS block
+// above .song-view-title in style.css. Physically moves the real
+// #sv-favorite-btn element (not a clone — there's only ever one, so its
+// click handler/aria-pressed state keep working no matter where it lives)
+// between the song-view header and the transpose bar, and flips
+// body.heart-in-transpose so the two variants' CSS (back-button slot width
+// vs the heart's size in its new spot) follows along.
+function applyHeartPlacement() {
+  document.body.classList.toggle('heart-in-transpose', state.devHeartInTranspose);
+  const btn = document.getElementById('sv-favorite-btn');
+  if (!btn) return;
+  if (state.devHeartInTranspose) {
+    const group = document.getElementById('sv-transpose-group');
+    if (group && btn.parentElement !== group) group.insertBefore(btn, group.firstChild);
+  } else {
+    const header = document.querySelector('#page-song-view .song-view-header');
+    const menuBtn = document.getElementById('sv-menu-btn');
+    if (header && menuBtn && btn.parentElement !== header) header.insertBefore(btn, menuBtn);
+  }
 }
 
 function initDevOptions() {
@@ -1373,6 +1399,10 @@ function initDevOptions() {
   });
   document.getElementById('dev-hide-desc-toggle').addEventListener('click', () => {
     state.devHideDescriptions = !state.devHideDescriptions;
+    applyDevOptions();
+  });
+  document.getElementById('dev-heart-in-transpose-toggle').addEventListener('click', () => {
+    state.devHeartInTranspose = !state.devHeartInTranspose;
     applyDevOptions();
   });
 }

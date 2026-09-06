@@ -29,7 +29,7 @@
 //
 // Format: plain "major.minor.patch". Pre-release/build tags (e.g. "-beta")
 // are handled separately below, not folded into this number.
-var SONGBOOK_VERSION_NUMBER = '3.0.6';
+var SONGBOOK_VERSION_NUMBER = '3.0.7';
 
 // Pre-release label appended to both the on-screen version and the cache
 // tag (e.g. 'beta', 'rc', or '' for a stable, non-beta release).

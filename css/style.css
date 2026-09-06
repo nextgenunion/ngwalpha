@@ -776,6 +776,30 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
 #sv-favorite-btn, #sv-menu-btn { width: 34px; height: 34px; }
 #sv-favorite-btn svg, #sv-menu-btn svg { width: 18px; height: 18px; }
 
+/* EXPERIMENTAL — song-view header centering A/B test. The header's right
+   side (heart 34px + gap 8px + kebab 34px = 76px) is wider than the left
+   side (back button, 38px), so the centered title block sits ~19px left
+   of true center. Two fixes, toggled via Settings > Developer options >
+   "Move heart next to transpose" (see initDevOptions()/applyDevOptions()
+   in app.js, which adds/removes body.heart-in-transpose and moves the
+   actual #sv-favorite-btn element between here and the transpose bar):
+     - OFF (default): #sv-back-slot reserves 76px on the left too, so both
+       sides match and the title centers correctly without moving anything.
+     - ON: the heart itself relocates into #sv-transpose-group, leaving
+       only the kebab (34px) across from the back button (38px) — close
+       enough on its own that no extra spacer is needed.
+   Pick whichever reads better, then this comment block and the unused
+   half of this CSS/the dev toggle can be deleted. */
+.sv-header-back-slot { flex-shrink: 0; width: 76px; display: flex; }
+body.heart-in-transpose .sv-header-back-slot { width: auto; }
+
+.transpose-controls-group { display: flex; align-items: center; gap: 10px; }
+body.heart-in-transpose #sv-favorite-btn {
+  width: 30px; height: 30px; /* match .chip-btn's size/look in this new spot */
+  background: var(--paper);
+}
+body.heart-in-transpose #sv-favorite-btn svg { width: 16px; height: 16px; }
+
 .song-view-title { flex: 1; min-width: 0; padding-top: 2px; }
 .sv-number {
   font-family: var(--font-mono);
