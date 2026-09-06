@@ -178,26 +178,24 @@
       <h2 id="sv-title"></h2>
       <p id="sv-alt-title" class="sv-alt-title" hidden></p>
     </div>
-    <button id="sv-favorite-btn" class="icon-btn" aria-label="Add to favorites" aria-pressed="false">
-      <svg data-icon="heart-outline" viewBox="0 0 24 24"></svg>
-    </button>
     <!-- Always shown now — "Add to playlist" lives in here for every song,
          with Edit/Delete added on top only when the open song came from
          state.sources.user (see openSongViewMenu()). -->
     <button id="sv-menu-btn" class="icon-btn" aria-label="Song options">
       <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
     </button>
+    <button id="sv-favorite-btn" class="icon-btn" aria-label="Add to favorites" aria-pressed="false">
+      <svg data-icon="heart-outline" viewBox="0 0 24 24"></svg>
+    </button>
   </header>
 
   <div class="transpose-bar">
     <span class="transpose-label"><span id="t-keyLabel">Key:</span> <strong id="sv-key">—</strong></span>
-    <div id="sv-transpose-group" class="transpose-controls-group">
-      <div class="transpose-controls">
-        <button id="transpose-down" class="chip-btn" aria-label="Transpose down one semitone">−</button>
-        <span id="transpose-offset" class="transpose-offset">0</span>
-        <button id="transpose-up" class="chip-btn" aria-label="Transpose up one semitone">+</button>
-        <button id="transpose-reset" class="chip-btn chip-btn-text"></button>
-      </div>
+    <div class="transpose-controls">
+      <button id="transpose-down" class="chip-btn" aria-label="Transpose down one semitone">−</button>
+      <span id="transpose-offset" class="transpose-offset">0</span>
+      <button id="transpose-up" class="chip-btn" aria-label="Transpose up one semitone">+</button>
+      <button id="transpose-reset" class="chip-btn chip-btn-text"></button>
     </div>
   </div>
 
@@ -577,15 +575,6 @@
         <span class="settings-row-sub" id="t-devHideDescSub">Hides the description text under some settings rows</span>
       </div>
       <button id="dev-hide-desc-toggle" class="switch" role="switch" aria-checked="false" aria-label="Hide setting descriptions">
-        <span class="switch-knob"></span>
-      </button>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-devHeartInTransposeTitle">Move heart next to transpose (experimental)</span>
-        <span class="settings-row-sub" id="t-devHeartInTransposeSub">A/B test for song-header title centering: off = keep the heart in the header and balance the back button's width to match; on = move the heart down next to the transpose controls instead.</span>
-      </div>
-      <button id="dev-heart-in-transpose-toggle" class="switch" role="switch" aria-checked="false" aria-label="Move heart next to transpose">
         <span class="switch-knob"></span>
       </button>
     </div>
