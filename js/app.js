@@ -3690,14 +3690,56 @@ function onPlaylistDragStart(e, li) {
   dragLi = li;
   dragStartY = e.clientY;
   li.classList.add('is-dragging');
+  // Lift off the list with a small spring pop (same overshoot curve as
+  // every other press interaction) rather than the row just starting to
+  // track the finger flat — this is what sells "picking it up" before
+  // the drag itself takes over.
+  li.style.transition = 'transform .18s var(--press-ease)';
+  li.style.transform = 'scale(1.035)';
   try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   e.preventDefault();
+}
+
+// FLIP-animates every sibling row that just shifted position (because the
+// dragged row was inserted before/after it) from where it visually was to
+// where it now sits, on the same overshoot spring used for a picked-up
+// item settling into place — instead of the reorder just cutting straight
+// to the new layout, which is what made this feel like rows snapping
+// rather than sliding out of the way. beforeRects is a Map<element,
+// DOMRect> captured immediately before the DOM reorder that triggered
+// this call; dragLi is excluded since its own motion is driven directly
+// by the pointer, not this spring.
+function flipReorderedSiblings(listEl, dragLi, beforeRects) {
+  Array.from(listEl.children).forEach(child => {
+    if (child === dragLi) return;
+    const before = beforeRects.get(child);
+    if (!before) return;
+    const after = child.getBoundingClientRect();
+    const deltaY = before.top - after.top;
+    if (Math.abs(deltaY) < 1) return; // didn't actually move — nothing to animate
+    if (child._reorderCleanup) {
+      child.removeEventListener('transitionend', child._reorderCleanup);
+      child.style.transition = 'none';
+    }
+    child.style.transform = `translateY(${deltaY}px)`;
+    void child.offsetWidth; // force the browser to register the start position before animating away from it
+    child.style.transition = 'transform .38s var(--press-ease)';
+    requestAnimationFrame(() => { child.style.transform = ''; });
+    const cleanup = () => {
+      child.style.transition = '';
+      child.removeEventListener('transitionend', cleanup);
+      child._reorderCleanup = null;
+    };
+    child._reorderCleanup = cleanup;
+    child.addEventListener('transitionend', cleanup);
+  });
 }
 
 function onPlaylistDragMove(e) {
   if (!dragLi) return;
   const dy = e.clientY - dragStartY;
-  dragLi.style.transform = `translateY(${dy}px)`;
+  dragLi.style.transition = 'none'; // direct 1:1 finger tracking — no lag while actually dragging
+  dragLi.style.transform = `translateY(${dy}px) scale(1.035)`;
 
   const listEl = document.getElementById('playlist-song-list');
   const dragRect = dragLi.getBoundingClientRect();
@@ -3709,15 +3751,21 @@ function onPlaylistDragMove(e) {
     const sCenter = sRect.top + sRect.height / 2;
     const dragIsBeforeSib = !!(dragLi.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_FOLLOWING);
     if (dragIsBeforeSib && dragCenter > sCenter) {
+      const beforeRects = new Map();
+      Array.from(listEl.children).forEach(c => { if (c !== dragLi) beforeRects.set(c, c.getBoundingClientRect()); });
       listEl.insertBefore(dragLi, sib.nextSibling);
+      flipReorderedSiblings(listEl, dragLi, beforeRects);
       dragStartY = e.clientY;
-      dragLi.style.transform = 'translateY(0)';
+      dragLi.style.transform = 'translateY(0) scale(1.035)';
       break;
     }
     if (!dragIsBeforeSib && dragCenter < sCenter) {
+      const beforeRects = new Map();
+      Array.from(listEl.children).forEach(c => { if (c !== dragLi) beforeRects.set(c, c.getBoundingClientRect()); });
       listEl.insertBefore(dragLi, sib);
+      flipReorderedSiblings(listEl, dragLi, beforeRects);
       dragStartY = e.clientY;
-      dragLi.style.transform = 'translateY(0)';
+      dragLi.style.transform = 'translateY(0) scale(1.035)';
       break;
     }
   }
@@ -3725,9 +3773,24 @@ function onPlaylistDragMove(e) {
 
 function onPlaylistDragEnd() {
   if (!dragLi) return;
-  dragLi.style.transform = '';
-  dragLi.classList.remove('is-dragging');
+  const li = dragLi;
   dragLi = null;
+  // Drop with the same overshoot spring the pickup used, instead of
+  // snapping straight to rest — the lift scale eases back to 1 at the
+  // same time as any residual translateY resolves to 0.
+  li.style.transition = 'transform .32s var(--press-ease)';
+  li.style.transform = 'translateY(0) scale(1)';
+  const cleanup = (ev) => {
+    if (ev && ev.propertyName !== 'transform') return;
+    li.style.transition = '';
+    li.style.transform = '';
+    li.removeEventListener('transitionend', cleanup);
+    li._dropCleanup = null;
+  };
+  if (li._dropCleanup) li.removeEventListener('transitionend', li._dropCleanup);
+  li._dropCleanup = cleanup;
+  li.addEventListener('transitionend', cleanup);
+  li.classList.remove('is-dragging');
   commitPlaylistOrderFromDom();
   renderPlaylistView(); // refresh the small queue-position numbers to match the new order
 }

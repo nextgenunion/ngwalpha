@@ -2263,7 +2263,12 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
 #playlist-song-list.is-editing .song-row-remove { display: flex; }
 #playlist-song-list.is-editing .song-row { pointer-events: none; } /* rows don't open the song while editing */
 #playlist-song-list.is-editing .queue-index { display: none; } /* drag handle takes over ordering cues in edit mode */
-.song-row-with-remove.is-dragging { position: relative; z-index: 30; box-shadow: var(--shadow-2); }
+.song-row-with-remove.is-dragging {
+  position: relative;
+  z-index: 30;
+  box-shadow: var(--shadow-2);
+  transition: box-shadow .18s ease;
+}
 
 /* ---------- kebab dropdown menu ---------- */
 .kebab-menu-wrap { position: relative; }
