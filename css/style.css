@@ -782,20 +782,67 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
    full width and centered. Scoped to this modifier class only, so the
    plain .song-view-header used by playlist-view, dev-options, the song
    editor, etc. is untouched. */
-/* No card background/border-radius here on purpose: .page already paints
-   its own radial-gradient wash behind this header (see .page above), and
-   that gradient varies smoothly across the screen. A flat --accent-tint
-   fill on this header used to sit on top of it as its own separate block,
-   so the header's edges showed up as a visible seam against the page's
-   gradient instead of blending into it. Leaving this transparent lets the
-   page's gradient show straight through, so the header reads as part of
-   the same wash rather than a card floating on it. */
+/* No flat card background/border-radius here on purpose: .page already
+   paints its own radial-gradient wash behind this header (see .page
+   above), and that gradient varies smoothly across the screen. A flat
+   --accent-tint fill on this header used to sit on top of it as its own
+   separate block, so the header's edges showed up as a visible seam
+   against the page's gradient instead of blending into it. What replaces
+   it is a soft glass wash (see ::before below) that fades to fully
+   transparent by the title, rather than a solid tint with a hard edge. */
 .sv-header-immersive {
+  position: relative;
+  /* Own stacking context so ::before below (z-index: -1) is guaranteed to
+     paint above .page's gradient but below the icon buttons/title, which
+     are ordinary in-flow children with the default z-index: auto. */
+  z-index: 0;
   flex-direction: column;
   align-items: stretch;
   gap: 0;
   padding: calc(env(safe-area-inset-top) + 14px) 2px 18px;
   margin: 0;
+}
+/* Cinematic glass wash behind the back/heart/kebab row, standing in for
+   the plain "Дууны ном" bar that used to live here. Two things have to
+   fade together, not just one, or this reads as a bar with an edge again
+   instead of a dissolve:
+     - the tint (background: a paper-tinted gradient going to fully
+       transparent) — without this the frosted color itself would stop
+       with a visible line
+     - the blur strength itself (mask-image, same gradient shape) — glass
+       effects apply backdrop-filter across their whole box uniformly, so
+       even with a transparent tint at the bottom, the *blur* would still
+       cut off exactly at this box's bottom edge and read as a seam.
+       Masking the element with the same top-to-bottom fade tapers the
+       blur intensity along with the tint, so both hit zero together and
+       the effect genuinely dissolves into .page's own gradient rather
+       than stopping.
+   Sized to clear the icon row generously and finish fading out before
+   the title (env(safe-area-inset-top) keeps it proportional to the
+   notch/status-bar height instead of a fixed guess). Purely decorative
+   (pointer-events: none) so it never intercepts taps meant for the back/
+   heart/kebab buttons floating in front of it. */
+.sv-header-immersive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  height: calc(env(safe-area-inset-top) + 130px);
+  z-index: -1;
+  pointer-events: none;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--paper) 55%, transparent) 0%,
+    color-mix(in srgb, var(--paper) 32%, transparent) 32%,
+    color-mix(in srgb, var(--paper) 10%, transparent) 60%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
+  mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
 }
 .sv-header-top { display: flex; align-items: center; justify-content: space-between; }
 .sv-header-actions { display: flex; align-items: center; gap: 8px; }
