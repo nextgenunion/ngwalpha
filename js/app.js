@@ -2320,6 +2320,19 @@ function bindScrollIndexInteraction() {
       if (labelEl) labelEl.textContent = isSearch ? '' : label;
       bubble.classList.toggle('is-search', isSearch);
       bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
+      // Crossing a digit boundary (song 9 -> 10, 99 -> 100) changes how
+      // wide the label naturally needs to be — measure that width with
+      // the constraint released for a moment (same before/after
+      // measure-then-restore trick as animateWrapHeightTo, just on width)
+      // so the CSS transition above has real start/end pixel values to
+      // interpolate between, instead of the box just snapping to its new
+      // fit-content size the instant the text changes.
+      const prevWidth = bubble.offsetWidth;
+      bubble.style.width = 'auto';
+      const naturalWidth = bubble.offsetWidth;
+      bubble.style.width = prevWidth + 'px';
+      void bubble.offsetWidth; // force the browser to register prevWidth before animating away from it
+      requestAnimationFrame(() => { bubble.style.width = naturalWidth + 'px'; });
       bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
     }
   }
@@ -2329,7 +2342,14 @@ function bindScrollIndexInteraction() {
     scrollIndexDragging = true;
     if (track.setPointerCapture) track.setPointerCapture(e.pointerId);
     setScrollIndexActive(true);
-    if (bubble) bubble.classList.add('is-visible');
+    if (bubble) {
+      bubble.classList.add('is-visible');
+      // Give the bubble a concrete starting width (rather than leaving it
+      // on its auto/fit-content sizing) so the very first label of this
+      // drag has an actual pixel value to transition width from, instead
+      // of snapping in at whatever size the new label happens to need.
+      bubble.style.width = bubble.offsetWidth + 'px';
+    }
     applyDrag(e.clientY);
     e.preventDefault();
   });

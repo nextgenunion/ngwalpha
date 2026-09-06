@@ -103,6 +103,12 @@
   --press-duration-out: .24s;
   --press-scale-icon: 0.93;
   --press-scale-pill: 0.97;
+  /* Decelerate-only spring: fast out of the gate, then eases into place
+     with a soft, slightly-overlong tail instead of a hard stop — no
+     overshoot past 1, unlike --press-ease. This is the "Pixel" curve:
+     used for transitions where something is arriving/settling into view
+     (page slides, sheets, list rows) rather than reacting to a tap. */
+  --motion-settle: cubic-bezier(.16, 1, .3, 1);
 
   /* Shared side margin for .page-inner (and anything, like the sticky
      song-view topbar, that needs to break out to full-bleed and match it
@@ -351,23 +357,28 @@ body.nav-hidden .page-inner {
    stacks use for this exact transition. A light shadow rides along on the
    entering/leaving page to sell the sense of one screen sitting on top of
    another rather than the two just swapping. */
-.page-slide-in, .page-slide-out {
-  box-shadow: -12px 0 28px rgba(0, 0, 0, 0.16);
-}
+/* Scale rides along with the slide (0.97→1 in, 1→0.97 out) so the moving
+   page settles into place rather than just stopping — the shadow (its
+   color's alpha is what's actually being animated here, same offset/blur
+   throughout) ramps in over the first chunk of the move and stays at
+   full strength rather than tracking the slide 1:1, so it doesn't read
+   as a flat fade layered on top. */
 @keyframes page-slide-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from { transform: translateX(100%) scale(.97); box-shadow: -12px 0 28px rgba(0, 0, 0, 0); }
+  40%  { box-shadow: -12px 0 28px rgba(0, 0, 0, 0.16); }
+  to   { transform: translateX(0) scale(1); box-shadow: -12px 0 28px rgba(0, 0, 0, 0.16); }
 }
 @keyframes page-slide-out {
-  from { transform: translateX(0); }
-  to   { transform: translateX(100%); }
+  from { transform: translateX(0) scale(1); box-shadow: -12px 0 28px rgba(0, 0, 0, 0.16); }
+  60%  { box-shadow: -12px 0 28px rgba(0, 0, 0, 0.16); }
+  to   { transform: translateX(100%) scale(.97); box-shadow: -12px 0 28px rgba(0, 0, 0, 0); }
 }
 .page-slide-in {
-  animation: page-slide-in 300ms cubic-bezier(.32, .72, .35, 1) both;
+  animation: page-slide-in 320ms var(--motion-settle) both;
   will-change: transform;
 }
 .page-slide-out {
-  animation: page-slide-out 300ms cubic-bezier(.32, .72, .35, 1) both;
+  animation: page-slide-out 260ms cubic-bezier(.4, 0, .68, .06) both;
   will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -854,7 +865,7 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
   opacity: 0;
   transform: scale(0.85) translateX(4px);
   transform-origin: right center;
-  transition: opacity .16s ease, transform .22s var(--press-ease), background-color .35s ease, border-color .35s ease;
+  transition: opacity .16s ease, transform .22s var(--press-ease), background-color .35s ease, border-color .35s ease, width .18s var(--motion-settle);
 }
 /* Browsers with neither color-mix() nor backdrop-filter (support always
    comes as a pair on the engines that lack them) fall back to the
@@ -1853,7 +1864,10 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   position: relative;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background .18s;
+  /* Track color lags the knob by a touch (.24s vs the knob's .32s spring
+     starting instantly) so the color settles just after the knob arrives,
+     rather than both finishing on the same flat beat. */
+  transition: background .24s ease .04s;
 }
 .switch[aria-checked="true"] { background: var(--accent); }
 .switch-knob {
@@ -1863,9 +1877,18 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow-1);
-  transition: transform .18s;
+  /* Overshoot spring (same family as --press-ease) on position, plus a
+     brief independent squash/stretch on width so the knob reads as a
+     soft, slightly compressible object rather than a rigid dot sliding
+     on a rail. */
+  transition: transform .32s var(--press-ease), width .18s ease;
 }
 .switch[aria-checked="true"] .switch-knob { transform: translateX(19px); }
+.switch:active .switch-knob { width: 25px; }
+.switch[aria-checked="true"]:active .switch-knob { transform: translateX(15px); }
+@media (prefers-reduced-motion: reduce) {
+  .switch, .switch-knob { transition: none; }
+}
 
 .btn-primary {
   background: var(--ink);
@@ -2327,7 +2350,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   align-items: flex-end;
   justify-content: center;
   opacity: 1;
-  transition: opacity .18s ease;
+  transition: opacity .24s ease;
 }
 .modal-overlay[hidden] { display: none; }
 .modal-overlay:not([hidden]) { display: flex; }
@@ -2341,11 +2364,16 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   border-radius: var(--radius-l) var(--radius-l) 0 0;
   box-shadow: var(--shadow-2);
   padding-bottom: env(safe-area-inset-bottom);
-  animation: modal-slide-up .22s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: modal-slide-up .38s var(--motion-settle);
 }
+/* Scale rides along with the slide-up (0.92→1) so the sheet visibly
+   grows into place rather than just rising — same layered-motion idea as
+   the page slide above. Slower and with a bigger scale delta than a
+   typical press animation on purpose: this is a whole surface arriving,
+   not a small control reacting to a tap, so it reads better slowed down. */
 @keyframes modal-slide-up {
-  from { transform: translateY(24px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(32px) scale(.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 /* Added by closeModal() alongside the overlay's opacity fade, so the
    sheet itself visibly retreats (shrinks back down, slightly faster than
@@ -2353,11 +2381,11 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
    "dismissal should read as snappier than the open" reasoning) instead
    of just vanishing the instant the backdrop fade finishes. */
 .modal-overlay-closing .modal-card {
-  animation: modal-slide-down .16s cubic-bezier(.4, 0, 1, 1) both;
+  animation: modal-slide-down .18s cubic-bezier(.4, 0, 1, 1) both;
 }
 @keyframes modal-slide-down {
-  from { transform: translateY(0); opacity: 1; }
-  to   { transform: translateY(16px); opacity: 0; }
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateY(16px) scale(.96); opacity: 0; }
 }
 @media (min-width: 560px) {
   .modal-overlay { align-items: center; }
