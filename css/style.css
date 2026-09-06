@@ -782,21 +782,28 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
    full width and centered. Scoped to this modifier class only, so the
    plain .song-view-header used by playlist-view, dev-options, the song
    editor, etc. is untouched. */
+/* No card background/border-radius here on purpose: .page already paints
+   its own radial-gradient wash behind this header (see .page above), and
+   that gradient varies smoothly across the screen. A flat --accent-tint
+   fill on this header used to sit on top of it as its own separate block,
+   so the header's edges showed up as a visible seam against the page's
+   gradient instead of blending into it. Leaving this transparent lets the
+   page's gradient show straight through, so the header reads as part of
+   the same wash rather than a card floating on it. */
 .sv-header-immersive {
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  background: var(--accent-tint);
-  border-radius: var(--radius-l);
-  padding: 14px 14px 18px;
-  margin: 10px 0 0;
+  padding: calc(env(safe-area-inset-top) + 14px) 2px 18px;
+  margin: 0;
 }
 .sv-header-top { display: flex; align-items: center; justify-content: space-between; }
 .sv-header-actions { display: flex; align-items: center; gap: 8px; }
-/* Floating circles need to stand out against the tinted card behind them
-   (a plain --surface fill would nearly disappear into --accent-tint in
-   light mode), so these get the card's own paper color plus a touch of
-   shadow instead of the ordinary .icon-btn border/surface treatment. */
+/* Floating circles still need to stand out against the page's gradient
+   wash behind them (a plain --surface fill can nearly disappear into the
+   lightest part of that gradient), so these keep their own paper color
+   plus a touch of shadow instead of the ordinary .icon-btn border/surface
+   treatment. */
 .icon-btn-float { background: var(--paper); border-color: transparent; box-shadow: var(--shadow-1); }
 
 .sv-header-immersive .song-view-title { flex: none; width: 100%; padding-top: 0; margin-top: 14px; }
