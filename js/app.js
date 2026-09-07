@@ -2064,7 +2064,22 @@ function renderSongList(opts = {}) {
     const cleanup = () => {
       li.removeEventListener('animationend', cleanup);
       li._exitCleanup = null;
-      li.remove();
+      // Capture where every remaining row currently sits right before
+      // this row is actually removed from flow — removal (not the fade
+      // itself, which doesn't collapse the row's space) is what causes
+      // rows below to shift up, so this is the moment that shift becomes
+      // real. Reuses the exact same FLIP-spring helper as playlist
+      // drag-reorder (see flipReorderedSiblings) so a row sliding up to
+      // fill a gap here feels identical to a row sliding into place
+      // there — no dragged element to exclude in this case, hence null.
+      if (!prefersReducedMotion()) {
+        const beforeRects = new Map();
+        Array.from(listEl.children).forEach(c => { if (c !== li) beforeRects.set(c, c.getBoundingClientRect()); });
+        li.remove();
+        flipReorderedSiblings(listEl, null, beforeRects);
+      } else {
+        li.remove();
+      }
     };
     li._exitCleanup = cleanup;
     li.addEventListener('animationend', cleanup);
@@ -3435,7 +3450,14 @@ function renderPlaylistsList(opts = {}) {
     const cleanup = () => {
       li.removeEventListener('animationend', cleanup);
       li._exitCleanup = null;
-      li.remove();
+      if (!prefersReducedMotion()) {
+        const beforeRects = new Map();
+        Array.from(listEl.children).forEach(c => { if (c !== li) beforeRects.set(c, c.getBoundingClientRect()); });
+        li.remove();
+        flipReorderedSiblings(listEl, null, beforeRects);
+      } else {
+        li.remove();
+      }
     };
     li._exitCleanup = cleanup;
     li.addEventListener('animationend', cleanup);
