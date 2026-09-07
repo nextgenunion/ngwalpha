@@ -431,7 +431,18 @@ body.nav-hidden .page-inner {
 .brand-mark {
   width: 26px;
   height: 26px;
+  /* brand-music-note.svg's own <path> elements each carry their own
+     fill="currentColor" (unlike the nav-*.svg icons, which leave fill
+     unset on their paths and pick up whatever `fill` this wrapper gets
+     in CSS). currentColor reads the `color` property, not `fill`, so
+     the `fill` line below is a no-op for *this* icon — it's kept only
+     so a future replacement icon that (like the nav icons) leaves fill
+     unset on its own paths still gets colored correctly too.
+     `color` is what actually drives this icon's color, and it rides
+     the same --accent-strong transition declared on :root, so it fades
+     in step with the bottom nav whenever the accent swatch changes. */
   fill: var(--accent-strong);
+  color: var(--accent-strong);
   flex-shrink: 0;
 }
 .page-header h1 {
