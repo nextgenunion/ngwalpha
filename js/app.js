@@ -2317,22 +2317,32 @@ function bindScrollIndexInteraction() {
       const label = labelForScrollTop(pageEl.scrollTop);
       const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
       const labelEl = document.getElementById('song-scroll-index-bubble-label');
-      if (labelEl) labelEl.textContent = isSearch ? '' : label;
+      const labelText = isSearch ? '' : label;
+      // Only re-measure/animate width when the label actually changed —
+      // during a fast drag this function can run many times per frame,
+      // and re-running the measure-and-restart dance on every single call
+      // regardless (as this used to) forces a layout thrash each time and
+      // races with itself: by the time a later call reads the "current"
+      // width to animate from, an earlier call's update may not have
+      // committed yet, so the box reads a stale size and appears stuck
+      // until the drag slows down enough for everything to catch up.
+      // Skipping the work entirely when nothing changed removes both the
+      // thrash and the race.
+      if (labelEl && labelEl.textContent !== labelText) {
+        labelEl.textContent = labelText;
+        // Crossing a digit boundary (song 9 -> 10, 99 -> 100) changes how
+        // wide the label naturally needs to be — measure that with the
+        // constraint released for a moment, then commit the new width
+        // immediately (synchronously, not via requestAnimationFrame) so
+        // the CSS transition picks it up from whatever was last actually
+        // painted and animates straight to it, with no deferred step for
+        // a later call to race against.
+        bubble.style.width = 'auto';
+        const naturalWidth = bubble.offsetWidth;
+        bubble.style.width = naturalWidth + 'px';
+      }
       bubble.classList.toggle('is-search', isSearch);
       bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
-      // Crossing a digit boundary (song 9 -> 10, 99 -> 100) changes how
-      // wide the label naturally needs to be — measure that width with
-      // the constraint released for a moment (same before/after
-      // measure-then-restore trick as animateWrapHeightTo, just on width)
-      // so the CSS transition above has real start/end pixel values to
-      // interpolate between, instead of the box just snapping to its new
-      // fit-content size the instant the text changes.
-      const prevWidth = bubble.offsetWidth;
-      bubble.style.width = 'auto';
-      const naturalWidth = bubble.offsetWidth;
-      bubble.style.width = prevWidth + 'px';
-      void bubble.offsetWidth; // force the browser to register prevWidth before animating away from it
-      requestAnimationFrame(() => { bubble.style.width = naturalWidth + 'px'; });
       bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
     }
   }
