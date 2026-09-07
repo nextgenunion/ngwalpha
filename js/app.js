@@ -102,6 +102,7 @@ const state = {
   sources: {
     official: { songs: [], loadFailed: false },
     english: { songs: [], loadFailed: false },
+    sda: { songs: [], loadFailed: false },
     // User Songs (v3): not fetched from a manifest like official/english —
     // loaded from IndexedDB via UserSongStorage (see loadUserSongs()) —
     // but shaped identically otherwise, so every list/search/sort/song-view
@@ -435,13 +436,31 @@ async function requestPersistentStorage() {
 // ---------------------------------------------------------
 // Song databases — each is its own folder under data/, with its own
 // manifest.json listing that folder's song files. Registered here in one
-// place (DB_SOURCES) so adding a future third database (or a next-gen
-// version of this app adding more) is: pick a new key, add a folder +
-// manifest under data/, add one entry below, add one <option> to
-// #db-select in index.html — nothing else in this file needs to change,
-// since every function below reads a source's folder/hasNumbers from this
-// registry rather than assuming 'data/songs/' or that every song has a
-// number.
+// place (DB_SOURCES), which every list/search/sort/song-view function
+// below reads a source's folder/hasNumbers from rather than assuming
+// 'data/songs/' or that every song has a number — so none of THAT code
+// needs to change for a new database. Adding one (the sda database is
+// the worked example) does still touch a small, fixed set of spots
+// elsewhere, each a one-line addition:
+//   1. A new folder + manifest.json + song files under data/.
+//   2. One entry here in DB_SOURCES (folder + hasNumbers).
+//   3. One entry in state.sources, above (just above this block) —
+//      loadSongDataFor()/loadAllSongData() write into
+//      state.sources[sourceKey], so a source missing from here throws
+//      the moment its own load resolves.
+//   4. One entry in SONGDB_STORES (the source's IndexedDB backup store),
+//      further below — AND a SONGDB_VERSION bump next to it, since only
+//      a version bump makes existing installs' onupgradeneeded actually
+//      create the new store; without one, IndexedDB fallback for that
+//      source silently never works on devices that already have the app.
+//   5. One entry in service-worker.js's SONG_DB_FOLDERS, so the new
+//      database gets precached for offline use (kept in sync with
+//      DB_SOURCES by hand — a service worker can't import this file).
+//   6. One <option> for it in index.html's #db-select, with its value
+//      equal to its DB_SOURCES key — dbSelect reads/writes that key
+//      directly (see bindSettings() and the 'sb-db' restore in
+//      loadPrefs()), so no further translation table is needed as new
+//      options are added.
 //
 //   folder     — the data/ subfolder this source's songs and
 //                manifest.json live in.
@@ -454,6 +473,7 @@ async function requestPersistentStorage() {
 const DB_SOURCES = {
   official: { folder: 'mongolian', hasNumbers: true },
   english:  { folder: 'english',   hasNumbers: false },
+  sda:      { folder: 'sda',       hasNumbers: true },
 };
 
 // One JSON file per song, listed in <folder>/manifest.json. Adding a song
@@ -517,22 +537,28 @@ async function fetchSongData(sourceKey, { forceRefresh = false } = {}) {
 // eviction policy than IndexedDB's) while the network is also unavailable.
 // ---------------------------------------------------------
 const SONGDB_NAME = 'songbook-db';
-// Bumped 1 → 2 to add 'user-songs', then 2 → 3 to add 'english-songs'
-// below (an IndexedDB store can only be created inside onupgradeneeded,
-// which only fires on a version increase). onupgradeneeded is written to
-// only create stores that don't already exist, so each of these upgrades
-// is additive for already-installed devices — their existing official-
-// songs backup is untouched.
+// Bumped 1 → 2 to add 'user-songs', 2 → 3 to add 'english-songs', then
+// 3 → 4 to add 'sda-songs' below (an IndexedDB store can only be created
+// inside onupgradeneeded, which only fires on a version increase).
+// onupgradeneeded is written to only create stores that don't already
+// exist, so each of these upgrades is additive for already-installed
+// devices — their existing official-songs backup is untouched. This is
+// the one part of adding a database that isn't a same-file, no-bump
+// addition like the others (see the "adding a database" list above
+// DB_SOURCES) — skipping the bump would leave the new store never
+// created on any device that already has the app installed, silently
+// disabling that source's offline fallback for exactly the devices that
+// most need it.
 //
 // 'user-songs' specifically is used differently from 'songs'/'english-
-// songs': those two are a fetch() backup (one blob under the 'all-songs'
-// key — see saveSongsToIndexedDb/loadSongsFromIndexedDb below). User Songs
-// have no network source to fall back FROM — this store IS their only
-// copy — so UserSongStorage (see "User Songs" section further down) reads
-// and writes it directly, one song per key (its own id), instead of one
-// combined blob. Same store, same reserved slot from v1, different access
-// pattern for a different job.
-const SONGDB_VERSION = 3;
+// songs'/'sda-songs': those three are a fetch() backup (one blob under
+// the 'all-songs' key — see saveSongsToIndexedDb/loadSongsFromIndexedDb
+// below). User Songs have no network source to fall back FROM — this
+// store IS their only copy — so UserSongStorage (see "User Songs"
+// section further down) reads and writes it directly, one song per key
+// (its own id), instead of one combined blob. Same store, same reserved
+// slot from v1, different access pattern for a different job.
+const SONGDB_VERSION = 4;
 // One object store per song source (see state.sources/DB_SOURCES above),
 // so each source's offline backup lives independently and nothing
 // collides. 'user' is reserved, unused, so v2's User Songs source can
@@ -542,6 +568,7 @@ const SONGDB_STORES = {
   official: 'songs', // kept as 'songs', not renamed to 'official-songs', so
                       // existing installs' offline backup carries over as-is
   english: 'english-songs',
+  sda: 'sda-songs',
   user: 'user-songs',
 };
 
@@ -1088,12 +1115,20 @@ function loadPrefs() {
   }
   applyLyricsSpacing();
 
-  // Restore which song database was active (see applyDbSource()). Reuses
-  // the 'sb-db' key/values ('mn'/'en') the dbSelect dropdown itself
-  // stores in bindSettings(), so a value saved by an older app version
-  // that only ever wrote 'mn' still resolves correctly to 'official'.
+  // Restore which song database was active (see applyDbSource()). Since
+  // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
+  // writes dbSelect.value, and dbSelect's own <option value="..."> in
+  // index.html is that key) — so this resolves against DB_SOURCES rather
+  // than a hardcoded pair, and keeps working as more databases are added.
+  // A device upgrading from an older app version has 'mn' or 'en'
+  // already saved — the two-value shorthand that version's dbSelect used
+  // — so those are translated here too. Anything else unrecognized
+  // (including a source key from a since-removed database) falls back to
+  // the default 'official' database rather than leaving no source active.
   const savedDb = localStorage.getItem('sb-db');
-  applyDbSource(savedDb === 'en' ? 'english' : 'official');
+  const legacyDbKeys = { mn: 'official', en: 'english' };
+  const resolvedDb = legacyDbKeys[savedDb] || (DB_SOURCES[savedDb] ? savedDb : 'official');
+  applyDbSource(resolvedDb);
 }
 
 function applyFontSizes() {
@@ -1223,12 +1258,13 @@ function applyLyricsSpacing() {
 // saved choice.
 //
 // Resets the search query on switch (a query typed against one source's
-// titles/lyrics is unlikely to mean anything in the other, and leaving it
-// behind would just show a confusing "no results"). If the new source has
-// no song numbers (see DB_SOURCES' hasNumbers — the English database),
-// this also hides the "Sort by number" button and snaps sortBy to 'alpha'
-// so the Songs page never gets stuck showing a sort control for a field
-// that doesn't exist; switching to a numbered source later restores it.
+// titles/lyrics is unlikely to mean anything in a different source, and
+// leaving it behind would just show a confusing "no results"). If the
+// new source has no song numbers (see DB_SOURCES' hasNumbers — the
+// English database), this also hides the "Sort by number" button and
+// snaps sortBy to 'alpha' so the Songs page never gets stuck showing a
+// sort control for a field that doesn't exist; switching to a numbered
+// source later restores it.
 function applyDbSource(sourceKey) {
   state.activeDbSource = sourceKey;
   state.query = '';
@@ -4402,9 +4438,9 @@ function bindSettings() {
   });
 
   const dbSelect = document.getElementById('db-select');
-  dbSelect.value = state.activeDbSource === 'english' ? 'en' : 'mn';
+  dbSelect.value = state.activeDbSource;
   dbSelect.addEventListener('change', () => {
-    applyDbSource(dbSelect.value === 'en' ? 'english' : 'official');
+    applyDbSource(dbSelect.value);
     localStorage.setItem('sb-db', dbSelect.value);
     showToast(t('toastDbSaved'));
   });

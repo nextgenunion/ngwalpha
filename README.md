@@ -58,6 +58,26 @@ next", below.
 - Every new interface string ships translated in all four language files
   (`mn`, `eng`, `kr`, `mn2`) — `mn2` (traditional Mongolian script) follows
   the same Cyrillic-fallback convention already used there for Playlists
+- **English (SDA) song database** — a third database, `data/sda/`, seeded
+  with 695 hymns (with chord charts and song numbers, like the Mongolian
+  database) converted from an existing SDA hymnal JSON export. The
+  Mongolian database's display name in Settings → Song database changed
+  from "Монгол (Official)" to "Монгол (ДАС)"
+- **`db-select`'s values are now real `DB_SOURCES` keys** (`official`,
+  `english`, `sda`) instead of the old two-value `mn`/`en` shorthand.
+  Adding the third option exposed that the dropdown's restore-on-startup
+  and change-handler logic were still hardcoded to that binary choice
+  (despite DB_SOURCES itself already being a generic registry) — a third
+  option would have silently resolved to the Mongolian database instead
+  of actually switching. Fixed by having both read/write the selected
+  source's key directly; a device with `mn`/`en` already saved from
+  before this change still resolves correctly
+- Adding a database now also needs one `SONGDB_STORES` entry (its
+  IndexedDB backup) and a `SONGDB_VERSION` bump (3 → 4, to create that
+  store on already-installed devices) — previously undocumented steps
+  that the sda database's `SONGDB_STORES.sda = 'sda-songs'` entry is the
+  worked example for. See the comment above `DB_SOURCES` in `js/app.js`
+  for the full, corrected list of what adding a database touches
 
 ## What's new in v2.4.0-beta (Playlists, Favorites, Chord Visibility, Hide Chords, Developer Options, English Song Database)
 
@@ -204,8 +224,8 @@ js/app.js            All app logic: search, sort, transpose, language switching,
 app.js               Mirror of js/app.js — not loaded by index.html; kept in
                      sync as a convenience copy at the repo root
 data/                One folder per song database, each with its own JSON
-                     files + manifest.json (data/mongolian/, data/english/
-                     — see DB_SOURCES in js/app.js for the registry)
+                     files + manifest.json (data/mongolian/, data/english/,
+                     data/sda/ — see DB_SOURCES in js/app.js for the registry)
 lang/*.js         Interface text — one file per language (config.js + eng.js/mn.js/kr.js)
 manifest.json         PWA manifest
 service-worker.js     Offline caching (cache-first w/ background refresh)
@@ -218,12 +238,12 @@ the root copy if it isn't needed; it's not referenced anywhere).
 
 ## Multiple song databases
 
-Each song database is its own folder under `data/` — `data/mongolian/`
-(the default, official database) and `data/english/` (off by default; see
-"Developer options" above for how to enable it). Every database has the
-same shape: one JSON file per song plus that folder's own
-`manifest.json` listing them (see "Why song data moved to one JSON file
-per song" below for that part's own reasoning).
+Each song database is its own folder under `data/`: `data/mongolian/`
+("Монгол (ДАС)", the default), `data/english/` ("English", 6 generic
+public-domain hymns), and `data/sda/` ("English (SDA)", 695 hymns from an
+SDA hymnal). Every database has the same shape: one JSON file per song
+plus that folder's own `manifest.json` listing them (see "Why song data
+moved to one JSON file per song" below for that part's own reasoning).
 
 The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
 
@@ -231,16 +251,23 @@ The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
 const DB_SOURCES = {
   official: { folder: 'mongolian', hasNumbers: true },
   english:  { folder: 'english',   hasNumbers: false },
+  sda:      { folder: 'sda',       hasNumbers: true },
 };
 ```
 
-Adding a third database (a next-gen version of this app, a different
-language, a different congregation's songbook) is: create the folder +
-its `manifest.json` + song files, add one entry here, add one `<option>`
-to `#db-select` in `index.html` — nothing else in the app needs to
-change. Every function that loads or displays song data reads a
-database's folder and `hasNumbers` from this registry rather than
-assuming a fixed path or that every song has a number.
+Adding a database (a next-gen version of this app, a different language,
+a different congregation's songbook) is: create the folder + its
+`manifest.json` + song files, add one entry here, add one `<option>` to
+`#db-select` in `index.html` (its `value` is this registry's key — see
+`bindSettings()`/`loadPrefs()` in `js/app.js`), one `SONGDB_STORES` entry
+plus a `SONGDB_VERSION` bump (both further down in `js/app.js`, for that
+database's IndexedDB offline backup), and one entry in
+`service-worker.js`'s `SONG_DB_FOLDERS` (for offline precaching) — see
+the comment above `DB_SOURCES` in `js/app.js` for the full list, with the
+sda database as the worked example. Every function that loads or
+displays song data reads a database's folder and `hasNumbers` from this
+registry rather than assuming a fixed path or that every song has a
+number.
 
 `hasNumbers: false` (as set for the English database) means that
 database's songs have no `number` field at all — the app hides the
@@ -348,8 +375,8 @@ and all — it's never cropped, so there's no safe-zone constraint on it.
 ## Editing the song list
 
 To add a song: create `data/<folder>/sNNN.json` (copy an existing one as a
-template — `<folder>` is `mongolian` or `english`, or a folder you've
-registered in `DB_SOURCES`, see "Multiple song databases" above) and add
+template — `<folder>` is `mongolian`, `english`, or `sda`, or a folder
+you've registered in `DB_SOURCES`, see "Multiple song databases" above) and add
 its filename to that folder's own `manifest.json`. To edit a song: open
 its file directly. Nothing in `js/app.js` needs to change either way —
 each database's manifest is the only "index" the app needs for it.

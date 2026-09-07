@@ -1,0 +1,37 @@
+{
+  "id": "h300",
+  "number": 300,
+  "title": "Rock of Ages",
+  "artist": "Traditional",
+  "key": "A",
+  "lyrics": [
+    "[A]Rock of Ages, [D]cleft for [A]me,",
+    "Let me hide my - [E7]self in [A]Thee;",
+    "Let the [E]water and the [A]blood,",
+    "From Thy [E]riven side which [A]flowed,",
+    "[E7]Be of [A]sin the [D]double [A]cure,",
+    "Cleanse me from its [E7]guilt and [A]power.",
+    "   or",
+    "[F#m]Cleanse me [A]from its [E7]guilt and [A]power.",
+    "",
+    "Not the labor of my hands",
+    "Can fulfill Thy law's demands;",
+    "Could my zeal no respite know,",
+    "Could my tears forever flow,",
+    "All for sin could not atone;",
+    "Thou must save, and Thou alone.",
+    "",
+    "When my pilgrimage I close;",
+    "Victor o'er the last of foes,",
+    "When I soar to worlds unknown,",
+    "And behold Thee on Thy throne,",
+    "Rock of Ages, cleft for me,",
+    "Let me hide myself in Thee."
+  ],
+  "links": [
+    {
+      "label": "YouTube",
+      "url": "https://www.youtube.com/results?search_query=Rock+of+Ages+hymn"
+    }
+  ]
+}
