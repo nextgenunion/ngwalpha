@@ -2655,8 +2655,16 @@ function openSong(song, opts = {}) {
 
 function updateTransposeUI(opts = {}) {
   const { animate = false } = opts;
-  document.getElementById('transpose-offset').textContent =
-    (state.transpose > 0 ? '+' : '') + state.transpose;
+  const offsetEl = document.getElementById('transpose-offset');
+  offsetEl.textContent = (state.transpose > 0 ? '+' : '') + state.transpose;
+  if (animate && !prefersReducedMotion()) {
+    // Reuses chord-pop's spring keyframe — same little "settle in" pop as
+    // each transposed chord gets, just on the offset readout itself
+    // instead of snapping straight to the new digit.
+    offsetEl.classList.remove('chord-pop');
+    void offsetEl.offsetWidth;
+    offsetEl.classList.add('chord-pop');
+  }
   document.getElementById('transpose-up').disabled = state.transpose >= TRANSPOSE_LIMIT;
   document.getElementById('transpose-down').disabled = state.transpose <= -TRANSPOSE_LIMIT;
   const song = state.activeSong;
@@ -4410,6 +4418,14 @@ function showToast(msg, action, duration = 2200) {
     showToast._pendingCommit = null;
     commit();
   }
+  // A previous toast's exit animation may still be mid-flight (e.g. this
+  // one was triggered right as the last one was fading out) — cancel it
+  // and restart the pop-in fresh rather than letting the two animations
+  // fight or leaving the new toast stuck at a mid-exit opacity/scale.
+  el.classList.remove('is-leaving');
+  el.style.animation = 'none';
+  void el.offsetWidth; // force the browser to register the removal before re-adding, so the pop-in restarts even if the toast was already visible
+  el.style.animation = '';
 
   if (action) {
     actionEl.textContent = action.label;
@@ -4436,12 +4452,30 @@ function showToast(msg, action, duration = 2200) {
   el.hidden = false;
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => {
-    el.hidden = true;
-    if (showToast._pendingCommit) {
-      const commit = showToast._pendingCommit;
-      showToast._pendingCommit = null;
-      commit();
-    }
+    // Play the spring-out before actually hiding, instead of cutting
+    // straight to `hidden` — mirrors the modal's slide-down-then-hide
+    // pattern (see closeModal). Reduced-motion users skip straight to
+    // hidden, same as everywhere else in the app.
+    const finish = () => {
+      el.hidden = true;
+      el.classList.remove('is-leaving');
+      if (showToast._pendingCommit) {
+        const commit = showToast._pendingCommit;
+        showToast._pendingCommit = null;
+        commit();
+      }
+    };
+    if (prefersReducedMotion()) { finish(); return; }
+    el.classList.add('is-leaving');
+    const cleanup = (e) => {
+      if (e && e.animationName !== 'toast-pop-out') return;
+      el.removeEventListener('animationend', cleanup);
+      el._toastHideCleanup = null;
+      finish();
+    };
+    if (el._toastHideCleanup) el.removeEventListener('animationend', el._toastHideCleanup);
+    el._toastHideCleanup = cleanup;
+    el.addEventListener('animationend', cleanup);
   }, duration);
 }
 

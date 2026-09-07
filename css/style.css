@@ -109,6 +109,10 @@
      used for transitions where something is arriving/settling into view
      (page slides, sheets, list rows) rather than reacting to a tap. */
   --motion-settle: cubic-bezier(.16, 1, .3, 1);
+  /* Gentle overshoot — same family as --press-ease but a smaller bounce,
+     for feedback that should feel alive without being as playful as a
+     tap on a small icon/pill (a whole list row, a bigger surface). */
+  --press-ease-soft: cubic-bezier(.3, 1.2, .5, 1);
 
   /* Shared side margin for .page-inner (and anything, like the sticky
      song-view topbar, that needs to break out to full-bleed and match it
@@ -185,7 +189,12 @@ html[data-theme="dark"][data-accent="red"]        { --accent: #F0A3AF; --accent-
   object-fit: contain;
   border-radius: var(--radius-l);
   animation: splash-pop 1s cubic-bezier(0.34, 1.2, 0.64, 1);
+  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* Mirrors the pop-in with a gentle shrink on the way out, synced to the
+   screen's own fade (same duration/curve) so the logo doesn't just sit
+   frozen while only the backdrop behind it fades. */
+#splash-screen.is-hidden #splash-logo { transform: scale(0.92); }
 @keyframes splash-pop {
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
@@ -458,7 +467,13 @@ body.nav-hidden .page-inner {
   flex-direction: row;
   align-items: flex-start;
   gap: 10px;
-  animation: sabbath-bob 3.4s ease-in-out infinite;
+  animation: mascot-pop-in .5s var(--press-ease) both, sabbath-bob 3.4s ease-in-out .5s infinite;
+}
+/* Delayed to start only after mascot-pop-in above finishes, so the two
+   transform animations never run at the same time. */
+@keyframes mascot-pop-in {
+  from { opacity: 0; transform: scale(.4) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes sabbath-bob {
   0%, 100% { transform: translateY(0); }
@@ -561,9 +576,11 @@ body.nav-hidden .page-inner {
   border-radius: var(--radius-m);
   padding: 0 14px;
   box-shadow: var(--shadow-1);
-  transition: border-color .15s, box-shadow .15s;
+  transform: scale(1);
+  transition: border-color .15s ease, box-shadow .2s ease, transform .3s var(--press-ease);
 }
 .search-bar:focus-within {
+  transform: scale(1.012);
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 3px var(--accent-tint);
 }
@@ -695,7 +712,7 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-1);
-  transition: transform .12s ease, box-shadow .12s ease;
+  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
 }
 .song-row:active { transform: scale(0.99); }
 .song-row:hover { box-shadow: var(--shadow-2); }
@@ -1191,10 +1208,15 @@ html[data-theme="dark"] .sv-header-immersive::before {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   line-height: 1;
+  transition: background .15s ease, transform var(--press-duration-out) var(--press-ease);
 }
-.chip-btn:active { background: var(--accent-tint); }
+.chip-btn:active {
+  background: var(--accent-tint);
+  transform: scale(var(--press-scale-icon));
+  transition-duration: var(--press-duration-in);
+}
 .chip-btn:disabled { opacity: .35; cursor: not-allowed; }
-.chip-btn:disabled:active { background: var(--paper); }
+.chip-btn:disabled:active { background: var(--paper); transform: none; }
 /* transpose-reset ("Буцаах" / "Reset"): a short WORD, not a single glyph,
    so this needs to be a pill sized to its own text — width: auto here is
    what makes that happen. Long translated labels shouldn't look bigger
@@ -1303,7 +1325,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
   background: var(--accent-strong);
   z-index: 0;
   pointer-events: none;
-  transition: transform .32s cubic-bezier(.32, 1.15, .4, 1), width .32s cubic-bezier(.32, 1.15, .4, 1);
+  transition: transform .32s var(--motion-settle), width .32s var(--motion-settle);
 }
 /* Dark mode inverts --accent-strong to a pale text-tint (readable as text
    on a dark surface — see .btn-secondary), not a fill — using it as the
@@ -1931,8 +1953,11 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
   cursor: pointer;
   padding: 0;
   position: relative;
+  transform: scale(1);
+  transition: border-color .18s ease, transform .32s var(--press-ease);
 }
-.accent-swatch[aria-pressed="true"] { border-color: var(--ink); }
+.accent-swatch:active { transform: scale(0.88); transition-duration: var(--press-duration-in); }
+.accent-swatch[aria-pressed="true"] { border-color: var(--ink); transform: scale(1.08); }
 .accent-swatch[aria-pressed="true"]::after {
   content: '';
   position: absolute; inset: 0;
@@ -2011,6 +2036,34 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
   display: flex;
   align-items: center;
   gap: 12px;
+  animation: toast-pop-in .34s var(--press-ease) both;
+}
+/* translateX(-50%) is the toast's own horizontal centering (see the base
+   rule above) — kept in every keyframe stop here alongside the vertical
+   motion/scale so the pop doesn't momentarily un-center itself. */
+@keyframes toast-pop-in {
+  from { transform: translateX(-50%) translateY(16px) scale(.9); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.toast.is-leaving {
+  animation: toast-pop-out .2s cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes toast-pop-out {
+  from { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateX(-50%) translateY(10px) scale(.92); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Marked !important so this survives the blanket `* { animation: none
+     !important }` reduced-motion rule elsewhere in this file — that
+     blanket rule is what keeps the rest of the app fully static for
+     vestibular/motion-sensitive users, but a toast popping fully instant
+     into existence (rather than just not sliding/scaling) reads as a
+     glitch rather than a calmer version of the animation, so this one
+     component gets a plain opacity crossfade instead of nothing. */
+  .toast { animation: toast-fade-in .12s ease both !important; }
+  .toast.is-leaving { animation: toast-fade-out .12s ease both !important; }
+  @keyframes toast-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toast-fade-out { from { opacity: 1; } to { opacity: 0; } }
 }
 /* `.toast { display:flex }` above and the `[hidden]` attribute have equal
    CSS specificity (0-1-0), so without this rule the later author rule wins
@@ -2118,7 +2171,7 @@ button:disabled { transform: none !important; }
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-1);
-  transition: transform .12s ease, box-shadow .12s ease;
+  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
 }
 .playlist-row:active { transform: scale(0.99); }
 .playlist-row:hover { box-shadow: var(--shadow-2); }
@@ -2453,7 +2506,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--ink);
-  transition: transform .15s ease-out; /* same subtle press feel as .song-row/.playlist-row, not the universal button pop — see that rule's comment */
+  transition: transform .18s var(--press-ease-soft); /* same subtle spring press feel as .song-row/.playlist-row, not the universal button pop — see that rule's comment */
 }
 .checklist-item:active { transform: scale(0.99); }
 .checklist-item-sub { font-size: 0.78rem; color: var(--ink-faint); font-weight: 400; margin-top: 1px; }
@@ -2503,7 +2556,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--accent-strong);
-  transition: transform .15s ease-out; /* same subtle press feel as .checklist-item, not the universal button pop */
+  transition: transform .18s var(--press-ease-soft); /* same subtle spring press feel as .checklist-item, not the universal button pop */
 }
 .modal-new-playlist-row:active { transform: scale(0.99); }
 .modal-new-playlist-row svg { width: 16px; height: 16px; fill: currentColor; }
