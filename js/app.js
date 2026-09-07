@@ -473,7 +473,7 @@ async function requestPersistentStorage() {
 const DB_SOURCES = {
   official: { folder: 'mongolian', hasNumbers: true },
   english:  { folder: 'english',   hasNumbers: false },
-  sda:      { folder: 'sda',       hasNumbers: true },
+  sda:      { folder: 'hymn',      hasNumbers: true },
 };
 
 // One JSON file per song, listed in <folder>/manifest.json. Adding a song

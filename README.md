@@ -58,7 +58,7 @@ next", below.
 - Every new interface string ships translated in all four language files
   (`mn`, `eng`, `kr`, `mn2`) — `mn2` (traditional Mongolian script) follows
   the same Cyrillic-fallback convention already used there for Playlists
-- **English (SDA) song database** — a third database, `data/sda/`, seeded
+- **English (SDA) song database** — a third database, `data/hymn/`, seeded
   with 695 hymns (with chord charts and song numbers, like the Mongolian
   database) converted from an existing SDA hymnal JSON export. The
   Mongolian database's display name in Settings → Song database changed
@@ -225,7 +225,7 @@ app.js               Mirror of js/app.js — not loaded by index.html; kept in
                      sync as a convenience copy at the repo root
 data/                One folder per song database, each with its own JSON
                      files + manifest.json (data/mongolian/, data/english/,
-                     data/sda/ — see DB_SOURCES in js/app.js for the registry)
+                     data/hymn/ — see DB_SOURCES in js/app.js for the registry)
 lang/*.js         Interface text — one file per language (config.js + eng.js/mn.js/kr.js)
 manifest.json         PWA manifest
 service-worker.js     Offline caching (cache-first w/ background refresh)
@@ -240,7 +240,7 @@ the root copy if it isn't needed; it's not referenced anywhere).
 
 Each song database is its own folder under `data/`: `data/mongolian/`
 ("Монгол (ДАС)", the default), `data/english/` ("English", 6 generic
-public-domain hymns), and `data/sda/` ("English (SDA)", 695 hymns from an
+public-domain hymns), and `data/hymn/` ("English (SDA)", 695 hymns from an
 SDA hymnal). Every database has the same shape: one JSON file per song
 plus that folder's own `manifest.json` listing them (see "Why song data
 moved to one JSON file per song" below for that part's own reasoning).
@@ -251,7 +251,7 @@ The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
 const DB_SOURCES = {
   official: { folder: 'mongolian', hasNumbers: true },
   english:  { folder: 'english',   hasNumbers: false },
-  sda:      { folder: 'sda',       hasNumbers: true },
+  sda:      { folder: 'hymn',      hasNumbers: true },
 };
 ```
 
@@ -375,7 +375,7 @@ and all — it's never cropped, so there's no safe-zone constraint on it.
 ## Editing the song list
 
 To add a song: create `data/<folder>/sNNN.json` (copy an existing one as a
-template — `<folder>` is `mongolian`, `english`, or `sda`, or a folder
+template — `<folder>` is `mongolian`, `english`, or `hymn`, or a folder
 you've registered in `DB_SOURCES`, see "Multiple song databases" above) and add
 its filename to that folder's own `manifest.json`. To edit a song: open
 its file directly. Nothing in `js/app.js` needs to change either way —
