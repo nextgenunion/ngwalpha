@@ -98,7 +98,7 @@
      --press-scale-icon is for small icon-only controls; --press-scale-pill
      is the gentler amount for wider text/pill controls, so both feel
      equally "subtle" despite the size difference. */
-  --press-ease: cubic-bezier(.34, 1.76, .64, 1);
+  --press-ease: cubic-bezier(.34, 1.56, .64, 1);
   --press-duration-in: .08s;
   --press-duration-out: .24s;
   --press-scale-icon: 0.93;
@@ -674,18 +674,14 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   animation: list-refresh-flash .32s cubic-bezier(.22, .61, .36, 1);
 }
 
-/* Per-row fade/spring for search/sort updates (see renderSongList's
-   diffed render in app.js): only songs actually entering or leaving the
-   visible results animate — rows that match both before and after are
-   just reused/reordered in place, repositioned via the FLIP-spring in
-   flipReorderedSiblings() rather than fading at all. Deliberately
-   asymmetric: a row leaving the results should read as a quick, quiet
-   fade (no bounce — it's going away, not arriving), while a row newly
-   matching the search should feel alive, springing/bouncing up from
-   below on the same overshoot curve as everything else with personality
-   in this app (playlist reorder, button presses, chord-pop). */
+/* Per-row fade for search/sort updates (see renderSongList's diffed
+   render in app.js): only songs actually entering or leaving the visible
+   results animate — rows that match both before and after are just
+   reused/reordered in place with no fade at all. Slower and gentler than
+   the old whole-list flash (which retriggered on every keystroke) so
+   typing quickly in search doesn't strobe. */
 @keyframes song-row-enter {
-  from { opacity: 0; transform: translateY(28px) scale(.94); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes song-row-exit {
@@ -693,10 +689,10 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   to   { opacity: 0; }
 }
 .song-row-enter {
-  animation: song-row-enter .46s var(--press-ease);
+  animation: song-row-enter .42s cubic-bezier(.25, .1, .25, 1);
 }
 .song-row-exit {
-  animation: song-row-exit .2s ease-out;
+  animation: song-row-exit .32s ease-out;
   pointer-events: none;
 }
 
@@ -1584,7 +1580,7 @@ html[data-hide-chords="true"] .lyric-line {
    action — not on first opening a song — and staggered slightly per
    chord so it reads as a light ripple down the page rather than a flash. */
 @keyframes chord-pop {
-  0%   { transform: translateY(-2px) scale(0.94); opacity: 0.7; }
+  0%   { transform: translateY(-2px) scale(0.94); opacity: 0.55; }
   55%  { transform: translateY(0) scale(1.035); opacity: 1; }
   100% { transform: translateY(0) scale(1); }
 }
@@ -2017,7 +2013,7 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
 }
 .nav-btn { transition: color .18s ease, transform var(--press-duration-out) var(--press-ease); }
 .nav-btn:active { transform: scale(var(--press-scale-icon)); transition-duration: var(--press-duration-in); }
-.nav-btn svg { width: 23px; height: 23px; fill: var(--ink-faint); transition: fill .18s ease, transform .22s var(--press-ease); }
+.nav-btn svg { width: 23px; height: 23px; fill: var(--ink-faint); transition: fill .18s ease, transform .22s cubic-bezier(.34, 1.56, .64, 1); }
 .nav-btn.is-active { color: var(--accent-strong); }
 .nav-btn.is-active svg { fill: var(--accent-strong); transform: scale(1.08); }
 
@@ -2223,7 +2219,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   100% { transform: scale(1); }
 }
 #sv-favorite-btn.heart-pop svg {
-  animation: heart-pop .4s var(--press-ease);
+  animation: heart-pop .4s cubic-bezier(.34, 1.56, .64, 1);
 }
 
 /* ---------- playlist-view header ---------- */
@@ -2343,7 +2339,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   /* Anchored under the kebab button it opens from, so the pop reads as
      coming from that button rather than from the middle of the menu. */
   transform-origin: top right;
-  animation: kebab-pop-in .32s var(--motion-settle) both;
+  animation: kebab-pop-in .18s cubic-bezier(.2, .8, .2, 1) both;
 }
 /* Added by closePlaylistMenu()/closeSongViewMenu() instead of removing the
    element outright — gives the menu an actual close animation (a quick
@@ -2355,15 +2351,9 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   animation: kebab-pop-out .14s cubic-bezier(.4, 0, 1, 1) both;
   pointer-events: none;
 }
-/* Elastic: overshoots past full size before settling back, rather than
-   easing straight up to 1 with no bounce — this is "the popup menu"
-   example asked for directly, so it gets the full multi-stage spring
-   rather than just riding --press-ease's single-overshoot curve. */
 @keyframes kebab-pop-in {
-  0%   { opacity: 0; transform: scale(.75) translateY(-6px); }
-  60%  { opacity: 1; transform: scale(1.04) translateY(0); }
-  80%  { transform: scale(.985) translateY(0); }
-  100% { transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(.9) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes kebab-pop-out {
   from { opacity: 1; transform: scale(1) translateY(0); }
