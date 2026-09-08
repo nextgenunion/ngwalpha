@@ -773,6 +773,79 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   padding: 0 1px;
 }
 
+/* ---------- Songbook list view (Settings → Appearance) ----------
+   Three ways to lay out the Songbook's own list — 'list' (default; the
+   plain .song-row rules above, untouched), 'compact' (denser rows: no
+   artist line, smaller badge, tighter spacing), and 'tiles' (a numbered
+   grid, three per row). Chosen via applySongListView() in app.js, which
+   sets the active choice as a data-view attribute directly on #song-list
+   — scoped to that one id (not the shared .song-list class also used by
+   #user-song-list/#playlist-song-list), so User Songs and playlist
+   song-pickers keep their existing full-row look no matter what's chosen
+   here. .has-badge is set on each .song-row by updateSongRowContent() in
+   app.js (true when that song has a number to show) — used below so a
+   number-less source (see DB_SOURCES' hasNumbers) still shows its title
+   in tiles mode instead of an empty tile. */
+#song-list[data-view="compact"] .song-row {
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+}
+#song-list[data-view="compact"] .song-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 0.68rem;
+}
+#song-list[data-view="compact"] .song-row-title {
+  font-size: 0.92rem;
+  -webkit-line-clamp: 1;
+}
+#song-list[data-view="compact"] .song-row-sub {
+  display: none;
+}
+
+#song-list[data-view="tiles"] {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+#song-list[data-view="tiles"] .song-row {
+  margin-bottom: 0;
+  min-height: 56px;
+  justify-content: center;
+  padding: 8px 6px;
+}
+#song-list[data-view="tiles"] .song-badge {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  background: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+#song-list[data-view="tiles"] .song-row-text {
+  display: none;
+}
+/* Fallback for sources with no song numbers (e.g. hasNumbers: false) —
+   there's no badge to show, so show the (shrunk, centered) title instead
+   of leaving the tile empty. */
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-text {
+  display: flex;
+  align-items: center;
+  flex: none;
+  width: 100%;
+}
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-title {
+  font-size: 0.72rem;
+  text-align: center;
+  width: 100%;
+  -webkit-line-clamp: 3;
+}
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-sub {
+  display: none;
+}
+
 .empty-state {
   text-align: center;
   color: var(--ink-faint);

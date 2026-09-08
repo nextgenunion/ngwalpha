@@ -137,6 +137,7 @@ const state = {
   hideChords: false,  // see applyHideChords()
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
   lyricsSpacing: 'tight', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
+  songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -1115,6 +1116,12 @@ function loadPrefs() {
   }
   applyLyricsSpacing();
 
+  const savedSongListView = localStorage.getItem('sb-song-view');
+  if (savedSongListView === 'list' || savedSongListView === 'compact' || savedSongListView === 'tiles') {
+    state.songListView = savedSongListView;
+  }
+  applySongListView();
+
   // Restore which song database was active (see applyDbSource()). Since
   // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
   // writes dbSelect.value, and dbSelect's own <option value="..."> in
@@ -1250,6 +1257,24 @@ function applyLyricsSpacing() {
     btn.setAttribute('aria-pressed', String(btn.dataset.lyricsSpacing === state.lyricsSpacing));
   });
   positionSegToggleThumb(document.getElementById('lyrics-spacing-toggle'));
+}
+
+// Songbook list view (Settings → Appearance): how the Songbook's own list
+// (#song-list) lays out its rows — 'list' (default), 'compact' (denser
+// rows, no artist line), or 'tiles' (a numbered grid). Set as a
+// data-view attribute directly on #song-list itself (not on <html>, and
+// not via the shared .song-list class) so User Songs and playlist
+// song-pickers — which reuse renderSongList()/buildSongRow() against
+// their own listElId — are completely unaffected. See the
+// #song-list[data-view] rules in style.css. Same attribute-driven
+// segmented-control pattern as applyChordStyle()/applyLyricsWeight().
+function applySongListView() {
+  const listEl = document.getElementById('song-list');
+  if (listEl) listEl.setAttribute('data-view', state.songListView);
+  document.querySelectorAll('#song-view-toggle [data-song-view]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.songView === state.songListView));
+  });
+  positionSegToggleThumb(document.getElementById('song-view-toggle'));
 }
 
 // Switches which song database (see DB_SOURCES) the Songs page, search,
@@ -1499,6 +1524,11 @@ function applyLanguage() {
     't-darkModeSub': 'darkModeSub',
     't-accentTitle': 'accentTitle',
     't-accentSub': 'accentSub',
+    't-songViewGroup': 'songViewGroup',
+    't-songViewSub': 'songViewSub',
+    't-songViewList': 'songViewList',
+    't-songViewCompact': 'songViewCompact',
+    't-songViewTiles': 'songViewTiles',
     't-sectionLangDb': 'sectionLangDb',
     't-uiLangTitle': 'uiLangTitle',
     't-uiLangSub': 'uiLangSub',
@@ -2431,6 +2461,11 @@ function buildSongRow(song, hasNumbers, q, sourceKey) {
 
 function updateSongRowContent(li, song, hasNumbers, q) {
   const row = li.firstElementChild;
+  // Read by the #song-list[data-view="tiles"] CSS (see style.css) to fall
+  // back to showing the title when a source has no song numbers to put
+  // in a tile (see DB_SOURCES' hasNumbers) — harmless in list/compact,
+  // where nothing selects on this class.
+  row.classList.toggle('has-badge', hasNumbers);
   row.innerHTML = `
     ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
     <span class="song-row-text">
@@ -4427,6 +4462,16 @@ function bindSettings() {
       state.lyricsSpacing = spacing;
       applyLyricsSpacing();
       localStorage.setItem('sb-lyrics-spacing', state.lyricsSpacing);
+    });
+  });
+
+  document.querySelectorAll('#song-view-toggle [data-song-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.songView;
+      if (view === state.songListView) return;
+      state.songListView = view;
+      applySongListView();
+      localStorage.setItem('sb-song-view', state.songListView);
     });
   });
 

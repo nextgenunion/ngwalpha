@@ -78,6 +78,17 @@ next", below.
   that the sda database's `SONGDB_STORES.sda = 'sda-songs'` entry is the
   worked example for. See the comment above `DB_SOURCES` in `js/app.js`
   for the full, corrected list of what adding a database touches
+- **Songbook list view** (Settings → Appearance, right under Accent
+  color) — a three-way segmented control (List/Compact/Tiles) for how
+  the Songbook's own list displays. **List** is the existing full row,
+  unchanged. **Compact** shrinks the row/badge and drops the artist line
+  so more songs fit on screen at once. **Tiles** turns the list into a
+  three-per-row grid of plain song numbers — for the numberless English
+  database, where there's no number to show, a tile falls back to a
+  small centered title instead of sitting empty. Scoped to `#song-list`
+  specifically (not the shared `.song-list` class), so User Songs and
+  playlist song-pickers keep their existing look no matter which view is
+  chosen here
 
 ## What's new in v2.4.0-beta (Playlists, Favorites, Chord Visibility, Hide Chords, Developer Options, English Song Database)
 

@@ -49,6 +49,14 @@ window.SONGBOOK_LANG.mn2 = {
   darkModeSub: "ᠴᠠᠶᠢᠪᠤᠷ᠂ ᠬᠠᠷᠠᠩᠬᠤᠢ ᠭᠣᠷᠢᠮ ᠢ᠋ ᠰᠡᠯᢉᠦᢈᠦ",
   accentTitle: "ᠥᠩᢉᠡᠨ ᠦ᠋ ᠵᠠᠭᠪᠤᠷ",
   accentSub: "ᠠᠫᠫ ᠤ᠋ᠨ ᠥᠩᢉᠡᠨ ᠦ᠋ ᠵᠠᠭᠪᠤᠷ ᠢ᠋ ᠰᠣᠩᠭᠤᠨ᠎ᠠ ᠤᠤ",
+  // TODO: these five are placeholder Cyrillic too, same reason as the
+  // chordStyle/hideChords/lyricsWeight blocks above — not yet
+  // transliterated.
+  songViewGroup: "Жагсаалтын харагдац",
+  songViewSub: "Дууны жагсаалт хэрхэн харагдахыг сонгох",
+  songViewList: "Жагсаалт",
+  songViewCompact: "Нягт",
+  songViewTiles: "Хавтан",
   listenLink: "ᠰᠣᠨᠤᠰᠬᠤ",
   songLinkLabel: "Холбоос",
   sectionLangDb: "ᢈᠡᠯᠡ ᠪᠠ ᠳᠠᠭᠤᠨ ᠤ᠋ ᠰᠠᠩ",
