@@ -83,10 +83,11 @@ next", below.
   the Songbook's own list displays. **List** is the existing full row,
   unchanged. **Compact** shrinks the row/badge and drops the artist line
   so more songs fit on screen at once. **Tiles** turns the list into a
-  three-per-row grid of plain song numbers — for the numberless English
-  database, where there's no number to show, a tile falls back to a
-  small centered title instead of sitting empty. Scoped to `#song-list`
-  specifically (not the shared `.song-list` class), so User Songs and
+  four-per-row grid of plain song numbers, each still using the exact
+  same circular badge — color, font, shape — as the list view rather
+  than a separate look. For the numberless English database, where
+  there's no number to show, a tile falls back to a small centered title
+  instead of sitting empty. Scoped to `#song-list` specifically (not the shared `.song-list` class), so User Songs and
   playlist song-pickers keep their existing look no matter which view is
   chosen here
 
