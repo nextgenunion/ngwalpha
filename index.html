@@ -77,6 +77,12 @@
     </div>
   </div>
 
+  <!-- Built/refreshed by renderLabelFilterRow() in js/app.js, called from
+       renderSongList() — hidden (and left empty) until at least one song
+       in this source has a label. Single-select: tapping the already-
+       active chip clears state.songLabelFilter back to null. -->
+  <div id="song-label-filter-row" class="label-filter-row" role="group" aria-label="Filter by label" hidden></div>
+
   <p id="results-count" class="results-count"></p>
 
   <ul id="song-list" class="song-list"></ul>
@@ -126,6 +132,10 @@
     <svg class="search-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
     <input id="user-song-search-input" class="search-field" type="search" inputmode="search" autocomplete="off">
   </div>
+
+  <!-- See #song-label-filter-row's comment on the Songs page above — same
+       mechanism, scoped to the 'user' source. -->
+  <div id="user-song-label-filter-row" class="label-filter-row" role="group" aria-label="Filter by label" hidden></div>
 
   <p id="user-songs-results-count" class="results-count"></p>
 
@@ -286,6 +296,17 @@
         <span class="editor-field-label" id="t-editorLinkLabel">Link (optional)</span>
         <input type="url" id="editor-link" class="modal-text-input" autocomplete="off">
       </label>
+    </div>
+
+    <!-- Populated by buildLabelEditor() in js/app.js (see openSongEditor)
+         — held as a local draft and only committed to personal label
+         storage when Save succeeds (saveSongFromEditor), same as every
+         other field here. Not a <label>/<input> pair like the fields
+         above since it hosts a whole chips-plus-suggestions widget
+         rather than a single form control. -->
+    <div class="editor-field">
+      <span class="editor-field-label" id="t-editorLabelsLabel">Labels</span>
+      <div id="editor-labels-editor"></div>
     </div>
 
     <label class="editor-field">

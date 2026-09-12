@@ -665,6 +665,45 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   border-color: var(--accent);
 }
 
+/* Built by renderLabelFilterRow() in js/app.js — same pill look as
+   .sort-btn above, but a single horizontally-scrolling row (there can be
+   a dozen-plus labels, unlike sort's fixed two-button groups) and a
+   single-select toggle rather than always-one-active: tapping the
+   already-pressed chip clears the filter back to "no filter", which
+   .sort-btn's radio-like pair never does. */
+.label-filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 12px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.label-filter-row::-webkit-scrollbar { display: none; }
+.label-filter-chip {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
+}
+.label-filter-chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--paper-dim);
+  border-color: var(--accent);
+}
+
 .results-count {
   font-size: 0.78rem;
   color: var(--ink-faint);
@@ -901,8 +940,16 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   border-radius: 999px;
   background: var(--accent-strong);
   opacity: 0.3;
-  transform: translateY(0);
-  transition: opacity .3s ease, background-color .2s ease;
+  /* JS (see renderThumbTransform() in js/app.js) always writes the full
+     translateY(...) scaleY(...) scaleX(...) triplet together — the scale
+     pair is a tiny damped spring layered on top of the position translate
+     for a squishy, fluid feel on grab and while scrubbing (see
+     nudgeThumbSquish()). transform itself is deliberately left out of the
+     transition list below: it's driven every frame from JS/rAF, and a CSS
+     transition racing its own per-frame updates would just fight itself
+     and read as jank rather than smoothness. */
+  transform: translateY(0) scaleY(1) scaleX(1);
+  transition: opacity .3s ease, background-color .2s ease, width .22s var(--press-ease-soft);
   will-change: transform;
 }
 /* --accent-strong inverts to a pale text-tint in dark mode (readable as
@@ -918,6 +965,14 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
    goes into transparent" from the brief. */
 .scroll-index.is-active .scroll-thumb {
   opacity: 0.95;
+}
+/* A further, more deliberate cue than is-active alone: the thumb visibly
+   plumps up the instant it's actually gripped (not just during an
+   ordinary swipe-scroll of the list), on top of the squash/stretch spring
+   above — toggled alongside scrollIndexDragging in
+   bindScrollIndexInteraction()'s pointerdown/endDrag. */
+.scroll-index.is-dragging .scroll-thumb {
+  width: 7px;
 }
 
 /* The small "you are here" popup that appears only while the thumb is
@@ -960,9 +1015,9 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
   box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper) 35%, transparent);
   pointer-events: none;
   opacity: 0;
-  transform: scale(0.85) translateX(4px);
+  transform: scale(0.7) translateX(6px);
   transform-origin: right center;
-  transition: opacity .16s ease, transform .22s var(--press-ease), background-color .35s ease, border-color .35s ease, width .18s var(--motion-settle);
+  transition: opacity .16s ease, transform .24s var(--press-ease), background-color .35s ease, border-color .35s ease, width .18s var(--press-ease-soft);
 }
 /* Browsers with neither color-mix() nor backdrop-filter (support always
    comes as a pair on the engines that lack them) fall back to the
@@ -1005,6 +1060,22 @@ html[data-theme="dark"] .scroll-index-bubble {
 .scroll-index-bubble.is-visible {
   opacity: 1;
   transform: scale(1) translateX(0);
+}
+/* A small extra "tick" pop layered on top of is-visible's resting scale
+   each time the drag crosses into a new letter/number bucket (added/
+   removed per bucket-change in applyDrag(), js/app.js) — a satisfying
+   little thump as each new section arrives, rather than the label just
+   silently swapping underneath a static bubble. Animating (not
+   transitioning) so it always plays the same quick pop regardless of
+   which direction the value just changed, then hands back to is-visible's
+   plain resting transform once it finishes. */
+@keyframes scroll-bubble-tick {
+  0% { transform: scale(1) translateX(0); }
+  45% { transform: scale(1.18) translateX(0); }
+  100% { transform: scale(1) translateX(0); }
+}
+.scroll-index-bubble.is-visible.is-ticking {
+  animation: scroll-bubble-tick .3s var(--press-ease);
 }
 
 /* Playlists page: when Favorites is the only playlist, this text sits right
@@ -1432,7 +1503,7 @@ html[data-theme="dark"] .seg-toggle-thumb { background: var(--accent); }
 .seg-toggle-btn[aria-pressed="true"] { color: var(--paper); }
 html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--paper-dim); }
 
-.sv-labels { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+.sv-labels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 .sv-label-chip {
   font-size: 0.72rem;
   font-weight: 600;
@@ -1441,6 +1512,25 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
   border-radius: 999px;
   padding: 4px 10px;
 }
+/* The always-present "add/edit" affix at the end of the chip row — see
+   renderSongViewLabels() in js/app.js. Outlined rather than filled like
+   .sv-label-chip so it doesn't visually pass for another assigned label. */
+.sv-label-add-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
+}
+.sv-label-add-chip svg { width: 13px; height: 13px; }
+.sv-label-add-chip:hover { color: var(--ink-soft); border-color: var(--ink-faint); }
 
 /* ---------- lyrics + chords ---------- */
 .lyrics-container {
@@ -2216,7 +2306,8 @@ button:disabled { transform: none !important; }
    specificity regardless of source order, so this always wins for the
    buttons it lists. */
 .sort-btn:active, .seg-toggle-btn:active, .btn-pill-toggle:active,
-.btn-primary:active, .btn-secondary:active {
+.btn-primary:active, .btn-secondary:active,
+.label-filter-chip:active, .label-suggestion-chip:active, .sv-label-add-chip:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
 }
@@ -2620,6 +2711,75 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
+}
+
+/* Built by buildLabelEditor() in js/app.js — shared by the song-view
+   "Edit labels" modal (openEditLabelsModal) and the Song Editor's inline
+   Labels field, so this needs to look at home both inside a .modal-body
+   and inline in .editor-form. */
+.label-editor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.label-editor-empty {
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  margin: 0;
+}
+.label-editor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  background: var(--accent-tint);
+  border-radius: 999px;
+  padding: 5px 6px 5px 11px;
+}
+.label-editor-chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.label-editor-chip button svg { width: 12px; height: 12px; fill: currentColor; }
+.label-editor-chip button:hover { background: rgba(0, 0, 0, 0.08); }
+html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 255, 255, 0.12); }
+
+.label-editor-input-wrap { margin-top: 10px; }
+/* .label-editor-input reuses .modal-text-input's box styling (see that
+   class) — this just removes the top margin it normally adds, since
+   .label-editor-input-wrap above already provides the gap above it. */
+.label-editor-input { margin-top: 0; }
+
+.label-editor-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.label-suggestion-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: transform var(--press-duration-out) var(--press-ease), border-color .15s;
+}
+.label-suggestion-new {
+  color: var(--accent-strong);
+  border-color: var(--accent-tint);
+  background: var(--accent-tint);
 }
 
 .modal-new-playlist-row {

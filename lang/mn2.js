@@ -115,6 +115,7 @@ window.SONGBOOK_LANG.mn2 = {
   editorKeyPlaceholder: "жишээ нь: G, Am",
   editorLinkLabel: "Холбоос (заавал биш)",
   editorLinkPlaceholder: "https://…",
+  editorLabelsLabel: "Шошго",
   editorLyricsLabel: "Үг ба аккорд",
   editorLyricsHint: "Аккордыг буух үеийн дэргэд дөрвөлжин хаалтанд бичнэ, жишээ нь [Am]Есүс Та [G]Монголд алдаршаач. Бадаг/дахилтын хооронд хоосон мөр орхино.",
   editorPreviewLabel: "Урьдчилан харах",
@@ -127,6 +128,32 @@ window.SONGBOOK_LANG.mn2 = {
   toastSongUpdated: "Дуу шинэчлэгдлээ",
   toastSongDeleted: "Дуу устгагдлаа",
   toastSongSaveFailed: "Хадгалж чадсангүй — дахин оролдоно уу",
+
+  // NOTE: the Labels keys below are new (added with the labels feature)
+  // and are Cyrillic, not Traditional Mongolian script like most of this
+  // file — same as plenty of other not-yet-converted keys already in
+  // here (this language is still dev-gated/WIP, see devTradMongolianTitle
+  // in the Settings dev options). Getting new phrases into this script
+  // accurately needs a specialist reviewer, so matching this file's own
+  // existing fallback beats guessing at the script and getting it wrong.
+  labelsEditTitle: "Шошго засах",
+  labelInputPlaceholder: "Шошго нэмэх…",
+  labelAddCustomOption: (text) => `"${text}" нэмэх`,
+  labelsNoneYet: "Шошго алга байна",
+  editLabelsBtn: "Шошго",
+  removeLabelAria: "Шошгыг хасах",
+  labelPresetChristmas: "Христийн мэндэлсний баяр",
+  labelPresetEaster: "Христийн амилалтын баяр",
+  labelPresetCommunion: "Ариун ёслол",
+  labelPresetBaptism: "Баптисм",
+  labelPresetWedding: "Хуримын ёслол",
+  labelPresetFuneral: "Оршуулгын ёслол",
+  labelPresetPraise: "Магтаал",
+  labelPresetWorship: "Мөргөл",
+  labelPresetKids: "Хүүхдийн",
+  labelPresetChoir: "Хөр",
+  labelPresetOpening: "Нээлт",
+  labelPresetClosing: "Төгсгөл",
 
   navPlaylists: "Жагсаалт",
   playlistsTitle: "Дууны жагсаалт",

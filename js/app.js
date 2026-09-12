@@ -124,6 +124,13 @@ const state = {
                       // from `query` (the Songs page's) so switching tabs
                       // doesn't clobber whichever search the person was
                       // mid-typing on the other page.
+  songLabelFilter: null,     // active label filter chip on the Songs page —
+                              // reset in applyDbSource() like `query` above
+  userSongLabelFilter: null, // same, for the User Songs page's own chip row
+  personalLabels: { bySongRef: {} }, // see "Labels" section below; loaded
+                                      // from storage by loadPersonalLabels()
+  editorLabelsDraft: [], // Song Editor's held-until-Save label list — see
+                          // openSongEditor()/saveSongFromEditor()
   activeSong: null,
   activeSourceKey: 'official', // which source the open song view came from
   editorSongId: null, // set while the editor is open for an EXISTING user
@@ -191,7 +198,18 @@ const state = {
 //                       so it always starts at the top instead.
 //   onEnter          — optional callback run each time this page is shown.
 const PAGES = {
-  'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true },
+  // onEnter re-renders the list (same pattern as user-songs/playlists
+  // below) — not because the songs themselves change on every visit, but
+  // because the fast-scroll rail's popup (scrollIndexEntries, see
+  // measureScrollIndexEntries() in js/app.js) measures each row's pixel
+  // position via getBoundingClientRect(), which collapses to zero for an
+  // element inside a hidden page. The Songbook List/Compact/Tiles toggle
+  // lives on the Settings page (#song-view-toggle in index.html), so
+  // switching it calls renderSongList() while #page-songs itself is
+  // hidden — that measurement is worthless. Re-measuring here, once the
+  // page is actually visible again, is what makes the popup show the
+  // right letter/number instead of getting stuck on the very last one.
+  'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true, onEnter: () => renderSongList() },
   'song-view':      { elId: 'page-song-view',      navKey: 'songs',     rememberScroll: false, hideNav: true },
   'user-songs':     { elId: 'page-user-songs',      navKey: 'user-songs', rememberScroll: true, onEnter: () => renderUserSongList() },
   'song-editor':    { elId: 'page-song-editor',    navKey: 'user-songs', rememberScroll: false, hideNav: true },
@@ -412,7 +430,7 @@ async function init() {
   safe('initDevOptions', initDevOptions);
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
-  await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs()]);
+  await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs(), loadPersonalLabels()]);
   safe('applyLanguage (post-load)', applyLanguage); // re-run so the results count reflects the loaded songs
 }
 
@@ -1275,6 +1293,16 @@ function applySongListView() {
     btn.setAttribute('aria-pressed', String(btn.dataset.songView === state.songListView));
   });
   positionSegToggleThumb(document.getElementById('song-view-toggle'));
+  // List/Compact/Tiles have very different row heights (Tiles in particular
+  // packs several songs into one grid row), which changes where every
+  // letter/number lands pixel-wise. The fast-scroll rail's popup
+  // (scrollIndexEntries, see measureScrollIndexEntries()) is only ever
+  // re-measured from inside renderSongList() — so without this call here,
+  // switching views leaves it comparing the real (new) scroll position
+  // against pixel offsets measured under the *previous* view's geometry,
+  // which is what made the popup show the wrong letter/number (or get
+  // stuck near one end) after switching to Compact or Tiles.
+  renderSongList();
 }
 
 // Switches which song database (see DB_SOURCES) the Songs page, search,
@@ -1293,6 +1321,7 @@ function applySongListView() {
 function applyDbSource(sourceKey) {
   state.activeDbSource = sourceKey;
   state.query = '';
+  state.songLabelFilter = null;
   const searchInput = document.getElementById('search-input');
   if (searchInput) searchInput.value = '';
 
@@ -1496,6 +1525,7 @@ function applyLanguage() {
     't-editorArtistLabel': 'editorArtistLabel',
     't-editorKeyLabel': 'editorKeyLabel',
     't-editorLinkLabel': 'editorLinkLabel',
+    't-editorLabelsLabel': 'editorLabelsLabel',
     't-editorLyricsLabel': 'editorLyricsLabel',
     't-editorLyricsHint': 'editorLyricsHint',
     't-editorPreviewLabel': 'editorPreviewLabel',
@@ -2013,6 +2043,32 @@ function escapeHtml(str) {
 // can be overridden — User Songs keeps its search text in the separate
 // state.userSongQuery instead, so switching tabs never clobbers whichever
 // box the person was mid-typing in on the other page.
+// Builds/refreshes one page's label filter chip row — a plain, single-
+// select toggle (tapping the already-active chip clears the filter,
+// tapping a different one switches to it), matching how sort-by/sort-
+// order are also always exactly one active choice. Hidden entirely when
+// the source has no labelled songs yet, so it never shows up as an
+// empty, useless row before anyone's tagged anything.
+function renderLabelFilterRow(rowId, sourceKey, activeFilter, onSelect) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const labels = labelsInUse(sourceKey);
+  if (!labels.length) {
+    row.hidden = true;
+    row.innerHTML = '';
+    return;
+  }
+  row.hidden = false;
+  row.innerHTML = labels.map(label => `
+    <button type="button" class="label-filter-chip" data-label="${escapeHtml(label)}" aria-pressed="${String(label === activeFilter)}">${escapeHtml(labelDisplayText(label))}</button>
+  `).join('');
+  row.querySelectorAll('.label-filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      onSelect(btn.dataset.label === activeFilter ? null : btn.dataset.label);
+    });
+  });
+}
+
 function renderSongList(opts = {}) {
   const {
     sourceKey = state.activeDbSource,
@@ -2020,6 +2076,11 @@ function renderSongList(opts = {}) {
     emptyElId = 'empty-state',
     countElId = 'results-count',
     query = state.query,
+    // Active label filter chip (see the "Labels" section and
+    // renderLabelFilterRow below) — defaults per listElId the same way
+    // `query` defaults to the Songs page's own search box, with
+    // renderUserSongList() passing its own state field explicitly.
+    labelFilter = listElId === 'user-song-list' ? state.userSongLabelFilter : state.songLabelFilter,
     // Set by the search inputs and sort buttons (see bindSongsPage/
     // bindUserSongsPage) — everything else that re-renders a list (tab
     // navigation, language change, db switch) leaves this off, since an
@@ -2033,6 +2094,24 @@ function renderSongList(opts = {}) {
   const emptyEl = document.getElementById(emptyElId);
   const countEl = document.getElementById(countElId);
 
+  // The filter chip row only exists on the Songs and User Songs pages'
+  // markup — song-pickers (openAddSongsModal etc.) reuse this same
+  // function against their own listElId with no such row, so this is a
+  // harmless no-op for those. Re-rendered on every call (like the
+  // fast-scroll rail below) so a label added/removed elsewhere is
+  // reflected the next time this list is shown — see PAGES' onEnter.
+  if (listElId === 'song-list') {
+    renderLabelFilterRow('song-label-filter-row', sourceKey, labelFilter, (label) => {
+      state.songLabelFilter = label;
+      renderSongList({ animate: true });
+    });
+  } else if (listElId === 'user-song-list') {
+    renderLabelFilterRow('user-song-label-filter-row', sourceKey, labelFilter, (label) => {
+      state.userSongLabelFilter = label;
+      renderUserSongList({ animate: true });
+    });
+  }
+
   if (!source || source.loadFailed) {
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
     emptyEl.hidden = true;
@@ -2042,7 +2121,10 @@ function renderSongList(opts = {}) {
     return;
   }
 
-  const filtered = sortSongs(source.songs.filter(s => matchesQuery(s, query)), query, sourceKey);
+  const filtered = sortSongs(
+    source.songs.filter(s => matchesQuery(s, query) && (!labelFilter || effectiveLabels(sourceKey, s.id, s).includes(labelFilter))),
+    query, sourceKey
+  );
 
   countEl.textContent = filtered.length === source.songs.length
     ? t('resultsAll', filtered.length)
@@ -2313,6 +2395,73 @@ function labelForScrollTop(scrollTop) {
   return current.label;
 }
 
+// ---- Squishy thumb physics --------------------------------------------
+// A tiny damped spring layered on top of the thumb's ordinary position —
+// which still tracks scroll 1:1 below, with no lag of its own — for a
+// playful, fluid squash-and-stretch feel: a quick squeeze the instant you
+// grab it (see the pointerdown handler in bindScrollIndexInteraction),
+// and a stretch that grows the faster you scrub (see nudgeThumbSquish's
+// call site in applyDrag), both settling back to normal on their own.
+// thumbSquish is the current stretch amount (positive = taller/thinner,
+// negative = shorter/wider, always conserving apparent volume across both
+// axes); thumbSquishVelocity is its rate of change. Both only run via
+// requestAnimationFrame while non-zero, so this costs nothing at rest.
+let thumbTranslateY = 0;
+let thumbSquish = 0;
+let thumbSquishVelocity = 0;
+let thumbSquishRAF = null;
+let thumbSquishLastFrame = null;
+const THUMB_SQUISH_STIFFNESS = 500; // spring constant — higher = snappier
+const THUMB_SQUISH_DAMPING = 18;    // higher = settles faster, less wobble
+const THUMB_SQUISH_MAX = 0.6;       // clamp so a hard flick can't look broken
+
+// Writes the thumb's position and current squish together as one
+// transform — see the CSS comment on .scroll-thumb for why these two
+// pieces have to be combined here rather than split across a JS-driven
+// translate and a CSS-transitioned scale.
+function renderThumbTransform() {
+  const thumb = document.getElementById('song-scroll-thumb');
+  if (!thumb) return;
+  const s = Math.max(-THUMB_SQUISH_MAX, Math.min(THUMB_SQUISH_MAX, thumbSquish));
+  const scaleY = 1 + s;
+  const scaleX = 1 - s * 0.6;
+  thumb.style.transform = `translateY(${thumbTranslateY}px) scaleY(${scaleY.toFixed(3)}) scaleX(${scaleX.toFixed(3)})`;
+}
+
+// The spring's own animation loop — steps thumbSquish/thumbSquishVelocity
+// one frame via simple Euler integration and keeps re-scheduling itself
+// only while there's still visible motion, so it stops (and stays
+// stopped) the moment the thumb settles back to its resting shape.
+function stepThumbSquish(now) {
+  const last = thumbSquishLastFrame || now;
+  const dt = Math.min(0.032, Math.max(0, (now - last) / 1000));
+  thumbSquishLastFrame = now;
+  const force = -THUMB_SQUISH_STIFFNESS * thumbSquish - THUMB_SQUISH_DAMPING * thumbSquishVelocity;
+  thumbSquishVelocity += force * dt;
+  thumbSquish += thumbSquishVelocity * dt;
+  renderThumbTransform();
+  if (Math.abs(thumbSquish) > 0.002 || Math.abs(thumbSquishVelocity) > 0.002) {
+    thumbSquishRAF = requestAnimationFrame(stepThumbSquish);
+  } else {
+    thumbSquish = 0;
+    thumbSquishVelocity = 0;
+    renderThumbTransform();
+    thumbSquishRAF = null;
+    thumbSquishLastFrame = null;
+  }
+}
+
+// Kicks the spring with an instantaneous velocity change — a quick squeeze
+// on grab, or an ongoing nudge proportional to drag speed — and (re)starts
+// the animation loop if it isn't already running.
+function nudgeThumbSquish(velocityDelta) {
+  thumbSquishVelocity += velocityDelta;
+  if (!thumbSquishRAF) {
+    thumbSquishLastFrame = null;
+    thumbSquishRAF = requestAnimationFrame(stepThumbSquish);
+  }
+}
+
 // Moves the thumb to match #page-songs' current scroll position —
 // continuous/proportional, like a normal scrollbar, not stepped between
 // buckets. Called on every scroll event and right after a fresh render.
@@ -2324,7 +2473,8 @@ function updateScrollThumbPosition() {
   const travel = Math.max(0, track.getBoundingClientRect().height - thumb.offsetHeight);
   const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
   const ratio = Math.min(1, Math.max(0, pageEl.scrollTop / maxScroll));
-  thumb.style.transform = `translateY(${ratio * travel}px)`;
+  thumbTranslateY = ratio * travel;
+  renderThumbTransform();
 }
 
 // Brings the indicator to full opacity (see .scroll-index.is-active in
@@ -2373,12 +2523,33 @@ function bindScrollIndexInteraction() {
     scheduleScrollIndexFade();
   }, { passive: true });
 
+  // Tracks the previous drag position/time so applyDrag() can turn "how
+  // fast is this drag moving right now" into a squish impulse (see
+  // nudgeThumbSquish) — reset to null at the start of every new drag (in
+  // pointerdown below) so the first move of a new drag never computes a
+  // bogus speed against a leftover position from a previous one.
+  let lastDragY = null;
+  let lastDragTime = null;
+
   function applyDrag(clientY) {
     const rect = track.getBoundingClientRect();
     const ratio = rect.height === 0 ? 0 : Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
     const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
     pageEl.scrollTop = ratio * maxScroll;
     updateScrollThumbPosition();
+
+    // The faster the drag is currently moving, the more the thumb
+    // stretches — same spring as the grab squeeze below, just fed
+    // continuously while scrubbing instead of as one initial kick.
+    const now = performance.now();
+    if (lastDragY !== null) {
+      const dt = Math.max(1, now - lastDragTime);
+      const speed = Math.abs(clientY - lastDragY) / dt; // px per ms
+      if (speed > 0) nudgeThumbSquish(Math.min(2.6, speed * 3.2));
+    }
+    lastDragY = clientY;
+    lastDragTime = now;
+
     if (bubble) {
       const label = labelForScrollTop(pageEl.scrollTop);
       const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
@@ -2406,18 +2577,43 @@ function bindScrollIndexInteraction() {
         bubble.style.width = 'auto';
         const naturalWidth = bubble.offsetWidth;
         bubble.style.width = naturalWidth + 'px';
+        // A small squishy "tick" pop each time the drag crosses into a
+        // new letter/number bucket — remove-reflow-readd so consecutive
+        // bucket changes during a fast drag each get their own pop rather
+        // than one call's animation just continuing where the last left
+        // off (same retrigger pattern used for row enter/exit animations
+        // elsewhere in this file).
+        bubble.classList.remove('is-ticking');
+        void bubble.offsetWidth;
+        bubble.classList.add('is-ticking');
       }
       bubble.classList.toggle('is-search', isSearch);
       bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
-      bubble.style.top = `${Math.round(clientY - bubble.offsetHeight / 2)}px`;
+      // Centered on the touch/cursor position, but clamped to stay fully
+      // within the viewport — near the very top of the track (barely
+      // below the status bar/notch) an uncentered bubble would otherwise
+      // hang half off the top of the screen, and this keeps it fully
+      // visible at any drag position on any device instead.
+      const margin = 4;
+      const desiredTop = clientY - bubble.offsetHeight / 2;
+      const maxTop = window.innerHeight - bubble.offsetHeight - margin;
+      const clampedTop = Math.max(margin, Math.min(maxTop, desiredTop));
+      bubble.style.top = `${Math.round(clampedTop)}px`;
     }
   }
 
   track.addEventListener('pointerdown', (e) => {
     if (track.hidden) return;
     scrollIndexDragging = true;
+    lastDragY = null;
+    lastDragTime = null;
     if (track.setPointerCapture) track.setPointerCapture(e.pointerId);
     setScrollIndexActive(true);
+    track.classList.add('is-dragging');
+    // The initial "grabbed!" squeeze — a quick squash that the spring
+    // rebounds out of on its own (see stepThumbSquish), independent of
+    // any actual movement yet.
+    nudgeThumbSquish(-4.2);
     if (bubble) {
       bubble.classList.add('is-visible');
       // Give the bubble a concrete starting width (rather than leaving it
@@ -2436,11 +2632,17 @@ function bindScrollIndexInteraction() {
   const endDrag = () => {
     if (!scrollIndexDragging) return;
     scrollIndexDragging = false;
+    track.classList.remove('is-dragging');
     if (bubble) bubble.classList.remove('is-visible');
     scheduleScrollIndexFade();
   };
   track.addEventListener('pointerup', endDrag);
   track.addEventListener('pointercancel', endDrag);
+  if (bubble) {
+    bubble.addEventListener('animationend', (e) => {
+      if (e.animationName === 'scroll-bubble-tick') bubble.classList.remove('is-ticking');
+    });
+  }
 
   // A resize (rotation, on-screen keyboard, browser chrome show/hide) can
   // change the track's own height or the page's scrollable range without
@@ -2680,9 +2882,7 @@ function openSong(song, opts = {}) {
     artistEl.hidden = true;
   }
 
-  const labelsEl = document.getElementById('sv-labels');
-  labelsEl.innerHTML = (song.labels || [])
-    .map(l => `<span class="sv-label-chip">${escapeHtml(l)}</span>`).join('');
+  renderSongViewLabels(sourceKey, song);
 
   const audioEl = document.getElementById('sv-audio');
   // Pause/release whatever's currently playing before we blow it away with
@@ -3020,6 +3220,28 @@ function openSongEditor(song, opts = {}) {
     (song && song.audio && song.audio[0] && song.audio[0].url) || '';
   document.getElementById('editor-lyrics').value = song ? (song.lyrics || []).join('\n') : '';
 
+  // Labels: a local draft, like every other field here — see this field's
+  // markup comment in index.html and saveSongFromEditor() below for where
+  // it actually gets committed. Existing user songs start from whatever's
+  // currently stored (official-vs-user is a non-issue here: the editor is
+  // only ever used for User Songs, so sourceKey is always 'user').
+  state.editorLabelsDraft = song ? effectiveLabels('user', song.id, song) : [];
+  const labelsContainer = document.getElementById('editor-labels-editor');
+  labelsContainer.innerHTML = '';
+  labelsContainer.appendChild(buildLabelEditor({
+    getLabels: () => state.editorLabelsDraft,
+    addLabel: (label) => {
+      const value = label.trim();
+      if (value && !state.editorLabelsDraft.some(l => l.toLowerCase() === value.toLowerCase())) {
+        state.editorLabelsDraft = [...state.editorLabelsDraft, value];
+      }
+    },
+    removeLabel: (label) => {
+      state.editorLabelsDraft = state.editorLabelsDraft.filter(l => l !== label);
+    },
+    suggestionSourceKey: 'user',
+  }));
+
   document.getElementById('editor-delete-btn').hidden = !song;
   document.getElementById('editor-delete-btn').textContent = t('deleteSongBtn');
 
@@ -3087,6 +3309,13 @@ function saveSongFromEditor() {
   };
 
   saveUserSong(song).then(() => {
+    // Commit the label draft now that the song itself is confirmed saved
+    // — see openSongEditor()'s comment on why labels are held as a local
+    // draft rather than writing straight through like the song-view
+    // modal does. song.id is stable across create/update (genUserSongId()
+    // only runs above when there's no existing song), so this is correct
+    // for both cases.
+    setPersonalLabels('user', song.id, state.editorLabelsDraft);
     showToast(existing ? t('toastSongUpdated') : t('toastSongCreated'));
     if (state.currentPage === 'user-songs') renderUserSongList({ animate: true });
     // Whatever page this editor was opened from (the User Songs list, or
@@ -3349,6 +3578,197 @@ function deletePlaylist(id) {
   delete state.playlists.byId[id];
   state.playlists.order = state.playlists.order.filter(pid => pid !== id);
   persistPlaylists();
+}
+
+// ---------------------------------------------------------
+// Labels — lets a person tag ANY song (official or their own) with a
+// category for later filtering/browsing, without needing write access to
+// the official (read-only) song databases. A song's *official* `labels`
+// field (see README's "Song data structure") exists in the schema but is
+// always empty today — nothing ships with built-in labels yet — so this
+// is entirely a personal, on-device layer: stored separately, keyed by
+// "sourceKey:songId", same IndexedDB-primary/localStorage-fallback
+// pattern as PlaylistStorage above (see that block's comment for the
+// reasoning). effectiveLabels() below merges the two, so if a future
+// content update ever does ship built-in labels, they show up
+// automatically alongside whatever's been personally added, with no
+// changes needed here.
+// ---------------------------------------------------------
+const LABELS_DB_NAME = 'ngworship-labels-db';
+const LABELS_DB_VERSION = 1;
+const LABELS_DB_STORE = 'kv';
+const LABELS_DB_KEY = 'labels';
+const LABELS_LS_KEY = 'ngw-labels';
+
+const LabelStorage = {
+  _openDb() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+      const req = indexedDB.open(LABELS_DB_NAME, LABELS_DB_VERSION);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(LABELS_DB_STORE)) {
+          req.result.createObjectStore(LABELS_DB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async load() {
+    try {
+      const db = await this._openDb();
+      const data = await new Promise((resolve, reject) => {
+        const tx = db.transaction(LABELS_DB_STORE, 'readonly');
+        const req = tx.objectStore(LABELS_DB_STORE).get(LABELS_DB_KEY);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      db.close();
+      if (data) return data;
+    } catch (err) {
+      console.warn('Songbook: labels IndexedDB read failed, trying localStorage —', err);
+    }
+    try {
+      const raw = localStorage.getItem(LABELS_LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.warn('Songbook: labels localStorage read failed —', err);
+      return null;
+    }
+  },
+  async save(data) {
+    try {
+      const db = await this._openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(LABELS_DB_STORE, 'readwrite');
+        tx.objectStore(LABELS_DB_STORE).put(data, LABELS_DB_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    } catch (err) {
+      console.warn('Songbook: labels IndexedDB write failed, falling back to localStorage —', err);
+      try {
+        localStorage.setItem(LABELS_LS_KEY, JSON.stringify(data));
+      } catch (err2) {
+        console.error('Songbook: labels localStorage write also failed —', err2);
+      }
+    }
+  },
+};
+
+async function loadPersonalLabels() {
+  const saved = await LabelStorage.load();
+  state.personalLabels = (saved && saved.bySongRef) ? saved : { bySongRef: {} };
+}
+
+// Fire-and-forget, like persistPlaylists() — every call site already
+// updates state.personalLabels synchronously first, so the UI never
+// waits on this.
+function persistPersonalLabels() {
+  LabelStorage.save(state.personalLabels);
+}
+
+function songRefKey(sourceKey, songId) {
+  return `${sourceKey}:${songId}`;
+}
+
+// A small set of common worship/church categories offered in the label
+// picker alongside free-typed custom labels. The STORED value for a
+// preset is always this stable, language-independent key (e.g.
+// 'christmas'), never its translated display text (see labelDisplayText
+// below) — so a song tagged from the picker under one interface language
+// still matches when filtering under a different one.
+const LABEL_PRESETS = [
+  'christmas', 'easter', 'communion', 'baptism', 'wedding', 'funeral',
+  'praise', 'worship', 'kids', 'choir', 'opening', 'closing',
+];
+const LABEL_PRESET_TRANSLATION_KEYS = {
+  christmas: 'labelPresetChristmas',
+  easter: 'labelPresetEaster',
+  communion: 'labelPresetCommunion',
+  baptism: 'labelPresetBaptism',
+  wedding: 'labelPresetWedding',
+  funeral: 'labelPresetFuneral',
+  praise: 'labelPresetPraise',
+  worship: 'labelPresetWorship',
+  kids: 'labelPresetKids',
+  choir: 'labelPresetChoir',
+  opening: 'labelPresetOpening',
+  closing: 'labelPresetClosing',
+};
+// Display text for a label value — a preset's stable key gets translated;
+// anything else is a person's own free-typed text, shown exactly as they
+// wrote it (translating that would be putting words in their mouth).
+function labelDisplayText(label) {
+  const key = LABEL_PRESET_TRANSLATION_KEYS[label];
+  return key ? t(key) : label;
+}
+
+// The label chips actually shown for a song: whatever's personally
+// assigned, plus anything already baked into the song's own (currently
+// always-empty) `labels` field — see this section's intro comment.
+function effectiveLabels(sourceKey, songId, song) {
+  const personal = state.personalLabels.bySongRef[songRefKey(sourceKey, songId)] || [];
+  const builtIn = (song && song.labels) || [];
+  return Array.from(new Set([...builtIn, ...personal]));
+}
+
+// Adds/removes one label at a time, applied immediately — used by the
+// song-view "Edit labels" modal (openEditLabelsModal), matching how
+// "Add to playlist" also commits each tap straight through rather than
+// waiting on a separate save step.
+function addPersonalLabel(sourceKey, songId, label) {
+  const value = label.trim();
+  if (!value) return;
+  const key = songRefKey(sourceKey, songId);
+  const current = state.personalLabels.bySongRef[key] || [];
+  if (current.some(l => l.toLowerCase() === value.toLowerCase())) return;
+  state.personalLabels.bySongRef[key] = [...current, value];
+  persistPersonalLabels();
+}
+function removePersonalLabel(sourceKey, songId, label) {
+  const key = songRefKey(sourceKey, songId);
+  const current = state.personalLabels.bySongRef[key];
+  if (!current) return;
+  const next = current.filter(l => l !== label);
+  if (next.length) state.personalLabels.bySongRef[key] = next;
+  else delete state.personalLabels.bySongRef[key];
+  persistPersonalLabels();
+}
+// Replaces a song's whole personal-label set in one go — used by the Song
+// Editor (see openSongEditor/saveSongFromEditor), which holds label edits
+// as a local draft like every other field on that page and only commits
+// them here once Save actually succeeds.
+function setPersonalLabels(sourceKey, songId, labels) {
+  const key = songRefKey(sourceKey, songId);
+  if (labels && labels.length) state.personalLabels.bySongRef[key] = [...labels];
+  else delete state.personalLabels.bySongRef[key];
+  persistPersonalLabels();
+}
+
+// Every label personally assigned to ANY song, official or user — feeds
+// the label picker's "previously used" suggestions so a person's own
+// custom tags stay reusable/consistent instead of retyping "Youth
+// Service" slightly differently each time.
+function allPersonalLabelValues() {
+  const set = new Set();
+  Object.values(state.personalLabels.bySongRef).forEach(arr => arr.forEach(l => set.add(l)));
+  return set;
+}
+
+// Every label currently in use within one source (the active official
+// database, or 'user') — feeds that page's browse/filter chip row, so
+// e.g. the Songs page never offers a chip for a label that only exists
+// on a User Song, and vice versa.
+function labelsInUse(sourceKey) {
+  const source = state.sources[sourceKey];
+  if (!source) return [];
+  const set = new Set();
+  source.songs.forEach(song => {
+    effectiveLabels(sourceKey, song.id, song).forEach(l => set.add(l));
+  });
+  return Array.from(set);
 }
 
 // ---------------------------------------------------------
@@ -4161,6 +4581,169 @@ function openAddToPlaylistModal(sourceKey, songId) {
   wrap.appendChild(newRow);
 
   openModal(t('addToPlaylistTitle'), wrap);
+}
+
+// ---------------------------------------------------------
+// Labels UI — a reusable "chips you can remove + a text input with live
+// suggestions" picker, shared by the song-view "Edit labels" modal
+// (openEditLabelsModal) and the Song Editor's inline Labels field (see
+// bindSongEditor). The two differ only in WHEN a change actually takes
+// effect — the modal writes straight through to personal storage the
+// instant a chip is tapped (like "Add to playlist"); the editor holds a
+// local draft until Save, like every other field on that page — which is
+// exactly what these three callbacks abstract away.
+// ---------------------------------------------------------
+function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKey }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'label-editor';
+
+  const chipsEl = document.createElement('div');
+  chipsEl.className = 'label-editor-chips';
+
+  const inputWrap = document.createElement('div');
+  inputWrap.className = 'label-editor-input-wrap';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'modal-text-input label-editor-input';
+  input.maxLength = 30;
+  input.autocomplete = 'off';
+  input.placeholder = t('labelInputPlaceholder');
+  inputWrap.appendChild(input);
+
+  const suggestionsEl = document.createElement('div');
+  suggestionsEl.className = 'label-editor-suggestions';
+
+  wrap.appendChild(chipsEl);
+  wrap.appendChild(inputWrap);
+  wrap.appendChild(suggestionsEl);
+
+  function renderChips() {
+    const labels = getLabels();
+    if (!labels.length) {
+      chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+      return;
+    }
+    chipsEl.innerHTML = '';
+    labels.forEach(label => {
+      const chip = document.createElement('span');
+      chip.className = 'label-editor-chip';
+      chip.innerHTML = `
+        <span>${escapeHtml(labelDisplayText(label))}</span>
+        <button type="button" aria-label="${escapeHtml(t('removeLabelAria'))}"><svg data-icon="close" viewBox="0 0 24 24"></svg></button>
+      `;
+      chip.querySelector('button').addEventListener('click', () => {
+        removeLabel(label);
+        renderChips();
+        renderSuggestions();
+      });
+      chipsEl.appendChild(chip);
+    });
+    initIcons(chipsEl);
+  }
+
+  // Presets not already assigned, plus previously-used custom labels
+  // (scoped to suggestionSourceKey, or every source if that's omitted —
+  // see buildLabelEditor's call sites) not already assigned, filtered by
+  // whatever's currently typed — plus, if what's typed doesn't exactly
+  // match anything offered, an "Add '<text>'" row to create it fresh.
+  function renderSuggestions() {
+    const query = input.value.trim();
+    const currentLower = getLabels().map(l => l.toLowerCase());
+    const candidates = [];
+    LABEL_PRESETS.forEach(p => {
+      if (!currentLower.includes(p.toLowerCase())) candidates.push({ value: p, display: labelDisplayText(p) });
+    });
+    const usedElsewhere = suggestionSourceKey ? labelsInUse(suggestionSourceKey) : Array.from(allPersonalLabelValues());
+    usedElsewhere.forEach(value => {
+      if (LABEL_PRESETS.includes(value)) return; // already covered above
+      if (currentLower.includes(value.toLowerCase())) return;
+      if (candidates.some(c => c.value === value)) return;
+      candidates.push({ value, display: value });
+    });
+
+    let matches = candidates;
+    if (query) {
+      const q = query.toLowerCase();
+      matches = candidates.filter(c => c.display.toLowerCase().includes(q));
+    }
+    matches = matches.slice(0, 6);
+
+    suggestionsEl.innerHTML = '';
+    matches.forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'label-suggestion-chip';
+      btn.textContent = c.display;
+      btn.addEventListener('click', () => commit(c.value));
+      suggestionsEl.appendChild(btn);
+    });
+    const exactMatch = query && candidates.some(c => c.display.toLowerCase() === query.toLowerCase());
+    if (query && !exactMatch) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'label-suggestion-chip label-suggestion-new';
+      btn.textContent = t('labelAddCustomOption', query);
+      btn.addEventListener('click', () => commit(query));
+      suggestionsEl.appendChild(btn);
+    }
+    suggestionsEl.hidden = !suggestionsEl.children.length;
+  }
+
+  function commit(value) {
+    if (!value.trim()) return;
+    addLabel(value);
+    input.value = '';
+    renderChips();
+    renderSuggestions();
+    input.focus();
+  }
+
+  input.addEventListener('input', renderSuggestions);
+  input.addEventListener('focus', renderSuggestions);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (input.value.trim()) commit(input.value);
+  });
+
+  renderChips();
+  renderSuggestions();
+  return wrap;
+}
+
+// Renders (or re-renders) the label chips + "Edit labels" affix on the
+// song-view page — called from openSong() initially, and again from
+// openEditLabelsModal()'s callbacks so a change made in that modal shows
+// up on the page underneath immediately, before the modal even closes.
+function renderSongViewLabels(sourceKey, song) {
+  const labelsEl = document.getElementById('sv-labels');
+  if (!labelsEl) return;
+  const labels = effectiveLabels(sourceKey, song.id, song);
+  labelsEl.innerHTML = labels.map(l => `<span class="sv-label-chip">${escapeHtml(labelDisplayText(l))}</span>`).join('')
+    + `<button type="button" id="sv-label-add-btn" class="sv-label-add-chip"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>`;
+  initIcons(labelsEl);
+  document.getElementById('sv-label-add-btn').addEventListener('click', () => openEditLabelsModal(sourceKey, song.id));
+}
+
+// Applies to ANY song — official or user — since labels are entirely a
+// personal, on-device layer (see the "Labels" data-layer section) that
+// never needs write access to the read-only official databases. Changes
+// commit immediately per tap, same as "Add to playlist".
+function openEditLabelsModal(sourceKey, songId) {
+  const song = findSongByRef(sourceKey, songId);
+  const wrap = buildLabelEditor({
+    getLabels: () => effectiveLabels(sourceKey, songId, song),
+    addLabel: (label) => {
+      addPersonalLabel(sourceKey, songId, label);
+      renderSongViewLabels(sourceKey, song);
+    },
+    removeLabel: (label) => {
+      removePersonalLabel(sourceKey, songId, label);
+      renderSongViewLabels(sourceKey, song);
+    },
+    suggestionSourceKey: sourceKey,
+  });
+  openModal(t('labelsEditTitle'), wrap);
 }
 
 // ---------------------------------------------------------
