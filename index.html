@@ -322,11 +322,6 @@
       <div id="editor-preview" class="lyrics-container editor-preview"></div>
     </div>
 
-    <button type="button" id="editor-delete-btn" class="btn-secondary editor-delete-btn" hidden></button>
-  </div>
- </div>
-</main>
-
 <!-- ===== SETTINGS PAGE ===== -->
 <main id="page-settings" class="page" data-page="settings" hidden>
  <div class="page-inner">
@@ -414,6 +409,15 @@
         <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="false">Normal</button>
         <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
       </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-landscapeModeTitle">Landscape mode</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-landscapeModeSub">Reclaims screen space for reading when your phone is rotated sideways</span>
+      </div>
+      <button id="landscape-mode-toggle" class="switch" role="switch" aria-checked="false" aria-label="Landscape mode">
+        <span class="switch-knob"></span>
+      </button>
     </div>
   </section>
 
@@ -567,6 +571,17 @@
         <button id="export-playlists-btn" class="btn-secondary" type="button"></button>
         <button id="import-playlists-btn" class="btn-secondary" type="button"></button>
         <input type="file" id="import-playlists-file" accept="application/json" hidden>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-userSongsBackupTitle">User Songs backup</span>
+        <span class="settings-row-sub" id="t-userSongsBackupSub">User Songs are saved on this device per browser. Export/import a file to move them to another browser on this phone.</span>
+      </div>
+      <div class="settings-row-actions">
+        <button id="export-user-songs-btn" class="btn-secondary" type="button"></button>
+        <button id="import-user-songs-btn" class="btn-secondary" type="button"></button>
+        <input type="file" id="import-user-songs-file" accept="application/json" hidden>
       </div>
     </div>
   </section>

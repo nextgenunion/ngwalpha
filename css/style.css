@@ -2187,6 +2187,113 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
 .nav-btn.is-active { color: var(--accent-strong); }
 .nav-btn.is-active svg { fill: var(--accent-strong); transform: scale(1.08); }
 
+/* ---------- Landscape mode (Settings → Appearance → Landscape mode; see
+   applyLandscapeMode() in js/app.js) ----------
+   Opt-in. A phone rotated sideways has very little vertical room (roughly
+   360–430px tall) next to the same phone in portrait, so the header/
+   title/nav chrome below — all sized for portrait's much taller screen —
+   ends up crowding out the actual lyrics or song list. This reclaims that
+   space by trimming those same elements' padding/size, and by shrinking
+   --nav-h itself (which every other rule that reserves space for the
+   bottom nav — .page-inner's bottom padding, the toast's bottom offset,
+   .scroll-index's bottom edge — already reads from, the same way
+   --page-pad's narrow-phone override above cascades everywhere it's
+   used) rather than repeating the same shorter number in four places.
+
+   Gated on BOTH html[data-landscape-mode="true"] (the Settings toggle)
+   AND a short, wide viewport (orientation: landscape + max-height: 500px)
+   — that second condition is what stops this from ever firing on an
+   ordinary wide desktop browser window, which is *always* "landscape" by
+   aspect ratio despite having plenty of height to spare. Tablets clear
+   500px tall even sideways too (an iPad mini in landscape is ~744px), so
+   500px is the practical line between "a phone rotated sideways" (needs
+   the space back) and "anything roomier" (doesn't). */
+@media (orientation: landscape) and (max-height: 500px) {
+  html[data-landscape-mode="true"] {
+    --nav-h: 46px;
+  }
+
+  html[data-landscape-mode="true"] .page-inner {
+    max-width: 980px;
+    padding-left: calc(var(--page-pad) + env(safe-area-inset-left));
+    padding-right: calc(var(--page-pad) + env(safe-area-inset-right));
+  }
+  /* Rounded corners/notch land on the left or right edge once rotated
+     (whichever was the top in portrait) — env() reports whichever
+     actually applies for the device's current orientation, so this only
+     ever adds real padding on hardware that has something to dodge
+     there; everywhere else it resolves to 0 and changes nothing. */
+  html[data-landscape-mode="true"] .bottom-nav-inner {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Nav bar: labels dropped, icon trimmed slightly — still a full-width
+     strip along the bottom edge (not moved to a side rail). Reading pages
+     (song view, the editor, playlist view) already hide the nav bar
+     entirely via PAGES' hideNav in js/app.js, so this only ever applies
+     on the four scrolling tab pages (Songs/User Songs/Playlists/
+     Settings), where a shorter fixed strip at the bottom is a small,
+     worthwhile trade for that much more of the list on screen at once. */
+  html[data-landscape-mode="true"] .nav-btn span { display: none; }
+  html[data-landscape-mode="true"] .nav-btn svg { width: 21px; height: 21px; }
+
+  html[data-landscape-mode="true"] .page-header { padding: calc(env(safe-area-inset-top) + 8px) 2px 6px; }
+  html[data-landscape-mode="true"] .page-header:has(#sabbath-mascot:not([hidden])) { padding-bottom: 8px; }
+  html[data-landscape-mode="true"] .page-header h1 { font-size: 1.35rem; }
+
+  /* Song view's immersive header is the single biggest win here — title,
+     artist, and the heart/kebab row all stack above the transpose/font
+     controls before any actual lyrics appear, so trimming this is what
+     buys back the most reading room. */
+  html[data-landscape-mode="true"] .sv-header-immersive { padding: calc(env(safe-area-inset-top) + 8px) 2px 10px; }
+  html[data-landscape-mode="true"] .sv-header-immersive::before { height: calc(env(safe-area-inset-top) + 130px); }
+  html[data-landscape-mode="true"] .sv-header-immersive .song-view-title { margin-top: 6px; }
+  html[data-landscape-mode="true"] #sv-title { font-size: 1.18rem; }
+  html[data-landscape-mode="true"] .sv-title-centered .sv-artist { font-size: 0.74rem; margin: 1px 0 0; }
+
+  html[data-landscape-mode="true"] .transpose-bar { margin-top: 8px; padding: 6px 12px; }
+  html[data-landscape-mode="true"] .font-controls { margin-top: 6px; gap: 6px; }
+  html[data-landscape-mode="true"] .font-group { padding: 5px 8px; }
+
+  /* Songbook list — List/Compact (Tiles already grids at 4 columns, see
+     #song-list[data-view="tiles"] above; this just brings List/Compact up
+     to the same layout). Normally each is one song per full-width row —
+     landscape gives roughly four times a portrait phone's width, so a
+     single row wastes most of it. Reuses that same 4-column cap (not
+     more, even on a very wide landscape screen) so rows stay a readable
+     width rather than stretching thin. Scoped to #song-list only, same
+     as every data-view rule above — #user-song-list/#playlist-song-list
+     intentionally keep their own full-row look regardless. */
+  html[data-landscape-mode="true"] #song-list[data-view="list"],
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    align-items: stretch;
+  }
+  /* The actual grid items are #song-list's <li> children (.song-row is a
+     <button> nested one level inside each <li> — see renderSongList() in
+     js/app.js) — so the min-width: 0 override belongs on the <li> itself.
+     Grid items default to min-width: auto, which resolves to their
+     content's min-content size unless overridden; left at that default,
+     a long title/artist forces its <li> wider than the 1fr track it was
+     given, and the whole grid quietly overflows past the screen's right
+     edge instead of actually wrapping inside its column — Tiles (above)
+     never hits this because it hides the title/artist text entirely
+     (song-row-text: none), so it never had a reason to need this fix. */
+  html[data-landscape-mode="true"] #song-list[data-view="list"] > li,
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] > li {
+    min-width: 0;
+  }
+  html[data-landscape-mode="true"] #song-list[data-view="list"] .song-row,
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] .song-row {
+    margin-bottom: 0;
+    height: 100%;
+    min-width: 0;
+  }
+}
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed;

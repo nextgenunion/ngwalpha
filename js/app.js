@@ -145,6 +145,7 @@ const state = {
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
   lyricsSpacing: 'tight', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
   songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
+  landscapeMode: false, // see applyLandscapeMode() — trims header/nav chrome to reclaim vertical space; only takes visual effect on a short, wide (phone-in-landscape) viewport, see the gated media query in style.css
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -754,6 +755,20 @@ const UserSongStorage = {
     });
     db.close();
   },
+  // Wipes every song out of the store — used by importUserSongsFromFile()
+  // below to clear out pre-import songs before writing the imported list,
+  // since (unlike PlaylistStorage's single blob) User Songs are one key
+  // per song and a stale leftover key wouldn't just be overwritten.
+  async clear() {
+    const db = await openSongDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
+      tx.objectStore(SONGDB_STORES.user).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  },
 };
 
 function genUserSongId() {
@@ -797,6 +812,53 @@ async function deleteUserSong(id) {
   // and renderPlaylistView()/renderPlaylistsList() already tolerate a ref
   // that no longer resolves to a song (see their own null-checks) — same
   // as if an official song were ever removed from a manifest.
+}
+
+// Manual export/import: mirrors exportPlaylists/importPlaylistsFromFile
+// (see the "Playlists" section below) for exactly the same reason — User
+// Songs live in IndexedDB, which is scoped to one browser on the device,
+// so this is the honest way to carry hand-authored songs to a different
+// browser on the same phone (or as a manual backup) without a server.
+function exportUserSongs() {
+  const blob = new Blob([JSON.stringify(state.sources.user.songs, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ngworship-user-songs.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(t('toastUserSongsExported'));
+}
+
+async function importUserSongsFromFile(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data) || !data.every(s => s && typeof s.id === 'string' && typeof s.title === 'string')) {
+      throw new Error('not a user songs export file');
+    }
+    // Same full-replace behavior as importPlaylistsFromFile — this is a
+    // device-to-device move, not a merge, so the imported file becomes
+    // the new User Songs list. Unlike PlaylistStorage's single blob,
+    // User Songs are stored one key per song (see UserSongStorage above),
+    // so the store is cleared first rather than just overwritten, to
+    // avoid leaving pre-import songs orphaned behind the new list.
+    await UserSongStorage.clear();
+    for (const song of data) {
+      await UserSongStorage.put(song);
+    }
+    state.sources.user.songs = data;
+    if (state.currentPage === 'user-songs') renderUserSongList();
+    if (state.currentPage === 'playlists') renderPlaylistsList();
+    if (state.currentPage === 'playlist-view') renderPlaylistView();
+    if (state.activeSong) updateFavoriteButtonUI();
+    showToast(t('toastUserSongsImported'));
+  } catch (err) {
+    console.error('Songbook: user songs import failed —', err);
+    showToast(t('toastUserSongsImportFailed'));
+  }
 }
 
 // Manual "Refresh song database" button: asks the service worker to try the
@@ -1140,6 +1202,9 @@ function loadPrefs() {
   }
   applySongListView();
 
+  state.landscapeMode = localStorage.getItem('sb-landscape-mode') === 'true';
+  applyLandscapeMode();
+
   // Restore which song database was active (see applyDbSource()). Since
   // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
   // writes dbSelect.value, and dbSelect's own <option value="..."> in
@@ -1303,6 +1368,22 @@ function applySongListView() {
   // which is what made the popup show the wrong letter/number (or get
   // stuck near one end) after switching to Compact or Tiles.
   renderSongList();
+}
+
+// Landscape mode (Settings → Appearance): opt-in. Rotating a phone
+// sideways leaves very little vertical room (roughly 360–430px tall)
+// compared to the same phone in portrait, so this trims the header/title/
+// nav chrome to give lyrics and the song lists more room. The attribute
+// this sets is only ever acted on inside a gated media query in
+// style.css — `@media (orientation: landscape) and (max-height: 500px)`
+// — so switching it on here has zero visual effect in portrait, and zero
+// effect on a wide desktop window or tablet (which is "landscape" by
+// aspect ratio too, but has plenty of height to spare). Same attribute-
+// driven pattern as applyHideChords()/applyChordStyle() above.
+function applyLandscapeMode() {
+  document.documentElement.setAttribute('data-landscape-mode', String(state.landscapeMode));
+  const toggle = document.getElementById('landscape-mode-toggle');
+  if (toggle) toggle.setAttribute('aria-checked', String(state.landscapeMode));
 }
 
 // Switches which song database (see DB_SOURCES) the Songs page, search,
@@ -1590,6 +1671,10 @@ function applyLanguage() {
     't-devHideDescSub': 'devHideDescSub',
     't-devVividGlassTitle': 'devVividGlassTitle',
     't-devVividGlassSub': 'devVividGlassSub',
+    't-userSongsBackupTitle': 'userSongsBackupTitle',
+    't-userSongsBackupSub': 'userSongsBackupSub',
+    't-landscapeModeTitle': 'landscapeModeTitle',
+    't-landscapeModeSub': 'landscapeModeSub',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1636,6 +1721,8 @@ function applyLanguage() {
   if (!reloadAppBtn.disabled) reloadAppBtn.textContent = t('reloadAppBtn');
   document.getElementById('export-playlists-btn').textContent = t('exportBtn');
   document.getElementById('import-playlists-btn').textContent = t('importBtn');
+  document.getElementById('export-user-songs-btn').textContent = t('exportBtn');
+  document.getElementById('import-user-songs-btn').textContent = t('importBtn');
 
   renderSocialLinks();
   renderCredits();
@@ -2381,12 +2468,29 @@ const SCROLL_INDEX_SEARCH_LABEL = '__search__';
 // in" logic a sticky section header would use. Assumes scrollIndexEntries
 // is already sorted top-to-bottom, which it always is: it's built by
 // walking the sorted song list in order.
-function labelForScrollTop(scrollTop) {
+//
+// maxScroll (the deepest #page-songs can ever actually scroll to) matters
+// here for a reason that isn't obvious from the loop below: whenever the
+// content from the LAST bucket's row to the very end of the list is
+// shorter than one screenful — normal for Tiles, where ten songs' worth
+// of a bucket can be barely a hundred pixels tall — that row's own
+// measured top ends up further down the page than the deepest point
+// it's ever possible to scroll to. Its "have we scrolled far enough"
+// check then never passes, no matter how far you drag, and dragging to
+// the very bottom silently reports an earlier bucket instead — the
+// popup topping out at, say, "310" or "340" when the list actually goes
+// to "360". Treating "at the bottom of the scrollable area" as always
+// meaning the last bucket sidesteps that entirely, and matches what
+// dragging all the way down actually means to someone doing it.
+function labelForScrollTop(scrollTop, maxScroll) {
   const entries = scrollIndexEntries;
   if (!entries.length) return '';
   // Above the first bucket's own row — still in the search-bar/header
   // area, not any lettered/numbered section yet.
   if (scrollTop < entries[0].top - 1) return SCROLL_INDEX_SEARCH_LABEL;
+  if (maxScroll != null && scrollTop >= maxScroll - 1) {
+    return entries[entries.length - 1].label;
+  }
   let current = entries[0];
   for (let i = 0; i < entries.length; i++) {
     if (entries[i].top <= scrollTop + 1) current = entries[i];
@@ -2551,7 +2655,7 @@ function bindScrollIndexInteraction() {
     lastDragTime = now;
 
     if (bubble) {
-      const label = labelForScrollTop(pageEl.scrollTop);
+      const label = labelForScrollTop(pageEl.scrollTop, maxScroll);
       const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
       const labelEl = document.getElementById('song-scroll-index-bubble-label');
       const labelText = isSearch ? '' : label;
@@ -4979,6 +5083,15 @@ function bindSettings() {
     if (file) importPlaylistsFromFile(file);
     e.target.value = '';
   });
+  document.getElementById('export-user-songs-btn').addEventListener('click', exportUserSongs);
+  document.getElementById('import-user-songs-btn').addEventListener('click', () => {
+    document.getElementById('import-user-songs-file').click();
+  });
+  document.getElementById('import-user-songs-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) importUserSongsFromFile(file);
+    e.target.value = '';
+  });
 
   document.getElementById('about-contact-btn').addEventListener('click', () => {
     // Let the mailto: link proceed as normal (opens the person's mail app,
@@ -5026,6 +5139,13 @@ function bindSettings() {
     state.hideChords = !state.hideChords;
     applyHideChords();
     localStorage.setItem('sb-hide-chords', String(state.hideChords));
+  });
+
+  const landscapeModeToggle = document.getElementById('landscape-mode-toggle');
+  landscapeModeToggle.addEventListener('click', () => {
+    state.landscapeMode = !state.landscapeMode;
+    applyLandscapeMode();
+    localStorage.setItem('sb-landscape-mode', String(state.landscapeMode));
   });
 
   document.querySelectorAll('#lyrics-weight-toggle [data-lyrics-weight]').forEach(btn => {
