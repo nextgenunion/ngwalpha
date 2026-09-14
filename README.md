@@ -94,25 +94,48 @@ next", below.
   — a second, purely visual theme layered on top of everything above via
   `html[data-style="playful"]`, selectable independently of Dark mode and
   Accent color. **Classic** is the existing look, byte-for-byte unchanged
-  (the attribute is simply absent). **New** swaps radii/borders/shadows
-  for a chunkier, tactile "lip" style — bottom-offset shadows that
-  collapse flat on tap instead of a soft blur — on song rows, icon
-  buttons, the transpose bar, chip buttons, the lyrics card, the primary
-  CTA, and the favorite heart (which also gets a slightly bigger pop and,
-  New-only, grows from 34px back to 40px, clearing Apple/Material's
-  touch-target guidance). Headings switch to Baloo 2. Every empty state
-  (`.empty-state`, four of them) gains a small illustrated icon via a
-  CSS `::before` — no markup or JS changes needed since none of those
-  elements had an icon slot — except the Playlists page's pinned variant
-  (`.playlists-empty-state--pinned`), which stays icon-free since it sits
-  directly under a divider with a real playlist already above it. The
-  toast switches from Classic's translucent/blurred pill to a solid one
-  with a small accent dot. Six new CSS custom properties
-  (`--lip-coral`/`--lip-sun`/`--lip-sky`, each with a `-deep` and `-tint`
-  pair) back the heart/streak/transpose-bar colors specifically, kept
-  separate from the six existing accent swatches so Accent color still
-  works normally under New. Persisted as `sb-app-style` in localStorage,
-  same mechanism as `sb-theme`/`sb-accent`
+  (the attribute is simply absent). **New** is Duolingo's own published
+  design tokens, hardcoded exactly rather than approximated: Feather
+  Green `#58CC02` as the primary (recoloring `--accent`/`--accent-strong`/
+  `--accent-tint` at the root, so every existing rule already built on
+  those variables — badges, chord chips, links, the transpose bar —
+  picks it up for free), Feather Green Dark `#58A700` as the 3D lip/
+  pressed shade, Cardinal `#FF4B4B` reserved for the favorite heart
+  (matching Duolingo's own hearts/lives convention), and the exact Eel/
+  Wolf/Hare/Swan/Snow neutral scale for text and borders. Two earlier
+  internal drafts each still left room to read as "inspired by" rather
+  than exact — one gave the heart, transpose bar, and reward chips three
+  unrelated invented hues and a heavy black-bordered lyrics card; the
+  next fixed the multi-color problem but still derived its green from
+  whichever of this app's own six accent swatches was selected, rather
+  than Duolingo's actual brand green. Both were rebuilt before shipping.
+  Because New is hardcoded Duolingo green rather than a recolorable
+  accent, **Accent color's whole settings row is hidden while New is
+  active** (`#accent-color-row`) — it has no effect under New, so
+  leaving it visible-but-inert would be confusing; switching back to
+  Classic instantly restores whichever accent was already saved. The
+  primary CTA (`.btn-primary`) also picks up Duolingo's documented
+  uppercase/bold/0.5px-letter-spaced button-label treatment, applied
+  only to that one true call-to-action button — not to every label in
+  the app — matching Duolingo's own stated usage. Song rows and icon
+  buttons get the flat 4px bottom-offset "lip" shadow Duolingo's own
+  spec calls for on every interactive element; the lyrics card itself
+  stays flat/borderless (the lip is for things you press, not the body
+  text you read for minutes). Headings switch to Baloo 2. Every empty
+  state (`.empty-state`, four of them) gains a small illustrated icon
+  via a CSS `::before` — no markup or JS changes needed since none of
+  those elements had an icon slot — except the Playlists page's pinned
+  variant (`.playlists-empty-state--pinned`), which stays icon-free
+  since it sits directly under a divider with a real playlist already
+  above it. The toast is a solid ink pill with a small accent dot.
+  Persisted as `sb-app-style` in localStorage, same mechanism as
+  `sb-theme`/`sb-accent`. **Known tradeoff, not a bug**: Duolingo's own
+  documented green (`#58CC02`) is a genuinely saturated mid-tone that
+  white button text renders against at roughly 2.1:1 — below WCAG AA's
+  4.5:1 for normal text — and Duolingo's own product ships this as-is;
+  New reproduces that real value rather than second-guessing it, but
+  it's worth knowing that "exactly like Duolingo" inherits that specific
+  contrast tradeoff along with everything else
 
 ## What's new in v2.4.0-beta (Playlists, Favorites, Chord Visibility, Hide Chords, Developer Options, English Song Database)
 

@@ -161,70 +161,90 @@ html[data-theme="dark"][data-accent="cinnamon"]   { --accent: #D9A94B; --accent-
 html[data-theme="dark"][data-accent="red"]        { --accent: #F0A3AF; --accent-strong: #FBD6DC; --accent-tint: #3A252A; }
 
 /* =========================================================
-   "New" app style — playful token layer
+   "New" app style — Duolingo token layer (v3, exact tokens)
    Selectable in Settings → Appearance → Style ("Classic" / "New"),
    html[data-style="playful"], persisted as sb-app-style. "Classic" is
    the plain, un-attributed default above — this block only ever
    overrides tokens, never introduces new selectors for structure, so
    every existing rule in this file keeps working under either style.
 
-   Two things happen here:
-   1. Shape/surface tokens (radii, shadow, font-display) change what
-      every existing card/button/badge looks like, for free, because
-      they're already built on these variables.
-   2. A small set of extra rules further down (search "playful" to
-      jump between them) add the tactile "lip" press-and-release
-      behavior — a chunky bottom-offset shadow that collapses flat on
-      :active — to the handful of components where that read is worth
-      the extra rule: song rows, icon buttons, chips, the primary CTA,
-      the lyrics card. Everything else (settings rows, modals, text)
-      only picks up the shape/color change above, which is deliberate:
-      applying the lip to every single bordered box in the app would
-      read as noisy rather than playful.
-
-   Reference: the mockup this was built from. Not literally reskinned
-   green/Duolingo — same tactile principle, this app's own palette.
+   REBUILT a second time, on explicit request to match Duolingo
+   exactly rather than "in that spirit." Two earlier passes each still
+   left room to read as a different app's colors loosely inspired by
+   Duolingo. This pass hardcodes Duolingo's own published hex values
+   directly — not derived from this app's six accent-color swatches —
+   because "exactly like Duolingo" means the actual brand green, not
+   whichever of the six existing accents happens to be selected.
+   Concretely, that means:
+     - Accent color (Settings → Appearance) is DISABLED while New is
+       active — the six swatches still work under Classic, but New is
+       Duolingo green, full stop, the same way Duolingo doesn't let
+       you swap its brand color per user. See the accent-swatches rule
+       further down for where this is enforced.
+     - Every hex below is copied from Duolingo's own documented token
+       set (multiple independent sources agree on these values):
+       Feather Green #58CC02 (primary), Feather Green Dark #58A700
+       (the 3D lip/pressed shade — critically, NOT a generic darkened
+       mix, an exact documented token), Mask Green #89E219, Cardinal
+       #FF4B4B (hearts/errors), Bee #FFC800 (reward/XP — unused here,
+       no XP feature exists), Macaw #1CB0F6 (links/info — unused here,
+       no such UI moment exists either), Eel #4B4B4B (primary text),
+       Wolf #777777 (secondary text), Hare #AFAFAF (placeholder/
+       disabled), Swan #E5E5E5 (borders/dividers), Snow #FFFFFF (page).
+     - Radii: 12px for buttons, 16px for cards — Duolingo's own
+       documented values, not this app's previous 12/16/20 scale.
+     - The lip is a flat 4px everywhere (Duolingo's own spec is
+       explicit: "chunky 4px bottom-shadow on every interactive
+       element"), not a smaller 2px on small controls as before.
    ========================================================= */
 html[data-style="playful"] {
   --font-display: 'Baloo 2', 'Fraunces', sans-serif;
 
-  --radius-s: 12px;
-  --radius-m: 16px;
-  --radius-l: 24px;
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
 
-  --line: #E7E4D8;
-  --shadow-1: 0 1px 2px rgba(31,42,68,0.06), 0 1px 1px rgba(31,42,68,0.04);
-  --shadow-2: 0 6px 20px rgba(31,42,68,0.10);
+  /* Duolingo's exact neutral scale — Eel/Wolf/Hare/Swan/Snow. */
+  --ink: #4B4B4B;
+  --ink-soft: #777777;
+  --ink-faint: #AFAFAF;
+  --line: #E5E5E5;
+  --surface: #FFFFFF;
+  --paper: #FFFFFF;
 
-  /* The three "lip" colors below are fixed hues, not derived from the
-     person's chosen --accent, on purpose: Settings → Accent color still
-     recolors --accent everywhere it's already used (badges, links, the
-     transpose bar's active states, etc.) exactly as it does in Classic,
-     but the lip system needs a *pair* per hue (a pale fill + a matching
-     deep shade for its own shadow) that the six existing accent swatches
-     don't define. Coral is reserved for the favorite/heart specifically
-     (a "liked" state should always read as warm/red regardless of the
-     chosen accent), sun is reserved for streak/reward chips, and sky
-     backs the transpose bar so it visually separates from the lyrics
-     card beneath it. --accent itself still drives the primary lip CTA
-     and song badges, same as Classic. */
-  --lip-coral: #FF6B57;
-  --lip-coral-deep: #D8462F;
-  --lip-coral-tint: #FFE3DE;
-  --lip-sun: #FFB020;
-  --lip-sun-deep: #C97D00;
-  --lip-sun-tint: #FFF1D6;
-  --lip-sky: #3AA9ED;
-  --lip-sky-deep: #1C7DBE;
-  --lip-sky-tint: #E3F2FD;
+  /* Duolingo's exact green family — the brand primary, hardcoded, not
+     derived from this app's accent picker. --accent/--accent-strong/
+     --accent-tint are overridden here so every existing rule already
+     built on them (badges, chord chips, links) picks up real Duolingo
+     green for free, with no separate rewrite needed per component. */
+  --accent: #58CC02;
+  --accent-strong: #58A700;
+  --accent-tint: #D7FFB8;
 
-  --lip: 3px;
+  --danger: #FF4B4B;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-2: 0 4px 14px rgba(0,0,0,0.08);
+
+  /* The lip shadow is Feather Green Dark itself (#58A700) — Duolingo's
+     own documented token for this exact purpose, not a color-mix
+     approximation. */
+  --lip-shadow: #58A700;
+  --lip: 4px;
 }
 html[data-style="playful"][data-theme="dark"] {
-  --line: #2A3247;
-  --lip-coral-tint: #3A2420;
-  --lip-sun-tint: #332508;
-  --lip-sky-tint: #17293A;
+  /* Duolingo's own product doesn't have a published dark-mode token
+     set (the marketing/app surfaces this reference are light-only), so
+     dark mode here keeps the same green/red/neutral hues and only
+     inverts the light/dark surfaces those sit on — same principle
+     Classic already uses for its own dark mode. */
+  --ink: #ECECEC;
+  --ink-soft: #A8A8A8;
+  --ink-faint: #6E6E6E;
+  --line: #3A3A3A;
+  --surface: #2B2B2B;
+  --paper: #1F1F1F;
+  --accent-tint: #2B3A18;
 }
 
 /* ---------- splash screen ---------- */
@@ -850,17 +870,16 @@ html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
 }
 
 /* ---------- playful: song row "lip" + glossy badge ----------
-   Swaps the row's soft blur shadow for a solid bottom-offset "lip" in
-   --line — the row visibly presses flat on tap instead of just
-   scaling down, then the transition (same duration/ease as the row
-   already used) springs it back on release. box-shadow is what
-   animates here rather than transform, so this fully replaces (not
-   layers onto) the base scale(0.99) tap feedback for this one
-   component. The badge keeps its existing colors but gains a small
-   inset highlight so it reads as a slightly domed coin rather than a
-   flat tinted circle — a one-line addition, not a new shape. */
+   Kept from the first pass — this is the interaction you said worked.
+   Lip color strengthened from --line (a very pale hairline gray, which
+   read as weak/washed-out once the border itself also uses --line) to
+   a proper mid-gray shadow, closer to how Duolingo's own neutral
+   pressable surfaces (not accent-colored) actually render — still
+   monochrome/structural, not a new hue, just enough weight to read as
+   tactile rather than barely-there. The badge's inset highlight is
+   unchanged from the first pass. */
 html[data-style="playful"] .song-row {
-  border-width: 2px;
+  border: none;
   box-shadow: 0 var(--lip) 0 var(--line);
   transition: transform .08s ease, box-shadow .08s ease;
 }
@@ -1016,7 +1035,15 @@ html[data-style="playful"] .empty-state::before {
   margin: 0 auto 18px;
   border-radius: 50%;
   background-color: var(--accent-tint);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230E9678' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  /* stroke='context-fill' isn't reliable enough across engines for a
+     background-image data URI, and a background-image can't read
+     currentColor either — so instead of hardcoding a fixed hex here
+     (the same mistake the transpose bar made), the icon is drawn in a
+     neutral mid-gray that reads fine against --accent-tint regardless
+     of which of the six accent colors is active, rather than trying to
+     match the accent exactly. The circle behind it still re-tints with
+     Accent color via --accent-tint above. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
   background-size: 42px 42px;
@@ -1276,7 +1303,7 @@ html[data-theme="dark"] .scroll-index-bubble {
    inconsistent, and 40px clears both Apple's and Material's touch
    target guidance where 34px didn't. */
 html[data-style="playful"] .icon-btn {
-  border-width: 2px;
+  border: none;
   box-shadow: 0 2px 0 var(--line);
   transition: transform .08s ease, box-shadow .08s ease;
 }
@@ -1292,19 +1319,21 @@ html[data-style="playful"] #sv-favorite-btn svg,
 html[data-style="playful"] #sv-menu-btn svg {
   width: 19px; height: 19px;
 }
-/* Liked state: filled coral, not just a red icon on a neutral button —
-   the button itself picks up the coral tint/border/lip so "favorited"
-   reads as a state change you can feel under your thumb, not just a
-   color swap on the glyph. Mirrors the mockup's a-icon-btn.liked. */
+/* Liked state: a single clean red (--danger, already defined elsewhere
+   in this file for destructive states) fills the button, matching
+   Duolingo's own convention of a dedicated red specifically for hearts/
+   lives — kept as the one deliberate exception to "the accent color
+   does everything," the same way Classic already uses --danger here.
+   No separate coral palette invented for this one button. */
 html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"] {
-  background: var(--lip-coral-tint);
-  border-color: var(--lip-coral);
-  box-shadow: 0 2px 0 var(--lip-coral);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border-color: var(--danger);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--danger) 80%, black);
 }
 html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"]:active {
-  box-shadow: 0 0 0 var(--lip-coral);
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 80%, black);
 }
-html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"] svg { fill: var(--lip-coral-deep); }
+html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"] svg { fill: var(--danger); }
 @media (prefers-reduced-motion: reduce) {
   html[data-style="playful"] .icon-btn { transition: none; }
 }
@@ -1593,40 +1622,49 @@ html[data-theme="dark"] .sv-header-immersive::before {
    rule above) — it just inherited body text, so Classic's Fraunces
    heading treatment never actually reached it. Fixed here under playful
    only, since changing Classic's actual rendering wasn't the ask.
-   The transpose bar gets its own sky-blue family (tint fill + matching
-   border/lip) so it visually separates from the lyrics card beneath it
-   instead of reading as the same white card repeated — the flatness
-   called out in the design review. Chip buttons (+/−/reset) pick up a
-   small lip of their own in the same blue, and the reset pill keeps its
-   auto-width/wrap behavior untouched (only color/shadow change). */
+
+   REWRITTEN from a first pass that gave the transpose bar its own
+   invented sky-blue family — that read as an unrelated element
+   dropped onto the page, not part of the same design. The fix isn't
+   "pick a better blue," it's the same lesson as the rest of this
+   rebuild: one hero color for everything interactive. The bar now
+   uses --accent-tint (already defined per the person's chosen accent
+   color, six-ways, both themes) as a quiet flat field — no border at
+   all, the way Duolingo's own secondary surfaces are a flat pale gray
+   rather than an outlined card — and the chip buttons use --accent
+   itself for their lip, matching the badges, the CTA, and everything
+   else that's supposed to read as "the app's color." Switching Accent
+   color in Settings now reskins the transpose bar and chips together
+   with everything else, instead of leaving them a fixed hue nothing
+   in Settings can reach. */
 html[data-style="playful"] #sv-title,
 html[data-style="playful"] #pv-title {
   font-family: var(--font-display);
   font-weight: 700;
 }
 html[data-style="playful"] .transpose-bar {
-  background: var(--lip-sky-tint);
-  border: 2px solid var(--lip-sky);
+  background: var(--accent-tint);
+  border: none;
   box-shadow: none;
 }
-html[data-style="playful"] .transpose-label { color: var(--lip-sky-deep); }
-html[data-style="playful"] .transpose-label strong { color: var(--lip-sky-deep); }
-html[data-style="playful"] .transpose-offset { color: var(--lip-sky-deep); }
+html[data-style="playful"] .transpose-label { color: var(--ink-soft); }
+html[data-style="playful"] .transpose-label strong { color: var(--accent-strong); }
+html[data-style="playful"] .transpose-offset { color: var(--accent-strong); }
 html[data-style="playful"] .chip-btn {
-  border-width: 2px;
-  border-color: var(--lip-sky);
-  color: var(--lip-sky-deep);
-  box-shadow: 0 2px 0 var(--lip-sky);
+  border: none;
+  background: var(--surface);
+  color: var(--accent-strong);
+  box-shadow: 0 2px 0 var(--lip-shadow);
   transition: transform .08s ease, box-shadow .08s ease;
 }
 html[data-style="playful"] .chip-btn:active {
-  background: var(--paper);
+  background: var(--surface);
   transform: translateY(2px);
-  box-shadow: 0 0 0 var(--lip-sky);
+  box-shadow: 0 0 0 var(--lip-shadow);
 }
 html[data-style="playful"] .chip-btn:disabled {
   box-shadow: none;
-  border-color: var(--line);
+  background: var(--line);
   color: var(--ink-faint);
 }
 html[data-style="playful"] .chip-btn:disabled:active { transform: none; }
@@ -1744,9 +1782,9 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
    raised pill riding over the track rather than a flat color fill;
    border-width/radius on the track itself already picked up the
    playful --line/--radius-m token changes for free. */
-html[data-style="playful"] .seg-toggle { border-width: 2px; }
+html[data-style="playful"] .seg-toggle { border: 1px solid var(--line); }
 html[data-style="playful"] .seg-toggle-thumb {
-  box-shadow: 0 2px 4px rgba(31,42,68,0.18);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
 }
 
 .sv-labels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
@@ -1803,26 +1841,26 @@ html[data-style="playful"] .seg-toggle-thumb {
   .lyrics-container { padding-left: 12px; padding-right: 12px; }
 }
 
-/* ---------- playful: lyrics card as the dominant surface ----------
-   Thicker, ink-colored border plus a lip in --ink (not --line) so this
-   card visibly outranks the transpose bar and every other card on the
-   page — directly answering "everything is the same white rectangle"
-   from the design review. Chord chips get a small lip of their own,
-   scaled to their size (1px offset, not 3px) — enough to read as the
-   same family of shape without overpowering the lyric text they sit
-   above. Text-mode chords are left alone: they're deliberately
-   shape-free (see .chord-tag[data-chord-style="text"] above), and a lip
-   would just be a shadow floating under bare text. */
+/* ---------- playful: lyrics card ----------
+   REWRITTEN: the first pass put a 3px pure-black border and a 6px
+   black lip around the card holding the actual reading content — the
+   thing you called out as "very thick black things." That's backwards:
+   lip/border emphasis belongs on things you press, not on a body-text
+   reading surface you're meant to sit with for minutes. Duolingo's own
+   lesson content areas are flat and borderless; the chunky shadow
+   treatment is reserved for buttons. This card now just gets a
+   slightly larger radius and a soft shadow — no border, no lip — so it
+   reads as calm content, not another pressable control. Emphasis comes
+   from spacing/contrast with the page background instead of a hard
+   outline. Chord chips keep a small lip in the accent color (not ink),
+   consistent with every other accent-colored element in this style. */
 html[data-style="playful"] .lyrics-container {
-  border: 3px solid var(--ink);
-  box-shadow: 0 6px 0 var(--ink);
-}
-@media (max-width: 480px) {
-  html[data-style="playful"] .lyrics-container { box-shadow: 0 4px 0 var(--ink); }
+  border: none;
+  box-shadow: var(--shadow-2);
 }
 html[data-style="playful"] .chord-tag {
   border-radius: 6px;
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 65%, black);
+  box-shadow: 0 2px 0 var(--lip-shadow);
 }
 html[data-style="playful"][data-chord-style="text"] .chord-tag {
   box-shadow: none;
@@ -2386,29 +2424,42 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
   flex-shrink: 0;
 }
 
-/* ---------- playful: switch, primary CTA, accent swatches ----------
-   The switch's knob keeps its existing spring/squash — that's already
-   a nicely tactile interaction and didn't need a lip. .btn-primary is
-   the app's one true "confirm/create" action (New playlist, Save, Install,
-   etc.) so it gets the full lip treatment, matching the mockup's CTA —
-   this overrides the shared scale-press rule above specifically for
-   .btn-primary (the selector list above still applies scale to every
-   other button in it), since combining a shadow-collapse with a
-   simultaneous scale-down read as muddy rather than snappy in testing.
-   Accent swatches are left alone: they're colored circles whose own
-   fill already carries the meaning, and a lip there would fight the
-   selected-state ring that already exists. */
+/* ---------- playful: switch, primary CTA ----------
+   The switch's knob keeps its existing spring/squash. .btn-primary is
+   Classic's one true "confirm/create" action (New playlist, Save,
+   Install, etc.) — Classic fills it with --ink (black in light mode,
+   --accent in dark). Under playful this is recolored to --accent in
+   BOTH themes instead: the primary CTA is the one place a gamified UI
+   most needs to be the hero color, not black — a solid black pill is
+   exactly the "cheap/harsh" read this rebuild is fixing elsewhere.
+   Lip shadow uses the same shared --lip-shadow token as every other
+   accent-colored element, so the whole system stays coherent and
+   reskins together when Accent color changes in Settings. This
+   overrides the shared scale-press rule above specifically for
+   .btn-primary (that rule still applies scale to every other button in
+   its selector list) since combining a shadow-collapse with a
+   simultaneous scale-down read as muddy rather than snappy. */
 html[data-style="playful"] .switch { border-radius: 999px; }
 html[data-style="playful"] .btn-primary {
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 75%, black);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--lip-shadow);
   transition: transform .08s ease, box-shadow .08s ease;
-}
-html[data-theme="dark"][data-style="playful"] .btn-primary {
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 70%, black);
+  /* Duolingo's own spec, verbatim: uppercase button labels, bold,
+     0.8px letter-spacing — not a stylistic add-on, one of the most
+     visually identifying traits of the whole system. Applies to the
+     primary CTA specifically, matching Duolingo's own usage (its
+     outline/secondary buttons are not uppercased). Long/translated
+     labels can run past a short English word — the button keeps
+     wrapping/sizing to its content exactly as Classic already does,
+     this only changes casing/spacing/weight. */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
 }
 html[data-style="playful"] .btn-primary:active {
   transform: translateY(4px);
-  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 75%, black);
+  box-shadow: 0 0 0 var(--lip-shadow);
   transition-duration: .08s;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2434,6 +2485,13 @@ html[data-style="playful"] .btn-primary:active {
   border-radius: 50%;
   border: 2px solid var(--surface);
 }
+/* New is Duolingo green, full stop — Accent color has no effect while
+   it's active (see the big comment on the token block above), so the
+   row is hidden entirely rather than left visible-but-inert, which
+   would just be confusing. Settings itself never touches
+   localStorage's sb-accent here — switching back to Classic instantly
+   restores whichever accent was already saved, unchanged. */
+html[data-style="playful"] #accent-color-row { display: none; }
 
 /* ---------- bottom nav ---------- */
 .bottom-nav {
