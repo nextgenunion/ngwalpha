@@ -36,13 +36,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Baloo 2 only loads its weights here for the "New" playful style (see
-     html[data-style="playful"] in css/style.css) — Classic never references
-     it, so this is a bit of dead weight for Classic-only users, but a
-     second stylesheet request just for one font isn't worth the extra
-     round trip. Loaded up front rather than lazily so switching styles in
-     Settings never shows a flash of unstyled/fallback headings. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -344,17 +338,6 @@
     <h3 class="settings-heading" id="t-sectionAppearance">Appearance</h3>
     <div class="settings-row">
       <div class="settings-row-text">
-        <span class="settings-row-title" id="t-appStyleGroup">Style</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-appStyleSub">Choose the app's overall look and feel</span>
-      </div>
-      <div class="seg-toggle" role="group" id="app-style-toggle" aria-label="App style">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-app-style="classic" id="t-appStyleClassic" aria-pressed="true">Classic</button>
-        <button class="seg-toggle-btn" data-app-style="playful" id="t-appStylePlayful" aria-pressed="false">New</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-text">
         <span class="settings-row-title" id="t-darkModeTitle">Dark mode</span>
         <span class="settings-row-sub settings-desc-hideable" id="t-darkModeSub">Switch between light and dark themes</span>
       </div>
@@ -362,7 +345,7 @@
         <span class="switch-knob"></span>
       </button>
     </div>
-    <div class="settings-row" id="accent-color-row">
+    <div class="settings-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-accentTitle">Accent color</span>
         <span class="settings-row-sub settings-desc-hideable" id="t-accentSub">Choose the app's accent color</span>
@@ -431,6 +414,15 @@
         <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="false">Normal</button>
         <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
       </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-landscapeModeTitle">Landscape mode</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-landscapeModeSub">Reclaims screen space for reading when your phone is rotated sideways</span>
+      </div>
+      <button id="landscape-mode-toggle" class="switch" role="switch" aria-checked="false" aria-label="Landscape mode">
+        <span class="switch-knob"></span>
+      </button>
     </div>
   </section>
 
@@ -584,6 +576,17 @@
         <button id="export-playlists-btn" class="btn-secondary" type="button"></button>
         <button id="import-playlists-btn" class="btn-secondary" type="button"></button>
         <input type="file" id="import-playlists-file" accept="application/json" hidden>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-userSongsBackupTitle">User Songs backup</span>
+        <span class="settings-row-sub" id="t-userSongsBackupSub">User Songs are saved on this device per browser. Export/import a file to move them to another browser on this phone.</span>
+      </div>
+      <div class="settings-row-actions">
+        <button id="export-user-songs-btn" class="btn-secondary" type="button"></button>
+        <button id="import-user-songs-btn" class="btn-secondary" type="button"></button>
+        <input type="file" id="import-user-songs-file" accept="application/json" hidden>
       </div>
     </div>
   </section>
