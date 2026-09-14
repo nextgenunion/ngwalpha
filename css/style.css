@@ -2201,14 +2201,19 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
    used) rather than repeating the same shorter number in four places.
 
    Gated on BOTH html[data-landscape-mode="true"] (the Settings toggle)
-   AND a short, wide viewport (orientation: landscape + max-height: 500px)
-   — that second condition is what stops this from ever firing on an
-   ordinary wide desktop browser window, which is *always* "landscape" by
-   aspect ratio despite having plenty of height to spare. Tablets clear
-   500px tall even sideways too (an iPad mini in landscape is ~744px), so
-   500px is the practical line between "a phone rotated sideways" (needs
-   the space back) and "anything roomier" (doesn't). */
-@media (orientation: landscape) and (max-height: 500px) {
+   AND actually being a phone: orientation: landscape + a short viewport
+   + (hover: none) and (pointer: coarse) — that last pair is what a touch-
+   only device reports (no mouse capable of hovering, a coarse/finger
+   pointer) and is the part that actually matters here. max-height alone
+   isn't enough to rule out a PC — an ordinary desktop browser window is
+   "landscape" by aspect ratio, and plenty of real ones (not maximized,
+   devtools docked along the bottom, a smaller monitor) are well under
+   500px tall too, so max-height on its own was flipping this on for
+   mouse/keyboard users it was never meant for. (hover: none) and
+   (pointer: coarse) is what a mouse-driven browser can't ever report,
+   window size aside, so pairing it with max-height is what actually
+   narrows this down to "a phone rotated sideways" specifically. */
+@media (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
   html[data-landscape-mode="true"] {
     --nav-h: 46px;
   }
