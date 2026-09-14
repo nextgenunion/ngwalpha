@@ -160,6 +160,73 @@ html[data-theme="dark"][data-accent="aqua"]       { --accent: #6FDBFF; --accent-
 html[data-theme="dark"][data-accent="cinnamon"]   { --accent: #D9A94B; --accent-strong: #E7BE6C; --accent-tint: #2C2618; }
 html[data-theme="dark"][data-accent="red"]        { --accent: #F0A3AF; --accent-strong: #FBD6DC; --accent-tint: #3A252A; }
 
+/* =========================================================
+   "New" app style — playful token layer
+   Selectable in Settings → Appearance → Style ("Classic" / "New"),
+   html[data-style="playful"], persisted as sb-app-style. "Classic" is
+   the plain, un-attributed default above — this block only ever
+   overrides tokens, never introduces new selectors for structure, so
+   every existing rule in this file keeps working under either style.
+
+   Two things happen here:
+   1. Shape/surface tokens (radii, shadow, font-display) change what
+      every existing card/button/badge looks like, for free, because
+      they're already built on these variables.
+   2. A small set of extra rules further down (search "playful" to
+      jump between them) add the tactile "lip" press-and-release
+      behavior — a chunky bottom-offset shadow that collapses flat on
+      :active — to the handful of components where that read is worth
+      the extra rule: song rows, icon buttons, chips, the primary CTA,
+      the lyrics card. Everything else (settings rows, modals, text)
+      only picks up the shape/color change above, which is deliberate:
+      applying the lip to every single bordered box in the app would
+      read as noisy rather than playful.
+
+   Reference: the mockup this was built from. Not literally reskinned
+   green/Duolingo — same tactile principle, this app's own palette.
+   ========================================================= */
+html[data-style="playful"] {
+  --font-display: 'Baloo 2', 'Fraunces', sans-serif;
+
+  --radius-s: 12px;
+  --radius-m: 16px;
+  --radius-l: 24px;
+
+  --line: #E7E4D8;
+  --shadow-1: 0 1px 2px rgba(31,42,68,0.06), 0 1px 1px rgba(31,42,68,0.04);
+  --shadow-2: 0 6px 20px rgba(31,42,68,0.10);
+
+  /* The three "lip" colors below are fixed hues, not derived from the
+     person's chosen --accent, on purpose: Settings → Accent color still
+     recolors --accent everywhere it's already used (badges, links, the
+     transpose bar's active states, etc.) exactly as it does in Classic,
+     but the lip system needs a *pair* per hue (a pale fill + a matching
+     deep shade for its own shadow) that the six existing accent swatches
+     don't define. Coral is reserved for the favorite/heart specifically
+     (a "liked" state should always read as warm/red regardless of the
+     chosen accent), sun is reserved for streak/reward chips, and sky
+     backs the transpose bar so it visually separates from the lyrics
+     card beneath it. --accent itself still drives the primary lip CTA
+     and song badges, same as Classic. */
+  --lip-coral: #FF6B57;
+  --lip-coral-deep: #D8462F;
+  --lip-coral-tint: #FFE3DE;
+  --lip-sun: #FFB020;
+  --lip-sun-deep: #C97D00;
+  --lip-sun-tint: #FFF1D6;
+  --lip-sky: #3AA9ED;
+  --lip-sky-deep: #1C7DBE;
+  --lip-sky-tint: #E3F2FD;
+
+  --lip: 3px;
+}
+html[data-style="playful"][data-theme="dark"] {
+  --line: #2A3247;
+  --lip-coral-tint: #3A2420;
+  --lip-sun-tint: #332508;
+  --lip-sky-tint: #17293A;
+}
+
 /* ---------- splash screen ---------- */
 #splash-screen {
   position: fixed;
@@ -782,6 +849,38 @@ html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
   font-weight: 600;
 }
 
+/* ---------- playful: song row "lip" + glossy badge ----------
+   Swaps the row's soft blur shadow for a solid bottom-offset "lip" in
+   --line — the row visibly presses flat on tap instead of just
+   scaling down, then the transition (same duration/ease as the row
+   already used) springs it back on release. box-shadow is what
+   animates here rather than transform, so this fully replaces (not
+   layers onto) the base scale(0.99) tap feedback for this one
+   component. The badge keeps its existing colors but gains a small
+   inset highlight so it reads as a slightly domed coin rather than a
+   flat tinted circle — a one-line addition, not a new shape. */
+html[data-style="playful"] .song-row {
+  border-width: 2px;
+  box-shadow: 0 var(--lip) 0 var(--line);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+html[data-style="playful"] .song-row:active {
+  transform: translateY(var(--lip));
+  box-shadow: 0 0 0 var(--line);
+}
+html[data-style="playful"] .song-row:hover { box-shadow: 0 var(--lip) 0 var(--line); }
+html[data-style="playful"] .song-badge {
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-strong) 18%, transparent),
+              inset 0 2px 0 rgba(255,255,255,0.7);
+}
+html[data-style="playful"][data-theme="dark"] .song-badge {
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25),
+              inset 0 2px 0 rgba(255,255,255,0.12);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-style="playful"] .song-row { transition: none; }
+}
+
 .song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .song-row-title {
   font-family: var(--font-display);
@@ -888,6 +987,50 @@ html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
   margin-top: 48px;
   padding: 0 20px;
   line-height: 1.5;
+}
+
+/* ---------- playful: empty states get an illustration ----------
+   Every .empty-state in the app (#empty-state, #user-songs-empty-state,
+   #playlists-empty-state, #playlist-view-empty-state) is a single <p>
+   whose text is set via textContent from app.js — there's no icon slot
+   in the markup, and adding one would mean touching four JS call sites
+   plus index.html for a style-only feature. A ::before pseudo-element
+   gets the same "anchored illustration instead of text floating in a
+   void" result (the single biggest gap called out in the design
+   review) without changing markup, JS, or Classic's rendering at all.
+   One shared icon (a simple music-note glyph) covers all four empty
+   states — Songs search, User songs, Playlists, and inside a Playlist —
+   since the content difference between them is already carried by the
+   text itself; a different icon per screen would be a nice future
+   step but isn't needed to fix the dead-space problem. */
+html[data-style="playful"] .empty-state {
+  margin-top: 40px;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+html[data-style="playful"] .empty-state::before {
+  content: '';
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background-color: var(--accent-tint);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230E9678' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 42px 42px;
+}
+html[data-style="playful"][data-theme="dark"] .empty-state::before {
+  background-color: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+/* .playlists-empty-state--pinned sits directly under a divider inside an
+   otherwise non-empty Playlists page (see the comment on that class
+   above) — a full-size illustration there would push the "Favorites"
+   playlist above it uncomfortably far up the screen, so it keeps the
+   plain text-only treatment instead of picking up the icon. */
+html[data-style="playful"] .playlists-empty-state--pinned::before {
+  content: none;
 }
 
 /* ---------- song list fast-scroll indicator ----------
@@ -1121,6 +1264,50 @@ html[data-theme="dark"] .scroll-index-bubble {
    without shrinking anything the person actually taps most. */
 #sv-favorite-btn, #sv-menu-btn { width: 34px; height: 34px; }
 #sv-favorite-btn svg, #sv-menu-btn svg { width: 18px; height: 18px; }
+
+/* ---------- playful: icon buttons + favorite heart ----------
+   Same lip treatment as the song row above, sized down (2px instead
+   of 3px) since these buttons are much smaller and a full 3px read as
+   heavy at this scale in testing the mockup. #sv-favorite-btn and
+   #sv-menu-btn get bumped back up to 40px here specifically — under
+   Classic they stay at 34px for the title-width reasons noted above,
+   but "New" already widens other chrome enough (bigger radii, thicker
+   borders) that reclaiming a little title width doesn't read as
+   inconsistent, and 40px clears both Apple's and Material's touch
+   target guidance where 34px didn't. */
+html[data-style="playful"] .icon-btn {
+  border-width: 2px;
+  box-shadow: 0 2px 0 var(--line);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+html[data-style="playful"] .icon-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 var(--line);
+}
+html[data-style="playful"] #sv-favorite-btn,
+html[data-style="playful"] #sv-menu-btn {
+  width: 40px; height: 40px;
+}
+html[data-style="playful"] #sv-favorite-btn svg,
+html[data-style="playful"] #sv-menu-btn svg {
+  width: 19px; height: 19px;
+}
+/* Liked state: filled coral, not just a red icon on a neutral button —
+   the button itself picks up the coral tint/border/lip so "favorited"
+   reads as a state change you can feel under your thumb, not just a
+   color swap on the glyph. Mirrors the mockup's a-icon-btn.liked. */
+html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"] {
+  background: var(--lip-coral-tint);
+  border-color: var(--lip-coral);
+  box-shadow: 0 2px 0 var(--lip-coral);
+}
+html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"]:active {
+  box-shadow: 0 0 0 var(--lip-coral);
+}
+html[data-style="playful"] #sv-favorite-btn[aria-pressed="true"] svg { fill: var(--lip-coral-deep); }
+@media (prefers-reduced-motion: reduce) {
+  html[data-style="playful"] .icon-btn { transition: none; }
+}
 
 /* Immersive song-view header (see index.html: .sv-header-immersive) — a
    tinted card instead of a plain bar. Back/heart/kebab float as their own
@@ -1400,6 +1587,52 @@ html[data-theme="dark"] .sv-header-immersive::before {
   gap: 10px;
   margin-top: 10px;
 }
+
+/* ---------- playful: song title, transpose bar, chip buttons ----------
+   #sv-title never had a font-family of its own (see comment on the base
+   rule above) — it just inherited body text, so Classic's Fraunces
+   heading treatment never actually reached it. Fixed here under playful
+   only, since changing Classic's actual rendering wasn't the ask.
+   The transpose bar gets its own sky-blue family (tint fill + matching
+   border/lip) so it visually separates from the lyrics card beneath it
+   instead of reading as the same white card repeated — the flatness
+   called out in the design review. Chip buttons (+/−/reset) pick up a
+   small lip of their own in the same blue, and the reset pill keeps its
+   auto-width/wrap behavior untouched (only color/shadow change). */
+html[data-style="playful"] #sv-title,
+html[data-style="playful"] #pv-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+html[data-style="playful"] .transpose-bar {
+  background: var(--lip-sky-tint);
+  border: 2px solid var(--lip-sky);
+  box-shadow: none;
+}
+html[data-style="playful"] .transpose-label { color: var(--lip-sky-deep); }
+html[data-style="playful"] .transpose-label strong { color: var(--lip-sky-deep); }
+html[data-style="playful"] .transpose-offset { color: var(--lip-sky-deep); }
+html[data-style="playful"] .chip-btn {
+  border-width: 2px;
+  border-color: var(--lip-sky);
+  color: var(--lip-sky-deep);
+  box-shadow: 0 2px 0 var(--lip-sky);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+html[data-style="playful"] .chip-btn:active {
+  background: var(--paper);
+  transform: translateY(2px);
+  box-shadow: 0 0 0 var(--lip-sky);
+}
+html[data-style="playful"] .chip-btn:disabled {
+  box-shadow: none;
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+html[data-style="playful"] .chip-btn:disabled:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-style="playful"] .chip-btn { transition: none; }
+}
 .font-group {
   flex: 1;
   /* Sized for the chord-style toggle's segmented control (wider than an
@@ -1503,6 +1736,19 @@ html[data-theme="dark"] .seg-toggle-thumb { background: var(--accent); }
 .seg-toggle-btn[aria-pressed="true"] { color: var(--paper); }
 html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--paper-dim); }
 
+/* ---------- playful: seg-toggle thumb gets a touch of lift ----------
+   The sliding thumb (unlike the discrete buttons elsewhere in this
+   style layer) isn't a good fit for the collapse-on-tap lip — there's
+   no single "resting" edge to collapse to while it's actively sliding
+   between segments. A small drop shadow is enough to make it read as a
+   raised pill riding over the track rather than a flat color fill;
+   border-width/radius on the track itself already picked up the
+   playful --line/--radius-m token changes for free. */
+html[data-style="playful"] .seg-toggle { border-width: 2px; }
+html[data-style="playful"] .seg-toggle-thumb {
+  box-shadow: 0 2px 4px rgba(31,42,68,0.18);
+}
+
 .sv-labels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 .sv-label-chip {
   font-size: 0.72rem;
@@ -1555,6 +1801,31 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
    the card). Kept roomier on wider screens where width isn't scarce. */
 @media (max-width: 480px) {
   .lyrics-container { padding-left: 12px; padding-right: 12px; }
+}
+
+/* ---------- playful: lyrics card as the dominant surface ----------
+   Thicker, ink-colored border plus a lip in --ink (not --line) so this
+   card visibly outranks the transpose bar and every other card on the
+   page — directly answering "everything is the same white rectangle"
+   from the design review. Chord chips get a small lip of their own,
+   scaled to their size (1px offset, not 3px) — enough to read as the
+   same family of shape without overpowering the lyric text they sit
+   above. Text-mode chords are left alone: they're deliberately
+   shape-free (see .chord-tag[data-chord-style="text"] above), and a lip
+   would just be a shadow floating under bare text. */
+html[data-style="playful"] .lyrics-container {
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 0 var(--ink);
+}
+@media (max-width: 480px) {
+  html[data-style="playful"] .lyrics-container { box-shadow: 0 4px 0 var(--ink); }
+}
+html[data-style="playful"] .chord-tag {
+  border-radius: 6px;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 65%, black);
+}
+html[data-style="playful"][data-chord-style="text"] .chord-tag {
+  box-shadow: none;
 }
 
 .lyric-section { margin-top: 24px; }
@@ -2115,6 +2386,35 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
   flex-shrink: 0;
 }
 
+/* ---------- playful: switch, primary CTA, accent swatches ----------
+   The switch's knob keeps its existing spring/squash — that's already
+   a nicely tactile interaction and didn't need a lip. .btn-primary is
+   the app's one true "confirm/create" action (New playlist, Save, Install,
+   etc.) so it gets the full lip treatment, matching the mockup's CTA —
+   this overrides the shared scale-press rule above specifically for
+   .btn-primary (the selector list above still applies scale to every
+   other button in it), since combining a shadow-collapse with a
+   simultaneous scale-down read as muddy rather than snappy in testing.
+   Accent swatches are left alone: they're colored circles whose own
+   fill already carries the meaning, and a lip there would fight the
+   selected-state ring that already exists. */
+html[data-style="playful"] .switch { border-radius: 999px; }
+html[data-style="playful"] .btn-primary {
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 75%, black);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+html[data-theme="dark"][data-style="playful"] .btn-primary {
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 70%, black);
+}
+html[data-style="playful"] .btn-primary:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 75%, black);
+  transition-duration: .08s;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-style="playful"] .btn-primary { transition: none; }
+}
+
 .accent-swatches { display: flex; gap: 10px; flex-shrink: 0; }
 .accent-swatch {
   width: 30px; height: 30px;
@@ -2187,118 +2487,6 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
 .nav-btn.is-active { color: var(--accent-strong); }
 .nav-btn.is-active svg { fill: var(--accent-strong); transform: scale(1.08); }
 
-/* ---------- Landscape mode (Settings → Appearance → Landscape mode; see
-   applyLandscapeMode() in js/app.js) ----------
-   Opt-in. A phone rotated sideways has very little vertical room (roughly
-   360–430px tall) next to the same phone in portrait, so the header/
-   title/nav chrome below — all sized for portrait's much taller screen —
-   ends up crowding out the actual lyrics or song list. This reclaims that
-   space by trimming those same elements' padding/size, and by shrinking
-   --nav-h itself (which every other rule that reserves space for the
-   bottom nav — .page-inner's bottom padding, the toast's bottom offset,
-   .scroll-index's bottom edge — already reads from, the same way
-   --page-pad's narrow-phone override above cascades everywhere it's
-   used) rather than repeating the same shorter number in four places.
-
-   Gated on BOTH html[data-landscape-mode="true"] (the Settings toggle)
-   AND actually being a phone: orientation: landscape + a short viewport
-   + (hover: none) and (pointer: coarse) — that last pair is what a touch-
-   only device reports (no mouse capable of hovering, a coarse/finger
-   pointer) and is the part that actually matters here. max-height alone
-   isn't enough to rule out a PC — an ordinary desktop browser window is
-   "landscape" by aspect ratio, and plenty of real ones (not maximized,
-   devtools docked along the bottom, a smaller monitor) are well under
-   500px tall too, so max-height on its own was flipping this on for
-   mouse/keyboard users it was never meant for. (hover: none) and
-   (pointer: coarse) is what a mouse-driven browser can't ever report,
-   window size aside, so pairing it with max-height is what actually
-   narrows this down to "a phone rotated sideways" specifically. */
-@media (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
-  html[data-landscape-mode="true"] {
-    --nav-h: 46px;
-  }
-
-  html[data-landscape-mode="true"] .page-inner {
-    max-width: 980px;
-    padding-left: calc(var(--page-pad) + env(safe-area-inset-left));
-    padding-right: calc(var(--page-pad) + env(safe-area-inset-right));
-  }
-  /* Rounded corners/notch land on the left or right edge once rotated
-     (whichever was the top in portrait) — env() reports whichever
-     actually applies for the device's current orientation, so this only
-     ever adds real padding on hardware that has something to dodge
-     there; everywhere else it resolves to 0 and changes nothing. */
-  html[data-landscape-mode="true"] .bottom-nav-inner {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-
-  /* Nav bar: labels dropped, icon trimmed slightly — still a full-width
-     strip along the bottom edge (not moved to a side rail). Reading pages
-     (song view, the editor, playlist view) already hide the nav bar
-     entirely via PAGES' hideNav in js/app.js, so this only ever applies
-     on the four scrolling tab pages (Songs/User Songs/Playlists/
-     Settings), where a shorter fixed strip at the bottom is a small,
-     worthwhile trade for that much more of the list on screen at once. */
-  html[data-landscape-mode="true"] .nav-btn span { display: none; }
-  html[data-landscape-mode="true"] .nav-btn svg { width: 21px; height: 21px; }
-
-  html[data-landscape-mode="true"] .page-header { padding: calc(env(safe-area-inset-top) + 8px) 2px 6px; }
-  html[data-landscape-mode="true"] .page-header:has(#sabbath-mascot:not([hidden])) { padding-bottom: 8px; }
-  html[data-landscape-mode="true"] .page-header h1 { font-size: 1.35rem; }
-
-  /* Song view's immersive header is the single biggest win here — title,
-     artist, and the heart/kebab row all stack above the transpose/font
-     controls before any actual lyrics appear, so trimming this is what
-     buys back the most reading room. */
-  html[data-landscape-mode="true"] .sv-header-immersive { padding: calc(env(safe-area-inset-top) + 8px) 2px 10px; }
-  html[data-landscape-mode="true"] .sv-header-immersive::before { height: calc(env(safe-area-inset-top) + 130px); }
-  html[data-landscape-mode="true"] .sv-header-immersive .song-view-title { margin-top: 6px; }
-  html[data-landscape-mode="true"] #sv-title { font-size: 1.18rem; }
-  html[data-landscape-mode="true"] .sv-title-centered .sv-artist { font-size: 0.74rem; margin: 1px 0 0; }
-
-  html[data-landscape-mode="true"] .transpose-bar { margin-top: 8px; padding: 6px 12px; }
-  html[data-landscape-mode="true"] .font-controls { margin-top: 6px; gap: 6px; }
-  html[data-landscape-mode="true"] .font-group { padding: 5px 8px; }
-
-  /* Songbook list — List/Compact (Tiles already grids at 4 columns, see
-     #song-list[data-view="tiles"] above; this just brings List/Compact up
-     to the same layout). Normally each is one song per full-width row —
-     landscape gives roughly four times a portrait phone's width, so a
-     single row wastes most of it. Reuses that same 4-column cap (not
-     more, even on a very wide landscape screen) so rows stay a readable
-     width rather than stretching thin. Scoped to #song-list only, same
-     as every data-view rule above — #user-song-list/#playlist-song-list
-     intentionally keep their own full-row look regardless. */
-  html[data-landscape-mode="true"] #song-list[data-view="list"],
-  html[data-landscape-mode="true"] #song-list[data-view="compact"] {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    align-items: stretch;
-  }
-  /* The actual grid items are #song-list's <li> children (.song-row is a
-     <button> nested one level inside each <li> — see renderSongList() in
-     js/app.js) — so the min-width: 0 override belongs on the <li> itself.
-     Grid items default to min-width: auto, which resolves to their
-     content's min-content size unless overridden; left at that default,
-     a long title/artist forces its <li> wider than the 1fr track it was
-     given, and the whole grid quietly overflows past the screen's right
-     edge instead of actually wrapping inside its column — Tiles (above)
-     never hits this because it hides the title/artist text entirely
-     (song-row-text: none), so it never had a reason to need this fix. */
-  html[data-landscape-mode="true"] #song-list[data-view="list"] > li,
-  html[data-landscape-mode="true"] #song-list[data-view="compact"] > li {
-    min-width: 0;
-  }
-  html[data-landscape-mode="true"] #song-list[data-view="list"] .song-row,
-  html[data-landscape-mode="true"] #song-list[data-view="compact"] .song-row {
-    margin-bottom: 0;
-    height: 100%;
-    min-width: 0;
-  }
-}
-
 /* ---------- toast ---------- */
 .toast {
   position: fixed;
@@ -2362,6 +2550,30 @@ html[data-theme="dark"] .btn-primary { background: var(--accent); color: var(--p
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
+  flex-shrink: 0;
+}
+
+/* ---------- playful: solid toast with an accent dot ----------
+   Classic's toast is glass — translucent + backdrop-blur, which reads
+   as quiet/native-OS. Playful swaps that for a fully solid ink pill
+   (no blur) with a small accent-colored dot in front of the message —
+   closer to a confirmation moment than a system notice. Only the
+   surface changes; the pop-in/out keyframes, positioning, and
+   reduced-motion fallback above are untouched and still apply. */
+html[data-style="playful"] .toast {
+  background: var(--ink);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.22);
+}
+html[data-style="playful"][data-theme="dark"] .toast { background: var(--ink); }
+html[data-style="playful"] .toast::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
   flex-shrink: 0;
 }
 html[data-theme="dark"] .toast {
@@ -2503,6 +2715,18 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
 }
 #sv-favorite-btn.heart-pop svg {
   animation: heart-pop .4s cubic-bezier(.34, 1.56, .64, 1);
+}
+/* Playful gets a slightly bigger overshoot on the same keyframe timing —
+   not a separate animation, just a bolder version of the existing pop,
+   in keeping with "louder motion, same choreography" everywhere else in
+   this style layer. */
+html[data-style="playful"] #sv-favorite-btn.heart-pop svg {
+  animation-name: heart-pop-playful;
+}
+@keyframes heart-pop-playful {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.34); }
+  100% { transform: scale(1); }
 }
 
 /* ---------- playlist-view header ---------- */

@@ -145,7 +145,6 @@ const state = {
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
   lyricsSpacing: 'tight', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
   songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
-  landscapeMode: false, // see applyLandscapeMode() — trims header/nav chrome to reclaim vertical space; only takes visual effect on a short, wide (phone-in-landscape) viewport, see the gated media query in style.css
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -755,20 +754,6 @@ const UserSongStorage = {
     });
     db.close();
   },
-  // Wipes every song out of the store — used by importUserSongsFromFile()
-  // below to clear out pre-import songs before writing the imported list,
-  // since (unlike PlaylistStorage's single blob) User Songs are one key
-  // per song and a stale leftover key wouldn't just be overwritten.
-  async clear() {
-    const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
-      tx.objectStore(SONGDB_STORES.user).clear();
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
-  },
 };
 
 function genUserSongId() {
@@ -812,53 +797,6 @@ async function deleteUserSong(id) {
   // and renderPlaylistView()/renderPlaylistsList() already tolerate a ref
   // that no longer resolves to a song (see their own null-checks) — same
   // as if an official song were ever removed from a manifest.
-}
-
-// Manual export/import: mirrors exportPlaylists/importPlaylistsFromFile
-// (see the "Playlists" section below) for exactly the same reason — User
-// Songs live in IndexedDB, which is scoped to one browser on the device,
-// so this is the honest way to carry hand-authored songs to a different
-// browser on the same phone (or as a manual backup) without a server.
-function exportUserSongs() {
-  const blob = new Blob([JSON.stringify(state.sources.user.songs, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'ngworship-user-songs.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(t('toastUserSongsExported'));
-}
-
-async function importUserSongsFromFile(file) {
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    if (!Array.isArray(data) || !data.every(s => s && typeof s.id === 'string' && typeof s.title === 'string')) {
-      throw new Error('not a user songs export file');
-    }
-    // Same full-replace behavior as importPlaylistsFromFile — this is a
-    // device-to-device move, not a merge, so the imported file becomes
-    // the new User Songs list. Unlike PlaylistStorage's single blob,
-    // User Songs are stored one key per song (see UserSongStorage above),
-    // so the store is cleared first rather than just overwritten, to
-    // avoid leaving pre-import songs orphaned behind the new list.
-    await UserSongStorage.clear();
-    for (const song of data) {
-      await UserSongStorage.put(song);
-    }
-    state.sources.user.songs = data;
-    if (state.currentPage === 'user-songs') renderUserSongList();
-    if (state.currentPage === 'playlists') renderPlaylistsList();
-    if (state.currentPage === 'playlist-view') renderPlaylistView();
-    if (state.activeSong) updateFavoriteButtonUI();
-    showToast(t('toastUserSongsImported'));
-  } catch (err) {
-    console.error('Songbook: user songs import failed —', err);
-    showToast(t('toastUserSongsImportFailed'));
-  }
 }
 
 // Manual "Refresh song database" button: asks the service worker to try the
@@ -1169,6 +1107,19 @@ function loadPrefs() {
     btn.setAttribute('aria-pressed', String(btn.dataset.accent === accent));
   });
 
+  // App style ("Classic" vs "New") — same on/off-attribute mechanism as
+  // data-theme/data-accent above: html[data-style="playful"] in
+  // css/style.css swaps the token layer (radii, shadows, fonts, the
+  // coral/sky/sun accent trio) and the few :active/animation overrides
+  // that give playful its tactile "lip" press feel. Classic needs no
+  // attribute at all — its rules are the plain, un-attributed defaults —
+  // so this only ever sets data-style when the person has chosen playful.
+  const appStyle = localStorage.getItem('sb-app-style') || 'classic';
+  if (appStyle === 'playful') document.documentElement.setAttribute('data-style', 'playful');
+  document.querySelectorAll('#app-style-toggle [data-app-style]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.appStyle === appStyle));
+  });
+
   refreshLangPicker({ isInit: true });
 
   const lyricsSize = parseFloat(localStorage.getItem('sb-lyrics-size'));
@@ -1201,9 +1152,6 @@ function loadPrefs() {
     state.songListView = savedSongListView;
   }
   applySongListView();
-
-  state.landscapeMode = localStorage.getItem('sb-landscape-mode') === 'true';
-  applyLandscapeMode();
 
   // Restore which song database was active (see applyDbSource()). Since
   // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
@@ -1368,22 +1316,6 @@ function applySongListView() {
   // which is what made the popup show the wrong letter/number (or get
   // stuck near one end) after switching to Compact or Tiles.
   renderSongList();
-}
-
-// Landscape mode (Settings → Appearance): opt-in. Rotating a phone
-// sideways leaves very little vertical room (roughly 360–430px tall)
-// compared to the same phone in portrait, so this trims the header/title/
-// nav chrome to give lyrics and the song lists more room. The attribute
-// this sets is only ever acted on inside a gated media query in
-// style.css — `@media (orientation: landscape) and (max-height: 500px)`
-// — so switching it on here has zero visual effect in portrait, and zero
-// effect on a wide desktop window or tablet (which is "landscape" by
-// aspect ratio too, but has plenty of height to spare). Same attribute-
-// driven pattern as applyHideChords()/applyChordStyle() above.
-function applyLandscapeMode() {
-  document.documentElement.setAttribute('data-landscape-mode', String(state.landscapeMode));
-  const toggle = document.getElementById('landscape-mode-toggle');
-  if (toggle) toggle.setAttribute('aria-checked', String(state.landscapeMode));
 }
 
 // Switches which song database (see DB_SOURCES) the Songs page, search,
@@ -1635,6 +1567,10 @@ function applyLanguage() {
     't-darkModeSub': 'darkModeSub',
     't-accentTitle': 'accentTitle',
     't-accentSub': 'accentSub',
+    't-appStyleGroup': 'appStyleGroup',
+    't-appStyleSub': 'appStyleSub',
+    't-appStyleClassic': 'appStyleClassic',
+    't-appStylePlayful': 'appStylePlayful',
     't-songViewGroup': 'songViewGroup',
     't-songViewSub': 'songViewSub',
     't-songViewList': 'songViewList',
@@ -1671,10 +1607,6 @@ function applyLanguage() {
     't-devHideDescSub': 'devHideDescSub',
     't-devVividGlassTitle': 'devVividGlassTitle',
     't-devVividGlassSub': 'devVividGlassSub',
-    't-userSongsBackupTitle': 'userSongsBackupTitle',
-    't-userSongsBackupSub': 'userSongsBackupSub',
-    't-landscapeModeTitle': 'landscapeModeTitle',
-    't-landscapeModeSub': 'landscapeModeSub',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1721,8 +1653,6 @@ function applyLanguage() {
   if (!reloadAppBtn.disabled) reloadAppBtn.textContent = t('reloadAppBtn');
   document.getElementById('export-playlists-btn').textContent = t('exportBtn');
   document.getElementById('import-playlists-btn').textContent = t('importBtn');
-  document.getElementById('export-user-songs-btn').textContent = t('exportBtn');
-  document.getElementById('import-user-songs-btn').textContent = t('importBtn');
 
   renderSocialLinks();
   renderCredits();
@@ -5083,15 +5013,6 @@ function bindSettings() {
     if (file) importPlaylistsFromFile(file);
     e.target.value = '';
   });
-  document.getElementById('export-user-songs-btn').addEventListener('click', exportUserSongs);
-  document.getElementById('import-user-songs-btn').addEventListener('click', () => {
-    document.getElementById('import-user-songs-file').click();
-  });
-  document.getElementById('import-user-songs-file').addEventListener('change', (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) importUserSongsFromFile(file);
-    e.target.value = '';
-  });
 
   document.getElementById('about-contact-btn').addEventListener('click', () => {
     // Let the mailto: link proceed as normal (opens the person's mail app,
@@ -5124,6 +5045,17 @@ function bindSettings() {
     });
   });
 
+  document.querySelectorAll('#app-style-toggle [data-app-style]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const style = btn.dataset.appStyle;
+      if (style === 'playful') document.documentElement.setAttribute('data-style', 'playful');
+      else document.documentElement.removeAttribute('data-style');
+      localStorage.setItem('sb-app-style', style);
+      document.querySelectorAll('#app-style-toggle [data-app-style]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      positionSegToggleThumb(document.getElementById('app-style-toggle'));
+    });
+  });
+
   document.querySelectorAll('#chord-style-toggle [data-chord-style]').forEach(btn => {
     btn.addEventListener('click', () => {
       const style = btn.dataset.chordStyle;
@@ -5139,13 +5071,6 @@ function bindSettings() {
     state.hideChords = !state.hideChords;
     applyHideChords();
     localStorage.setItem('sb-hide-chords', String(state.hideChords));
-  });
-
-  const landscapeModeToggle = document.getElementById('landscape-mode-toggle');
-  landscapeModeToggle.addEventListener('click', () => {
-    state.landscapeMode = !state.landscapeMode;
-    applyLandscapeMode();
-    localStorage.setItem('sb-landscape-mode', String(state.landscapeMode));
   });
 
   document.querySelectorAll('#lyrics-weight-toggle [data-lyrics-weight]').forEach(btn => {

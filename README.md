@@ -90,6 +90,29 @@ next", below.
   instead of sitting empty. Scoped to `#song-list` specifically (not the shared `.song-list` class), so User Songs and
   playlist song-pickers keep their existing look no matter which view is
   chosen here
+- **App style — Classic / New** (Settings → Appearance, above Dark mode)
+  — a second, purely visual theme layered on top of everything above via
+  `html[data-style="playful"]`, selectable independently of Dark mode and
+  Accent color. **Classic** is the existing look, byte-for-byte unchanged
+  (the attribute is simply absent). **New** swaps radii/borders/shadows
+  for a chunkier, tactile "lip" style — bottom-offset shadows that
+  collapse flat on tap instead of a soft blur — on song rows, icon
+  buttons, the transpose bar, chip buttons, the lyrics card, the primary
+  CTA, and the favorite heart (which also gets a slightly bigger pop and,
+  New-only, grows from 34px back to 40px, clearing Apple/Material's
+  touch-target guidance). Headings switch to Baloo 2. Every empty state
+  (`.empty-state`, four of them) gains a small illustrated icon via a
+  CSS `::before` — no markup or JS changes needed since none of those
+  elements had an icon slot — except the Playlists page's pinned variant
+  (`.playlists-empty-state--pinned`), which stays icon-free since it sits
+  directly under a divider with a real playlist already above it. The
+  toast switches from Classic's translucent/blurred pill to a solid one
+  with a small accent dot. Six new CSS custom properties
+  (`--lip-coral`/`--lip-sun`/`--lip-sky`, each with a `-deep` and `-tint`
+  pair) back the heart/streak/transpose-bar colors specifically, kept
+  separate from the six existing accent swatches so Accent color still
+  works normally under New. Persisted as `sb-app-style` in localStorage,
+  same mechanism as `sb-theme`/`sb-accent`
 
 ## What's new in v2.4.0-beta (Playlists, Favorites, Chord Visibility, Hide Chords, Developer Options, English Song Database)
 
