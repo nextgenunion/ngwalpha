@@ -36,7 +36,7 @@
   --ink:          #23262F;
   --ink-soft:     #4B4E58;
   --ink-faint:    #8A8D96;
-  --line:         #E7E4D8;
+  --line:         #E1E1DC;
   --surface:      #FFFFFF;
   --danger:       #B4483C;
 
@@ -52,15 +52,7 @@
   --shadow-1: 0 1px 2px rgba(31,42,68,0.06), 0 1px 1px rgba(31,42,68,0.04);
   --shadow-2: 0 6px 20px rgba(31,42,68,0.10);
 
-  /* Baloo 2 is the app's one display face everywhere a heading/title
-     reads — chosen (over the old Fraunces-only treatment) as part of a
-     single tactile design language applied consistently across the whole
-     app: rounder shapes, thicker borders, and a "lip" press-and-release
-     on buttons/rows/cards (see --lip-* below and the components that use
-     them) rather than a soft blur shadow. Fraunces stays as the fallback
-     so anything that hasn't picked up the new face yet still renders
-     sensibly. */
-  --font-display: 'Baloo 2', 'Fraunces', sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   /* Lyric text specifically (not UI chrome) uses Noto Sans rather than
      Inter: Inter is tuned for small-size UI legibility, while Noto Sans
@@ -90,34 +82,22 @@
   --lyric-line-plain-gap: 10px;
 
   --nav-h: 68px;
-  --radius-s: 12px;
-  --radius-m: 16px;
-  --radius-l: 24px;
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
 
-  /* Three lip colors, one per accent role, fixed hues rather than derived
-     from the person's chosen --accent: Settings → Accent color still
-     recolors --accent everywhere it already drove color (badges, links,
-     transpose active states, etc.), but the lip system needs a *pair*
-     per hue (a pale fill + a matching deep shade for its own shadow)
-     that the accent swatches don't define on their own. Coral is
-     reserved for the favorite/heart specifically (a "liked" state always
-     reads warm/red regardless of the chosen accent), sun is reserved for
-     streak/reward-style chips, and sky backs the transpose bar so it
-     visually separates from the lyrics card beneath it. --accent itself
-     still drives the primary lip CTA and song/playlist badges, same as
-     before. --lip is the shared bottom-offset shadow depth used on rows,
-     icon buttons, chips, and cards throughout the app — one number so
-     every pressable surface collapses by the same amount. */
-  --lip-coral: #FF6B57;
-  --lip-coral-deep: #D8462F;
-  --lip-coral-tint: #FFE3DE;
-  --lip-sun: #FFB020;
-  --lip-sun-deep: #C97D00;
-  --lip-sun-tint: #FFF1D6;
-  --lip-sky: #3AA9ED;
-  --lip-sky-deep: #1C7DBE;
-  --lip-sky-tint: #E3F2FD;
-  --lip: 3px;
+  /* "Lip" press feedback for real buttons (icon buttons, the transpose
+     +/- chips, primary CTA): a solid bottom-offset shadow that collapses
+     flat on :active and springs back on release, instead of a soft blur
+     shadow + scale. Toned down from the original test version on
+     purpose — thinner offset and a low-contrast shadow tone (instead of
+     a saturated hue) so it still reads as a pressable coin/button
+     without becoming the loudest thing on screen. Icon-sized buttons get
+     --lip-sm, the wider primary CTA gets the slightly deeper --lip-md so
+     it still reads as the dominant action on its own row. */
+  --lip-sm: 1.5px;
+  --lip-md: 2.5px;
+  --lip-shadow: color-mix(in srgb, var(--ink) 16%, var(--line));
 
   /* Shared "press pop" family (see the universal button-pop rule near the
      bottom of this file) — one duration/easing pair so every button's
@@ -175,9 +155,7 @@ html[data-theme="dark"] {
   --danger:       #E08277;
   --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
   --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
-  --lip-coral-tint: #3A2420;
-  --lip-sun-tint: #332508;
-  --lip-sky-tint: #17293A;
+  --lip-shadow: color-mix(in srgb, var(--paper) 12%, var(--line));
   color-scheme: dark;
 }
 
@@ -791,28 +769,17 @@ html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
   gap: 14px;
   width: 100%;
   background: var(--surface);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   padding: 12px 14px;
   margin-bottom: 8px;
   cursor: pointer;
   text-align: left;
-  /* A solid bottom-offset "lip" in --line instead of a soft blur shadow —
-     the row visibly presses flat on tap, then springs back on release.
-     box-shadow (not transform) carries the press feedback here, same
-     family used on .playlist-row, icon buttons, chips, and the primary
-     CTA throughout the app. */
-  box-shadow: 0 var(--lip) 0 var(--line);
-  transition: transform .08s ease, box-shadow .08s ease;
+  box-shadow: var(--shadow-1);
+  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
 }
-.song-row:active {
-  transform: translateY(var(--lip));
-  box-shadow: 0 0 0 var(--line);
-}
-.song-row:hover { box-shadow: 0 var(--lip) 0 var(--line); }
-@media (prefers-reduced-motion: reduce) {
-  .song-row { transition: none; }
-}
+.song-row:active { transform: scale(0.99); }
+.song-row:hover { box-shadow: var(--shadow-2); }
 
 .song-badge {
   flex-shrink: 0;
@@ -827,14 +794,6 @@ html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 600;
-  /* Small inset highlight so the badge reads as a slightly domed coin
-     rather than a flat tinted circle. */
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-strong) 18%, transparent),
-              inset 0 2px 0 rgba(255,255,255,0.7);
-}
-html[data-theme="dark"] .song-badge {
-  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25),
-              inset 0 2px 0 rgba(255,255,255,0.12);
 }
 
 .song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -937,34 +896,55 @@ html[data-theme="dark"] .song-badge {
 }
 
 .empty-state {
+  position: relative;
   text-align: center;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-  margin-top: 40px;
-  padding: 0 20px;
+  color: var(--ink-faint);
+  font-size: 0.92rem;
+  margin-top: 48px;
+  padding: 106px 20px 0;
   line-height: 1.5;
 }
 /* Every .empty-state in the app (#empty-state, #user-songs-empty-state,
    #playlists-empty-state, #playlist-view-empty-state) is a single <p>
    whose text is set via textContent from app.js — there's no icon slot
-   in the markup. A ::before pseudo-element gets the "anchored
-   illustration instead of text floating in a void" result without
-   touching markup or JS. One shared icon (a simple music-note glyph)
-   covers all four empty states — Songs search, User songs, Playlists,
-   and inside a Playlist — since the content difference between them is
-   already carried by the text itself. */
+   in the markup. Two stacked pseudo-elements build the illustration
+   above the text instead of touching markup or JS: ::before draws the
+   plain tinted circle, ::after draws the music-note glyph on top of it
+   as a masked shape (mask-image, not background-image) so the glyph's
+   color comes from a real CSS custom property — --accent-strong —
+   rather than a hex baked into a data URI. That's what makes the icon
+   follow whichever accent swatch the person has picked in Settings,
+   light or dark, the same way every other accent-colored element in the
+   app already does. One shared icon covers all four empty states —
+   Songs search, User songs, Playlists, and inside a Playlist. padding-top
+   on .empty-state (rather than margin on ::before) is what reserves the
+   space without the absolutely-positioned pseudo-elements collapsing it. */
 .empty-state::before {
   content: '';
-  display: block;
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 18px;
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background-color: var(--accent-tint);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230E86B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 42px 42px;
+}
+.empty-state::after {
+  content: '';
+  position: absolute;
+  top: 25px; left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 38px;
+  background-color: var(--accent-strong);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 html[data-theme="dark"] .empty-state::before {
   background-color: color-mix(in srgb, var(--accent) 18%, var(--surface));
@@ -973,7 +953,11 @@ html[data-theme="dark"] .empty-state::before {
    otherwise non-empty Playlists page — a full-size illustration there
    would push the "Favorites" playlist above it uncomfortably far up the
    screen, so it keeps the plain text-only treatment instead. */
-.playlists-empty-state--pinned::before {
+.playlists-empty-state--pinned {
+  padding-top: 0;
+}
+.playlists-empty-state--pinned::before,
+.playlists-empty-state--pinned::after {
   content: none;
 }
 
@@ -1192,44 +1176,33 @@ html[data-theme="dark"] .scroll-index-bubble {
   flex-shrink: 0;
   width: 38px; height: 38px;
   border-radius: 50%;
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   background: var(--surface);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  /* Same lip family as .song-row/.playlist-row, sized down (2px instead
-     of 3px) since these buttons are much smaller and a full 3px reads
-     as heavy at this scale. */
-  box-shadow: 0 2px 0 var(--line);
+  /* Lip press: a thin solid shadow that collapses flat on tap, then
+     springs back — see --lip-sm/--lip-shadow in :root. */
+  box-shadow: 0 var(--lip-sm) 0 var(--lip-shadow);
   transition: transform .08s ease, box-shadow .08s ease;
 }
+.icon-btn svg { width: 20px; height: 20px; fill: var(--ink); }
 .icon-btn:active {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 var(--line);
+  transform: translateY(var(--lip-sm));
+  box-shadow: 0 0 0 var(--lip-shadow);
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-btn { transition: none; }
 }
-.icon-btn svg { width: 20px; height: 20px; fill: var(--ink); }
 
-/* #sv-favorite-btn/#sv-menu-btn sit at 40px rather than a plain 34/38px —
-   the thicker borders and bigger radii used throughout this design
-   already widen other chrome enough that reclaiming a little title width
-   doesn't read as inconsistent, and 40px clears both Apple's and
-   Material's touch-target guidance where a smaller button didn't. */
-#sv-favorite-btn, #sv-menu-btn { width: 40px; height: 40px; }
-#sv-favorite-btn svg, #sv-menu-btn svg { width: 19px; height: 19px; }
-/* Liked state: filled coral, not just a red icon on a neutral button —
-   the button itself picks up the coral tint/border/lip so "favorited"
-   reads as a state change you can feel under your thumb, not just a
-   color swap on the glyph. */
-#sv-favorite-btn[aria-pressed="true"] {
-  background: var(--lip-coral-tint);
-  border-color: var(--lip-coral);
-  box-shadow: 0 2px 0 var(--lip-coral);
-}
-#sv-favorite-btn[aria-pressed="true"]:active {
-  box-shadow: 0 0 0 var(--lip-coral);
-}
+/* The favorite/menu buttons sit right next to the title and weren't
+   there when the title's width budget was originally tuned — on narrow
+   phones that leaves noticeably less room for the title than before,
+   pushing long titles to an extra wrapped line. Trimming just these two
+   (not every icon-btn — the back button stays full-size, same as
+   playlist-view's) claws a little of that width back for the title
+   without shrinking anything the person actually taps most. */
+#sv-favorite-btn, #sv-menu-btn { width: 34px; height: 34px; }
+#sv-favorite-btn svg, #sv-menu-btn svg { width: 18px; height: 18px; }
 
 /* Immersive song-view header (see index.html: .sv-header-immersive) — a
    tinted card instead of a plain bar. Back/heart/kebab float as their own
@@ -1370,7 +1343,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
    plus a touch of shadow instead of the ordinary .icon-btn border/surface
    treatment. */
 .icon-btn-float { background: var(--paper); border-color: transparent; box-shadow: var(--shadow-1); }
-.icon-btn-float:active { transform: scale(0.93); box-shadow: var(--shadow-1); }
+.icon-btn-float:active { box-shadow: var(--shadow-1); }
 
 .sv-header-immersive .song-view-title { flex: none; width: 100%; padding-top: 0; margin-top: 14px; }
 
@@ -1400,11 +1373,10 @@ html[data-theme="dark"] .sv-header-immersive::before {
    is untouched. */
 .sv-title-centered .sv-artist { margin: 3px 0 0; font-size: 0.78rem; }
 #sv-title, #pv-title {
-  font-family: var(--font-display);
   font-size: 1.5rem;
   line-height: 1.2;
   margin-top: 2px;
-  font-weight: 700;
+  font-weight: 600;
   overflow-wrap: break-word;
 }
 /* Same reasoning as the button trim above, just for the text side: a
@@ -1433,8 +1405,8 @@ html[data-theme="dark"] .sv-header-immersive::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--lip-sky-tint);
-  border: 2px solid var(--lip-sky);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   padding: 10px 14px;
   margin-top: 14px;
@@ -1447,45 +1419,39 @@ html[data-theme="dark"] .sv-header-immersive::before {
    into a key with a sharp/flat/minor suffix visibly shifted the whole
    button group sideways. Reserving the space up front means the controls
    stay in the same spot no matter which key is showing. */
-.transpose-label { font-size: 0.88rem; color: var(--lip-sky-deep); min-width: 92px; font-weight: 600; }
-.transpose-label strong { color: var(--lip-sky-deep); font-family: var(--font-mono); }
+.transpose-label { font-size: 0.88rem; color: var(--ink-soft); min-width: 92px; }
+.transpose-label strong { color: var(--ink); font-family: var(--font-mono); }
 .transpose-controls { display: flex; align-items: center; gap: 8px; }
 .transpose-offset {
   min-width: 22px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  color: var(--lip-sky-deep);
+  color: var(--ink);
   font-weight: 600;
 }
 
 .chip-btn {
   width: 30px; height: 30px;
   border-radius: 50%;
-  border: 2px solid var(--lip-sky);
+  border: 1px solid var(--line);
   background: var(--paper);
-  color: var(--lip-sky-deep);
+  color: var(--ink);
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   line-height: 1;
-  box-shadow: 0 2px 0 var(--lip-sky);
-  transition: transform .08s ease, box-shadow .08s ease;
+  box-shadow: 0 var(--lip-sm) 0 var(--lip-shadow);
+  transition: background .15s ease, transform .08s ease, box-shadow .08s ease;
 }
 .chip-btn:active {
-  background: var(--paper);
-  transform: translateY(2px);
-  box-shadow: 0 0 0 var(--lip-sky);
+  background: var(--accent-tint);
+  transform: translateY(var(--lip-sm));
+  box-shadow: 0 0 0 var(--lip-shadow);
 }
-.chip-btn:disabled {
-  opacity: .35;
-  cursor: not-allowed;
-  box-shadow: none;
-  border-color: var(--line);
-  color: var(--ink-faint);
-}
-.chip-btn:disabled:active { background: var(--paper); transform: none; }
+.chip-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+.chip-btn:disabled:active { background: var(--paper); transform: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   .chip-btn { transition: none; }
 }
@@ -1560,7 +1526,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .seg-toggle {
   display: flex;
   position: relative; /* anchors .seg-toggle-thumb below */
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   padding: 2px;
   background: var(--paper);
@@ -1597,7 +1563,6 @@ html[data-theme="dark"] .sv-header-immersive::before {
   background: var(--accent-strong);
   z-index: 0;
   pointer-events: none;
-  box-shadow: 0 2px 4px rgba(31,42,68,0.18);
   transition: transform .32s var(--motion-settle), width .32s var(--motion-settle);
 }
 /* Dark mode inverts --accent-strong to a pale text-tint (readable as text
@@ -1661,7 +1626,7 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
      keep the chord/lyric text reading at full, unblurred contrast —
      glassmorphism here was competing with legibility. */
   background: var(--surface);
-  border: 3px solid var(--ink);
+  border: 1px solid var(--line);
   border-radius: var(--radius-l);
   /* Horizontal padding sits between v1.0.2's roomier 20px and a later,
      tighter 14px pass that traded too much breathing room for line-width
@@ -1669,17 +1634,14 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
      still meaningfully narrower than v1.0.2 so long lines keep most of
      the width they gained, just not as cramped as 14px felt. */
   padding: 24px 17px 28px;
-  /* A lip in --ink (not --line) so this card visibly outranks the
-     transpose bar and every other card on the page — it's the dominant
-     surface, not just another white rectangle. */
-  box-shadow: 0 6px 0 var(--ink);
+  box-shadow: var(--shadow-1);
   overflow-x: hidden;
 }
 /* Narrow phones only: the card's own inner padding is the other half of
    the reading-width budget (--page-pad above frees the margin outside
    the card). Kept roomier on wider screens where width isn't scarce. */
 @media (max-width: 480px) {
-  .lyrics-container { padding-left: 12px; padding-right: 12px; box-shadow: 0 4px 0 var(--ink); }
+  .lyrics-container { padding-left: 12px; padding-right: 12px; }
 }
 
 .lyric-section { margin-top: 24px; }
@@ -1804,13 +1766,13 @@ html[data-lyrics-spacing="loose"] {
   font-weight: 600;
   color: var(--paper);
   background: var(--accent);
-  border-radius: 6px;
+  border-radius: 5px;
   /* Vertical padding trimmed to a hair (was 1px) — a little less chip
      height, kept easy to read since the font-size itself is unchanged. */
   padding: 0 5px;
   margin-bottom: var(--lyric-chord-mb);
   align-self: flex-start;
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 65%, black);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.08);
   transform: translateY(0);
   /* Settings → Appearance's Chips/Text toggle (below) and the line-spacing
      toggle (--lyric-chord-mb) only flip an attribute/custom-property —
@@ -2217,13 +2179,13 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 75%, black);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 70%, black);
   transition: transform .08s ease, box-shadow .08s ease;
 }
 html[data-theme="dark"] .btn-primary {
   background: var(--accent);
   color: var(--paper-dim);
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 70%, black);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 65%, black);
 }
 @media (prefers-reduced-motion: reduce) {
   .btn-primary { transition: none; }
@@ -2439,26 +2401,20 @@ html[data-theme="dark"] .btn-primary {
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--ink);
-  border: none;
+  background: color-mix(in srgb, var(--ink) 62%, transparent);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--paper) 16%, transparent);
   color: var(--paper);
   font-size: 0.85rem;
   padding: 10px 18px;
   border-radius: 999px;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.22);
+  box-shadow: var(--shadow-2);
   z-index: 30;
   display: flex;
   align-items: center;
   gap: 12px;
   animation: toast-pop-in .34s var(--press-ease) both;
-}
-.toast::before {
-  content: '';
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
 }
 /* translateX(-50%) is the toast's own horizontal centering (see the base
    rule above) — kept in every keyframe stop here alongside the vertical
@@ -2505,8 +2461,16 @@ html[data-theme="dark"] .btn-primary {
   flex-shrink: 0;
 }
 html[data-theme="dark"] .toast {
-  background: var(--ink);
-  color: var(--paper);
+  background: color-mix(in srgb, var(--accent) 62%, transparent);
+  border-color: color-mix(in srgb, var(--paper-dim) 16%, transparent);
+  color: var(--paper-dim);
+}
+/* backdrop-filter is unsupported on a handful of old Android WebViews —
+   fall back to the flat solid fill (still fully legible) in that case
+   rather than a broken half-transparent look. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .toast { background: var(--ink); }
+  html[data-theme="dark"] .toast { background: var(--accent); }
 }
 
 /* ---------- focus & motion ---------- */
@@ -2550,24 +2514,23 @@ button:disabled { transform: none !important; }
    specificity regardless of source order, so this always wins for the
    buttons it lists. */
 .sort-btn:active, .seg-toggle-btn:active, .btn-pill-toggle:active,
-.btn-primary:active, .btn-secondary:active,
+.btn-secondary:active,
 .label-filter-chip:active, .label-suggestion-chip:active, .sv-label-add-chip:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
 }
-/* .btn-primary is the app's one true "confirm/create" action (New
-   playlist, Save, Install, etc.) so it gets the full lip treatment
-   instead — this overrides the shared scale-press rule directly above
-   specifically for .btn-primary (that selector list still applies scale
-   to every other button in it). Combining a shadow-collapse with a
-   simultaneous scale-down read as muddy rather than snappy. */
+/* .btn-primary gets the lip collapse instead of the shared scale-press
+   above — combining a shadow-collapse with a simultaneous scale-down
+   reads as muddy rather than snappy, so this overrides the rule above
+   specifically for .btn-primary (which stays out of that selector
+   list). */
 .btn-primary:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 75%, black);
+  transform: translateY(var(--lip-md));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 70%, black);
   transition-duration: .08s;
 }
 html[data-theme="dark"] .btn-primary:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 70%, black);
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 65%, black);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2593,26 +2556,17 @@ html[data-theme="dark"] .btn-primary:active {
   gap: 14px;
   width: 100%;
   background: var(--surface);
-  border: 2px solid var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   padding: 12px 14px;
   margin-bottom: 8px;
   cursor: pointer;
   text-align: left;
-  /* Same lip press as .song-row above — playlist rows are selected the
-     same way songs are, so they get the identical press feedback rather
-     than a different scale-down treatment. */
-  box-shadow: 0 var(--lip) 0 var(--line);
-  transition: transform .08s ease, box-shadow .08s ease;
+  box-shadow: var(--shadow-1);
+  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
 }
-.playlist-row:active {
-  transform: translateY(var(--lip));
-  box-shadow: 0 0 0 var(--line);
-}
-.playlist-row:hover { box-shadow: 0 var(--lip) 0 var(--line); }
-@media (prefers-reduced-motion: reduce) {
-  .playlist-row { transition: none; }
-}
+.playlist-row:active { transform: scale(0.99); }
+.playlist-row:hover { box-shadow: var(--shadow-2); }
 .playlist-icon {
   flex-shrink: 0;
   width: 38px;
@@ -2623,23 +2577,10 @@ html[data-theme="dark"] .btn-primary:active {
   justify-content: center;
   background: var(--accent-tint);
   color: var(--accent-strong);
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent-strong) 18%, transparent),
-              inset 0 2px 0 rgba(255,255,255,0.7);
-}
-html[data-theme="dark"] .playlist-icon {
-  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25),
-              inset 0 2px 0 rgba(255,255,255,0.12);
 }
 .playlist-icon svg { width: 19px; height: 19px; fill: currentColor; }
-.playlist-row.is-favorites .playlist-icon {
-  background: #F6DCD9;
-  color: var(--danger);
-  box-shadow: inset 0 -2px 0 rgba(180,72,60,0.18), inset 0 2px 0 rgba(255,255,255,0.7);
-}
-html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon {
-  background: #3A2229;
-  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.12);
-}
+.playlist-row.is-favorites .playlist-icon { background: #F6DCD9; color: var(--danger); }
+html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: #3A2229; }
 .playlist-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .playlist-row-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--ink); }
 .playlist-row-sub { font-size: 0.83rem; color: var(--ink-faint); margin-top: 1px; }
@@ -2655,7 +2596,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon {
 
 /* ---------- song-view header actions (favorite / add-to-playlist) ---------- */
 .song-view-header { flex-wrap: wrap; }
-#sv-favorite-btn[aria-pressed="true"] svg { fill: var(--lip-coral-deep); }
+#sv-favorite-btn[aria-pressed="true"] svg { fill: var(--danger); }
 /* Retriggered on every tap (see the sv-favorite-btn click handler in
    app.js, which swaps heart-outline/heart-filled just before this runs) —
    a quick, gentle scale pop so the swap reads as an intentional change
@@ -2666,7 +2607,7 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon {
    working independently without the two transforms fighting. */
 @keyframes heart-pop {
   0%   { transform: scale(1); }
-  45%  { transform: scale(1.34); }
+  45%  { transform: scale(1.22); }
   100% { transform: scale(1); }
 }
 #sv-favorite-btn.heart-pop svg {
