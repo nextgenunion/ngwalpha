@@ -99,10 +99,16 @@
      loudest, highest-contrast thing on screen. --lip-sm is for icon
      buttons and small toggles; --lip-md is the slightly deeper amount
      for the wider primary CTA, so it still reads as the dominant action
-     on its own row. */
-  --lip-sm: 3px;
-  --lip-md: 4px;
-  --lip-shadow: color-mix(in srgb, var(--ink) 22%, var(--line));
+     on its own row.
+     Dialed back a step further since: 3px/4px plus a 22% ink tint still
+     read as a fairly hard-edged mechanical "step" rather than something
+     soft and pastel, especially once every filled pill in the app
+     picked up this same shadow. Thinner offsets and a lighter tint keep
+     the same collapse-and-spring motion legible without it being the
+     heaviest-looking thing on the row. */
+  --lip-sm: 2px;
+  --lip-md: 3px;
+  --lip-shadow: color-mix(in srgb, var(--ink) 14%, var(--line));
 
   /* .chip-btn (transpose −/+/Буцаах, the A−/A+ pairs) needed its own,
      lighter lip rather than reusing --lip-sm/--lip-shadow: those were
@@ -113,9 +119,9 @@
      more than the same thickness under a bigger one. --chip-lip is
      thinner and --chip-lip-shadow is a much lighter tint, so the press
      is still visible but stays quiet next to its neighbors. */
-  --chip-lip: 2px;
-  --chip-lip-xs: 1.5px;
-  --chip-lip-shadow: color-mix(in srgb, var(--ink) 12%, var(--line));
+  --chip-lip: 1.5px;
+  --chip-lip-xs: 1px;
+  --chip-lip-shadow: color-mix(in srgb, var(--ink) 8%, var(--line));
 
   /* Shared "press pop" family (see the universal button-pop rule near the
      bottom of this file) — one duration/easing pair so every button's
@@ -173,8 +179,8 @@ html[data-theme="dark"] {
   --danger:       #E08277;
   --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
   --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
-  --lip-shadow: color-mix(in srgb, var(--paper) 20%, var(--line));
-  --chip-lip-shadow: color-mix(in srgb, var(--paper) 12%, var(--line));
+  --lip-shadow: color-mix(in srgb, var(--paper) 13%, var(--line));
+  --chip-lip-shadow: color-mix(in srgb, var(--paper) 8%, var(--line));
   color-scheme: dark;
 }
 
@@ -691,12 +697,15 @@ body.nav-hidden .page-inner {
    flat --ink/--paper swap) plus a soft lip, so the active pill reads as
    a raised, tappable choice rather than a plain color inversion — same
    press family as the icon buttons/CTA above, sized down to match this
-   control's smaller scale. */
+   control's smaller scale. Offset thinned 2px→1.5px and the shadow
+   mixed down to a paler accent tint (was solid --accent) alongside the
+   rest of the lip pass, so a small pill's shadow doesn't read bolder
+   than the bigger buttons around it. */
 .sort-btn[aria-pressed="true"] {
   background: var(--accent-tint);
   color: var(--accent-strong);
   border-color: var(--accent);
-  box-shadow: 0 2px 0 var(--accent);
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint));
 }
 /* The lip-collapse used to live on :active, but :active only lasts for
    as long as the mouse button is physically held down — and the click
@@ -712,9 +721,9 @@ body.nav-hidden .page-inner {
    animation on whichever button was just clicked — independent of how
    long the mouse was actually held down for. */
 @keyframes sort-btn-press {
-  0%   { transform: translateY(0); box-shadow: 0 2px 0 var(--accent); }
-  40%  { transform: translateY(2px); box-shadow: 0 0 0 var(--accent); }
-  100% { transform: translateY(0); box-shadow: 0 2px 0 var(--accent); }
+  0%   { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
+  40%  { transform: translateY(1.5px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
+  100% { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
 }
 .sort-btn-tap {
   animation: sort-btn-press .22s ease;
@@ -723,12 +732,12 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   color: var(--accent-strong);
   border-color: var(--accent);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black);
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black);
 }
 @keyframes sort-btn-press-dark {
-  0%   { transform: translateY(0); box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black); }
-  40%  { transform: translateY(2px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, black); }
-  100% { transform: translateY(0); box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black); }
+  0%   { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black); }
+  40%  { transform: translateY(1.5px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 40%, black); }
+  100% { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black); }
 }
 html[data-theme="dark"] .sort-btn-tap {
   animation-name: sort-btn-press-dark;
@@ -2169,6 +2178,20 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   font-weight: 600;
   font-size: 0.86rem;
   text-decoration: none;
+  cursor: pointer;
+  /* Same .btn-secondary lip — this is a plain <a>, not a <button>, so it
+     never picked up even the universal scale-pop the way a real button
+     would; it had zero press feedback of any kind before this. */
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+.about-contact-btn:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
+  transition-duration: .08s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-contact-btn { transition: none; }
 }
 .about-contact-btn:not([hidden]) { display: inline-flex; }
 .about-contact-btn svg { width: 16px; height: 16px; fill: currentColor; }
@@ -2279,14 +2302,15 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   /* Lip shadow toned down from a near-black mix to a mid --ink tone —
      enough contrast against --ink itself to read as a distinct edge
      you can see collapse, without being the darkest, highest-contrast
-     thing on the screen. */
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 55%, var(--line));
+     thing on the screen. Ratio dropped again, 55%→40%, alongside the
+     --lip-sm/--lip-md/--lip-shadow token pass — see that comment. */
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 40%, var(--line));
   transition: transform .08s ease, box-shadow .08s ease;
 }
 html[data-theme="dark"] .btn-primary {
   background: var(--accent);
   color: var(--paper-dim);
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 55%, var(--paper-dim));
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
 }
 @media (prefers-reduced-motion: reduce) {
   .btn-primary { transition: none; }
@@ -2303,18 +2327,18 @@ html[data-theme="dark"] .btn-primary {
 .btn-primary.btn-danger {
   background: var(--danger);
   color: var(--paper);
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 55%, var(--line));
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 40%, var(--line));
 }
 .btn-primary.btn-danger:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 55%, var(--line));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--line));
 }
 html[data-theme="dark"] .btn-primary.btn-danger {
   background: var(--danger);
   color: var(--paper);
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 55%, var(--paper-dim));
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
 }
 html[data-theme="dark"] .btn-primary.btn-danger:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 55%, var(--paper-dim));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
 }
 
 .btn-secondary {
@@ -2327,8 +2351,26 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
+  /* Was relying on the universal scale-pop (no shadow of its own at
+     all) — the one filled/outlined pill shape in the app with no lip,
+     which is what made it look like an older control next to
+     .btn-primary/.btn-pill-done right next to it. Neutral
+     --chip-lip-shadow rather than a colored mix, since this button has
+     no fill color of its own to derive one from (background stays
+     transparent). */
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
+  transition: background .15s, color .15s, border-color .15s, transform .08s ease, box-shadow .08s ease;
 }
-.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
+  transition-duration: .08s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-secondary { transition: none; }
+}
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-secondary:disabled:active { transform: none; }
 
 .installed-badge {
   font-size: 0.82rem;
@@ -2346,15 +2388,34 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   padding: 0;
   position: relative;
   transform: scale(1);
-  transition: border-color .18s ease, transform .32s var(--press-ease);
+  /* Was a plain scale(0.88) squish — the odd one out next to every
+     other button's collapse-and-spring lip. Uses a translucent black
+     rather than a color-mix against each swatch's own hue: the swatch
+     color is a plain inline background per-circle (not a custom
+     property), so there's no single variable to mix against here the
+     way the other colored buttons do; a dark rim reads as "this
+     circle's own shadow" regardless of which hue sits under it. */
+  box-shadow: 0 var(--chip-lip) 0 rgba(0, 0, 0, 0.22);
+  transition: border-color .18s ease, transform .32s var(--press-ease), box-shadow .08s ease;
 }
-.accent-swatch:active { transform: scale(0.88); transition-duration: var(--press-duration-in); }
+.accent-swatch:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0.22);
+  transition-duration: .08s;
+}
 .accent-swatch[aria-pressed="true"] { border-color: var(--ink); transform: scale(1.08); }
+.accent-swatch[aria-pressed="true"]:active {
+  transform: scale(1.08) translateY(var(--chip-lip));
+  transition-duration: .08s;
+}
 .accent-swatch[aria-pressed="true"]::after {
   content: '';
   position: absolute; inset: 0;
   border-radius: 50%;
   border: 2px solid var(--surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  .accent-swatch { transition: none; }
 }
 
 /* ---------- bottom nav ---------- */
@@ -2643,7 +2704,6 @@ button:disabled { transform: none !important; }
    .sort-btn's own definition for why it needs a real keyframe animation
    instead of a plain :active rule. */
 .seg-toggle-btn:active, .btn-pill-toggle:active,
-.btn-secondary:active,
 .label-filter-chip:active, .label-suggestion-chip:active, .sv-label-add-chip:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
@@ -2664,11 +2724,11 @@ button:disabled { transform: none !important; }
    list). */
 .btn-primary:active {
   transform: translateY(var(--lip-md));
-  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 55%, var(--line));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 40%, var(--line));
   transition-duration: .08s;
 }
 html[data-theme="dark"] .btn-primary:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--paper-dim));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
 }
 /* .btn-pill-done (editor Save / playlist Done) gets the identical
    collapse-to-flat treatment as .btn-primary above, just keyed off its
@@ -2678,11 +2738,11 @@ html[data-theme="dark"] .btn-primary:active {
    colors are computed from different variables. */
 .btn-pill-done:active {
   transform: translateY(var(--lip-md));
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 55%, var(--line));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
   transition-duration: .08s;
 }
 html[data-theme="dark"] .btn-pill-done:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 55%, var(--paper-dim));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2748,7 +2808,26 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
 
 /* ---------- song-view header actions (favorite / add-to-playlist) ---------- */
 .song-view-header { flex-wrap: wrap; }
-#sv-favorite-btn[aria-pressed="true"] svg { fill: var(--danger); }
+#sv-favorite-btn[aria-pressed="true"] svg { fill: var(--paper); }
+/* Favorited fills the whole circle red instead of just tinting the
+   heart icon, so the favorited state reads at a glance without having
+   to look closely at the icon color — same "shadow keyed to the
+   button's own fill" treatment as .btn-danger/.btn-pill-done, rather
+   than leaving this on the neutral --lip-shadow those don't use. */
+#sv-favorite-btn[aria-pressed="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+#sv-favorite-btn[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"] {
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
+html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
 /* Retriggered on every tap (see the sv-favorite-btn click handler in
    app.js, which swaps heart-outline/heart-filled just before this runs) —
    a quick, gentle scale pop so the swap reads as an intentional change
@@ -2791,11 +2870,11 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
      mixed with --line/--paper-dim mirrors exactly how .btn-primary
      derives its own shadow from its own background, so the two filled
      buttons collapse the same amount and read as one family. */
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 55%, var(--line));
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
   transition: transform .08s ease, box-shadow .08s ease;
 }
 html[data-theme="dark"] .btn-pill-done {
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 55%, var(--paper-dim));
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
 }
 @media (prefers-reduced-motion: reduce) {
   .btn-pill-done { transition: none; }
