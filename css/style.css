@@ -87,17 +87,22 @@
   --radius-l: 22px;
 
   /* "Lip" press feedback for real buttons (icon buttons, the transpose
-     +/- chips, primary CTA): a solid bottom-offset shadow that collapses
-     flat on :active and springs back on release, instead of a soft blur
-     shadow + scale. Toned down from the original test version on
-     purpose — thinner offset and a low-contrast shadow tone (instead of
-     a saturated hue) so it still reads as a pressable coin/button
-     without becoming the loudest thing on screen. Icon-sized buttons get
-     --lip-sm, the wider primary CTA gets the slightly deeper --lip-md so
-     it still reads as the dominant action on its own row. */
-  --lip-sm: 1.5px;
-  --lip-md: 2.5px;
-  --lip-shadow: color-mix(in srgb, var(--ink) 16%, var(--line));
+     +/- chips, primary CTA, the sort/segmented toggles): a solid
+     bottom-offset shadow that collapses flat on :active and springs
+     back on release, instead of a soft blur shadow + scale.
+     Two things had to move in opposite directions from the first pass
+     at this: the offset needed to get a little BIGGER (1.5–2.5px read
+     as barely-there, not as a press at all — the button and its shadow
+     just shifted together as one rigid block), while the shadow COLOR
+     needed to get softer — a pastel tint of --ink/--accent rather than
+     a near-black color-mix, so the depth is legible without being the
+     loudest, highest-contrast thing on screen. --lip-sm is for icon
+     buttons and small toggles; --lip-md is the slightly deeper amount
+     for the wider primary CTA, so it still reads as the dominant action
+     on its own row. */
+  --lip-sm: 3px;
+  --lip-md: 4px;
+  --lip-shadow: color-mix(in srgb, var(--ink) 22%, var(--line));
 
   /* Shared "press pop" family (see the universal button-pop rule near the
      bottom of this file) — one duration/easing pair so every button's
@@ -155,7 +160,7 @@ html[data-theme="dark"] {
   --danger:       #E08277;
   --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
   --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
-  --lip-shadow: color-mix(in srgb, var(--paper) 12%, var(--line));
+  --lip-shadow: color-mix(in srgb, var(--paper) 20%, var(--line));
   color-scheme: dark;
 }
 
@@ -666,17 +671,34 @@ body.nav-hidden .page-inner {
   padding: 7px 13px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
+  transition: background .15s, color .15s, border-color .15s, transform .08s ease, box-shadow .08s ease;
 }
+/* Pressed/selected state: a pastel fill in the app's own accent (not a
+   flat --ink/--paper swap) plus a soft lip, so the active pill reads as
+   a raised, tappable choice rather than a plain color inversion — same
+   press family as the icon buttons/CTA above, sized down to match this
+   control's smaller scale. */
 .sort-btn[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  box-shadow: 0 2px 0 var(--accent);
+}
+.sort-btn[aria-pressed="true"]:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 var(--accent);
 }
 html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--paper-dim);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  color: var(--accent-strong);
   border-color: var(--accent);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black);
+}
+html[data-theme="dark"] .sort-btn[aria-pressed="true"]:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, black);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sort-btn { transition: none; }
 }
 
 /* Built by renderLabelFilterRow() in js/app.js — same pill look as
@@ -1563,6 +1585,13 @@ html[data-theme="dark"] .sv-header-immersive::before {
   background: var(--accent-strong);
   z-index: 0;
   pointer-events: none;
+  /* A soft lift (not a hard lip-collapse — the thumb is always sliding
+     between two positions rather than resting on one edge to press
+     into, so a bottom-offset shadow that never collapses reads better
+     here than the button lip mechanic). Low-contrast and close to the
+     pill (small blur, small spread) so it reads as "gently raised
+     pastel pill" rather than a heavy drop shadow. */
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent-strong) 35%, transparent);
   transition: transform .32s var(--motion-settle), width .32s var(--motion-settle);
 }
 /* Dark mode inverts --accent-strong to a pale text-tint (readable as text
@@ -2179,13 +2208,17 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 70%, black);
+  /* Lip shadow toned down from a near-black mix to a mid --ink tone —
+     enough contrast against --ink itself to read as a distinct edge
+     you can see collapse, without being the darkest, highest-contrast
+     thing on the screen. */
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 55%, var(--line));
   transition: transform .08s ease, box-shadow .08s ease;
 }
 html[data-theme="dark"] .btn-primary {
   background: var(--accent);
   color: var(--paper-dim);
-  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 65%, black);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 55%, var(--paper-dim));
 }
 @media (prefers-reduced-motion: reduce) {
   .btn-primary { transition: none; }
@@ -2526,11 +2559,11 @@ button:disabled { transform: none !important; }
    list). */
 .btn-primary:active {
   transform: translateY(var(--lip-md));
-  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 70%, black);
+  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 55%, var(--line));
   transition-duration: .08s;
 }
 html[data-theme="dark"] .btn-primary:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 65%, black);
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--paper-dim));
 }
 
 @media (prefers-reduced-motion: reduce) {
