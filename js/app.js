@@ -1983,11 +1983,32 @@ function bindSongsPage() {
     renderSongList({ animate: true });
   });
 
+  /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
+     css/style.css) on whichever button was just clicked. This can't be
+     a plain CSS :active rule because :active only lasts as long as the
+     mouse button is physically held down, and that ends *before* this
+     click handler runs (click fires on mouseup) — so a :active-based
+     press would only ever show up on the previously-selected button if
+     you happened to still be holding the mouse down on it, not on the
+     newly-clicked one. Re-triggering an already-running CSS animation
+     needs a reflow between removing and re-adding the class, or rapid
+     clicks on the same button (already selected, tapped again) would
+     silently no-op on the second tap. */
+  function playSortBtnTap(btn) {
+    btn.classList.remove('sort-btn-tap');
+    void btn.offsetWidth; // force reflow so the animation restarts
+    btn.classList.add('sort-btn-tap');
+  }
+  document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('animationend', () => btn.classList.remove('sort-btn-tap'));
+  });
+
   document.querySelectorAll('.sort-btn[data-sort-by]').forEach(btn => {
     btn.addEventListener('click', () => {
       state.sortBy = btn.dataset.sortBy;
       document.querySelectorAll('.sort-btn[data-sort-by]').forEach(b => b.setAttribute('aria-pressed', 'false'));
       btn.setAttribute('aria-pressed', 'true');
+      playSortBtnTap(btn);
       renderSongList({ animate: true });
     });
   });
@@ -1997,6 +2018,7 @@ function bindSongsPage() {
       state.sortOrder = btn.dataset.sortOrder;
       document.querySelectorAll('.sort-btn[data-sort-order]').forEach(b => b.setAttribute('aria-pressed', 'false'));
       btn.setAttribute('aria-pressed', 'true');
+      playSortBtnTap(btn);
       renderSongList({ animate: true });
     });
   });

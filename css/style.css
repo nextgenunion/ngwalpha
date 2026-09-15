@@ -102,6 +102,11 @@
      on its own row. */
   --lip-sm: 3px;
   --lip-md: 4px;
+  /* Phone-only smaller lip for controls that also shrink on narrow
+     viewports (see .chip-btn's @media (max-width:480px) override) —
+     keeps the press depth proportional to the smaller circle instead
+     of the same 3px reading as thick relative to a 26px button. */
+  --lip-xs: 2px;
   --lip-shadow: color-mix(in srgb, var(--ink) 22%, var(--line));
 
   /* Shared "press pop" family (see the universal button-pop rule near the
@@ -684,9 +689,26 @@ body.nav-hidden .page-inner {
   border-color: var(--accent);
   box-shadow: 0 2px 0 var(--accent);
 }
-.sort-btn[aria-pressed="true"]:active {
-  transform: translateY(2px);
-  box-shadow: 0 0 0 var(--accent);
+/* The lip-collapse used to live on :active, but :active only lasts for
+   as long as the mouse button is physically held down — and the click
+   handler (which flips aria-pressed to "true") doesn't run until
+   *after* mouseup, by which point :active has already ended. On a
+   normal quick click that meant the newly-selected button never showed
+   its own press at all: you'd only ever see the previously-selected
+   button's collapse if you happened to hold the mouse down on it,
+   which read as "the old button's animation plays instead of the new
+   one's". renderSongList's click handler (see js/app.js) now adds
+   .sort-btn-tap to the clicked button itself and removes it on
+   animationend, so the collapse-and-spring plays as a real, visible
+   animation on whichever button was just clicked — independent of how
+   long the mouse was actually held down for. */
+@keyframes sort-btn-press {
+  0%   { transform: translateY(0); box-shadow: 0 2px 0 var(--accent); }
+  40%  { transform: translateY(2px); box-shadow: 0 0 0 var(--accent); }
+  100% { transform: translateY(0); box-shadow: 0 2px 0 var(--accent); }
+}
+.sort-btn-tap {
+  animation: sort-btn-press .22s ease;
 }
 html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   background: color-mix(in srgb, var(--accent) 22%, var(--surface));
@@ -694,11 +716,17 @@ html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
   border-color: var(--accent);
   box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black);
 }
-html[data-theme="dark"] .sort-btn[aria-pressed="true"]:active {
-  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, black);
+@keyframes sort-btn-press-dark {
+  0%   { transform: translateY(0); box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black); }
+  40%  { transform: translateY(2px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, black); }
+  100% { transform: translateY(0); box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 55%, black); }
+}
+html[data-theme="dark"] .sort-btn-tap {
+  animation-name: sort-btn-press-dark;
 }
 @media (prefers-reduced-motion: reduce) {
   .sort-btn { transition: none; }
+  .sort-btn-tap { animation: none; }
 }
 
 /* Built by renderLabelFilterRow() in js/app.js — same pill look as
@@ -1477,6 +1505,22 @@ html[data-theme="dark"] .sv-header-immersive::before {
 @media (prefers-reduced-motion: reduce) {
   .chip-btn { transition: none; }
 }
+/* Narrow phones: the same 30px circle + 3px lip that reads fine on a
+   wide desktop row gets proportionally much heavier once it's sitting
+   inside a compressed .font-group next to a small label — the circle
+   ends up the single biggest, boldest thing in a cramped row. Sized
+   down here (26px, thinner 1px border, --lip-xs instead of --lip-sm)
+   specifically for phones rather than changing the base size everyone
+   sees, so desktop/tablet keep the fuller touch target and the phone
+   row stops looking oversized and thick next to its own label text. */
+@media (max-width: 480px) {
+  .chip-btn {
+    width: 26px; height: 26px;
+    font-size: 0.85rem;
+    box-shadow: 0 var(--lip-xs) 0 var(--lip-shadow);
+  }
+  .chip-btn:active { transform: translateY(var(--lip-xs)); }
+}
 /* transpose-reset ("Буцаах" / "Reset"): a short WORD, not a single glyph,
    so this needs to be a pill sized to its own text — width: auto here is
    what makes that happen. Long translated labels shouldn't look bigger
@@ -1501,6 +1545,9 @@ html[data-theme="dark"] .sv-header-immersive::before {
   text-align: center;
   line-height: 1.2;
   max-width: 88px;
+}
+@media (max-width: 480px) {
+  .chip-btn-text { min-height: 26px; padding: 4px 9px; font-size: 0.72rem; }
 }
 
 .font-controls {
@@ -2545,10 +2592,22 @@ button:disabled { transform: none !important; }
    (this is what made the sort-row buttons feel oversized before). Class
    selectors here beat the :where()-based universal rule's zero
    specificity regardless of source order, so this always wins for the
-   buttons it lists. */
-.sort-btn:active, .seg-toggle-btn:active, .btn-pill-toggle:active,
+   buttons it lists.
+   .sort-btn is deliberately NOT in this list — see .sort-btn-tap near
+   .sort-btn's own definition for why it needs a real keyframe animation
+   instead of a plain :active rule. */
+.seg-toggle-btn:active, .btn-pill-toggle:active,
 .btn-secondary:active,
 .label-filter-chip:active, .label-suggestion-chip:active, .sv-label-add-chip:active {
+  transform: scale(var(--press-scale-pill));
+  transition-duration: var(--press-duration-in);
+}
+/* Unselected .sort-btn still gets a light tap scale on :active — this
+   one's safe to leave on :active (unlike the selected/pressed lip
+   above) because an unselected button's own visual state never
+   changes on click, so there's no race with a state update landing
+   after mouseup. */
+.sort-btn:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
 }
