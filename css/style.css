@@ -102,12 +102,20 @@
      on its own row. */
   --lip-sm: 3px;
   --lip-md: 4px;
-  /* Phone-only smaller lip for controls that also shrink on narrow
-     viewports (see .chip-btn's @media (max-width:480px) override) —
-     keeps the press depth proportional to the smaller circle instead
-     of the same 3px reading as thick relative to a 26px button. */
-  --lip-xs: 2px;
   --lip-shadow: color-mix(in srgb, var(--ink) 22%, var(--line));
+
+  /* .chip-btn (transpose −/+/Буцаах, the A−/A+ pairs) needed its own,
+     lighter lip rather than reusing --lip-sm/--lip-shadow: those were
+     tuned for the heart/menu/back icon buttons, which needed a more
+     visible press. Applied to chip-btn's smaller, denser row of
+     circles that shared depth read as noticeably bolder/darker than
+     before — a thicker shadow band under a smaller circle stands out
+     more than the same thickness under a bigger one. --chip-lip is
+     thinner and --chip-lip-shadow is a much lighter tint, so the press
+     is still visible but stays quiet next to its neighbors. */
+  --chip-lip: 2px;
+  --chip-lip-xs: 1.5px;
+  --chip-lip-shadow: color-mix(in srgb, var(--ink) 12%, var(--line));
 
   /* Shared "press pop" family (see the universal button-pop rule near the
      bottom of this file) — one duration/easing pair so every button's
@@ -166,6 +174,7 @@ html[data-theme="dark"] {
   --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
   --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
   --lip-shadow: color-mix(in srgb, var(--paper) 20%, var(--line));
+  --chip-lip-shadow: color-mix(in srgb, var(--paper) 12%, var(--line));
   color-scheme: dark;
 }
 
@@ -1389,11 +1398,24 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .sv-header-actions { display: flex; align-items: center; gap: 8px; }
 /* Floating circles still need to stand out against the page's gradient
    wash behind them (a plain --surface fill can nearly disappear into the
-   lightest part of that gradient), so these keep their own paper color
-   plus a touch of shadow instead of the ordinary .icon-btn border/surface
-   treatment. */
-.icon-btn-float { background: var(--paper); border-color: transparent; box-shadow: var(--shadow-1); }
-.icon-btn-float:active { box-shadow: var(--shadow-1); }
+   lightest part of that gradient), so these keep their own solid paper
+   background instead of the ordinary .icon-btn's --surface/border
+   treatment — but they should still press the same way every other
+   icon button does. This used to fall back to the old soft blur
+   --shadow-1 (and stayed on that same soft shadow even on :active, so
+   it never collapsed at all) instead of the lip .icon-btn now uses,
+   which is why back/heart/menu looked flat next to the transpose and
+   A−/A+ circles below them. Layering the lip UNDER --shadow-1 (rather
+   than replacing it) keeps the lift that separates these from the
+   gradient behind them while adding the same collapsible press edge. */
+.icon-btn-float {
+  background: var(--paper);
+  border-color: transparent;
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 var(--lip-shadow);
+}
+.icon-btn-float:active {
+  box-shadow: var(--shadow-1), 0 0 0 var(--lip-shadow);
+}
 
 .sv-header-immersive .song-view-title { flex: none; width: 100%; padding-top: 0; margin-top: 14px; }
 
@@ -1492,34 +1514,33 @@ html[data-theme="dark"] .sv-header-immersive::before {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   line-height: 1;
-  box-shadow: 0 var(--lip-sm) 0 var(--lip-shadow);
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
   transition: background .15s ease, transform .08s ease, box-shadow .08s ease;
 }
 .chip-btn:active {
   background: var(--accent-tint);
-  transform: translateY(var(--lip-sm));
-  box-shadow: 0 0 0 var(--lip-shadow);
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
 }
 .chip-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
 .chip-btn:disabled:active { background: var(--paper); transform: none; box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   .chip-btn { transition: none; }
 }
-/* Narrow phones: the same 30px circle + 3px lip that reads fine on a
-   wide desktop row gets proportionally much heavier once it's sitting
-   inside a compressed .font-group next to a small label — the circle
-   ends up the single biggest, boldest thing in a cramped row. Sized
-   down here (26px, thinner 1px border, --lip-xs instead of --lip-sm)
-   specifically for phones rather than changing the base size everyone
-   sees, so desktop/tablet keep the fuller touch target and the phone
-   row stops looking oversized and thick next to its own label text. */
+/* Narrow phones: the same 30px circle that reads fine on a wide desktop
+   row gets proportionally heavier once it's sitting inside a
+   compressed .font-group next to a small label. Sized down here (26px,
+   --chip-lip-xs instead of --chip-lip) specifically for phones rather
+   than changing the base size everyone sees, so desktop/tablet keep
+   the fuller touch target and the phone row stops looking oversized
+   next to its own label text. */
 @media (max-width: 480px) {
   .chip-btn {
     width: 26px; height: 26px;
     font-size: 0.85rem;
-    box-shadow: 0 var(--lip-xs) 0 var(--lip-shadow);
+    box-shadow: 0 var(--chip-lip-xs) 0 var(--chip-lip-shadow);
   }
-  .chip-btn:active { transform: translateY(var(--lip-xs)); }
+  .chip-btn:active { transform: translateY(var(--chip-lip-xs)); }
 }
 /* transpose-reset ("Буцаах" / "Reset"): a short WORD, not a single glyph,
    so this needs to be a pill sized to its own text — width: auto here is
