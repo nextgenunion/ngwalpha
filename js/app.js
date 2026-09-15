@@ -3468,7 +3468,7 @@ function confirmDeleteUserSong(song, opts = {}) {
   actions.className = 'modal-actions';
   actions.innerHTML = `
     <button type="button" class="btn-secondary" id="delete-song-cancel"></button>
-    <button type="button" class="btn-primary" id="delete-song-confirm" style="background:var(--danger)"></button>
+    <button type="button" class="btn-primary btn-danger" id="delete-song-confirm"></button>
   `;
   wrap.appendChild(p);
   wrap.appendChild(actions);
@@ -4626,7 +4626,7 @@ function confirmDeletePlaylist(id) {
   actions.className = 'modal-actions';
   actions.innerHTML = `
     <button type="button" class="btn-secondary" id="delete-cancel"></button>
-    <button type="button" class="btn-primary" id="delete-confirm" style="background:var(--danger)"></button>
+    <button type="button" class="btn-primary btn-danger" id="delete-confirm"></button>
   `;
   wrap.appendChild(p);
   wrap.appendChild(actions);

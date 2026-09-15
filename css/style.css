@@ -1244,7 +1244,7 @@ html[data-theme="dark"] .scroll-index-bubble {
   box-shadow: 0 var(--lip-sm) 0 var(--lip-shadow);
   transition: transform .08s ease, box-shadow .08s ease;
 }
-.icon-btn svg { width: 20px; height: 20px; fill: var(--ink); }
+.icon-btn svg { width: 20px; height: 20px; fill: var(--ink-soft); }
 .icon-btn:active {
   transform: translateY(var(--lip-sm));
   box-shadow: 0 0 0 var(--lip-shadow);
@@ -2292,6 +2292,31 @@ html[data-theme="dark"] .btn-primary {
   .btn-primary { transition: none; }
 }
 
+/* Destructive confirm buttons (delete song / delete playlist) used to
+   be a plain .btn-primary with an inline style="background:var(--danger)"
+   — which repainted the face red but left the lip shadow computed from
+   --ink/--accent, so the shadow didn't match the button's own color
+   (in dark mode it was a bright cyan lip under a red button). This
+   mirrors --danger's own light/dark duality the same way --accent-strong
+   does for .btn-pill-done, so the shadow is always a darker shade of
+   the button's own red instead of an unrelated color. */
+.btn-primary.btn-danger {
+  background: var(--danger);
+  color: var(--paper);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+.btn-primary.btn-danger:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+html[data-theme="dark"] .btn-primary.btn-danger {
+  background: var(--danger);
+  color: var(--paper);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 55%, var(--paper-dim));
+}
+html[data-theme="dark"] .btn-primary.btn-danger:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 55%, var(--paper-dim));
+}
+
 .btn-secondary {
   background: transparent;
   color: var(--accent-strong);
@@ -2645,6 +2670,20 @@ button:disabled { transform: none !important; }
 html[data-theme="dark"] .btn-primary:active {
   box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--paper-dim));
 }
+/* .btn-pill-done (editor Save / playlist Done) gets the identical
+   collapse-to-flat treatment as .btn-primary above, just keyed off its
+   own --accent-strong background instead of --ink/--accent — see the
+   base rule's comment. Kept as its own block, not merged into
+   .btn-primary's selector list, since the two buttons' base box-shadow
+   colors are computed from different variables. */
+.btn-pill-done:active {
+  transform: translateY(var(--lip-md));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 55%, var(--line));
+  transition-duration: .08s;
+}
+html[data-theme="dark"] .btn-pill-done:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 55%, var(--paper-dim));
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -2745,6 +2784,21 @@ html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: 
   padding: 9px 14px;
   border-radius: 999px;
   cursor: pointer;
+  /* Same lip-collapse family as .btn-primary (see that rule's comment) —
+     this used to fall through to the universal scale-pop instead, which
+     is why the editor's Save button felt like a different, older
+     control next to every other filled pill in the app. --accent-strong
+     mixed with --line/--paper-dim mirrors exactly how .btn-primary
+     derives its own shadow from its own background, so the two filled
+     buttons collapse the same amount and read as one family. */
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 55%, var(--line));
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+html[data-theme="dark"] .btn-pill-done {
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 55%, var(--paper-dim));
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-pill-done { transition: none; }
 }
 .btn-pill-done[hidden] { display: none; }
 .btn-pill-toggle {
