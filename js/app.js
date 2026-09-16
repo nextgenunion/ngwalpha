@@ -554,11 +554,34 @@ async function fetchSongData(sourceKey, { forceRefresh = false } = {}) {
   if (!manifestRes.ok) throw new Error(`manifest.json responded ${manifestRes.status}`);
   const files = await manifestRes.json();
 
-  const results = await Promise.allSettled(files.map(async (file) => {
-    const res = await fetch(`${base}/${file}`, { headers });
-    if (!res.ok) throw new Error(`${file} responded ${res.status}`);
-    return res.json();
-  }));
+  // Do NOT fire the entire manifest at fetch() at once. A database can contain
+  // thousands of small song files (mongolian2 has 2,309); launching thousands
+  // of requests simultaneously can exhaust Chromium/WebView renderer/network
+  // resources and make a large, random-looking tail of otherwise valid songs
+  // fail with resource/network errors. Load in bounded batches instead.
+  const SONG_FETCH_BATCH_SIZE = 16;
+  const results = [];
+
+  for (let i = 0; i < files.length; i += SONG_FETCH_BATCH_SIZE) {
+    const batch = files.slice(i, i + SONG_FETCH_BATCH_SIZE);
+    const settled = await Promise.allSettled(batch.map(async (file) => {
+      let lastErr = null;
+      // One retry is cheap for tiny JSON files and recovers transient network/
+      // service-worker races without hiding a genuinely broken/missing file.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch(`${base}/${file}`, { headers });
+          if (!res.ok) throw new Error(`${file} responded ${res.status}`);
+          return await res.json();
+        } catch (err) {
+          lastErr = err;
+          if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 60));
+        }
+      }
+      throw lastErr;
+    }));
+    results.push(...settled);
+  }
 
   const failed = results.filter(r => r.status === 'rejected');
   if (failed.length) {

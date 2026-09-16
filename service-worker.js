@@ -65,6 +65,14 @@ function isSongDataRequest(url) {
   return url.pathname.includes('/data/');
 }
 
+// Manifests are tiny but authoritative. Returning a stale cached manifest first
+// can make a newly-expanded database look permanently smaller for that launch
+// (e.g. an old 667-entry manifest even though 2,309 files are deployed). Ask the
+// network first for manifests and only fall back to cache when offline.
+function isSongManifestRequest(url) {
+  return isSongDataRequest(url) && url.pathname.endsWith('/manifest.json');
+}
+
 // The core shell: without any one of these the app can't run at all, so
 // these are cached atomically — if even one fails, the whole install fails
 // and the OLD service worker (and its cache) stays in control until a
@@ -118,14 +126,23 @@ const BEST_EFFORT_ASSETS = [
   './icons/svg/social-website.svg',
 ];
 
-function cacheBestEffort(cache, urls) {
-  return Promise.allSettled(
-    urls.map((url) =>
-      cache.add(url).catch((err) => {
-        console.warn('Songbook SW: could not precache', url, '—', err);
-      })
-    )
-  );
+async function cacheBestEffort(cache, urls) {
+  // Keep background precaching bounded too. Running cache.add() for thousands
+  // of song URLs at once competes with app.js's foreground song loader and can
+  // trigger the same browser resource exhaustion the loader avoids.
+  const CACHE_BATCH_SIZE = 8;
+  const results = [];
+  for (let i = 0; i < urls.length; i += CACHE_BATCH_SIZE) {
+    const settled = await Promise.allSettled(
+      urls.slice(i, i + CACHE_BATCH_SIZE).map((url) =>
+        cache.add(url).catch((err) => {
+          console.warn('Songbook SW: could not precache', url, '—', err);
+        })
+      )
+    );
+    results.push(...settled);
+  }
+  return results;
 }
 
 self.addEventListener('install', (event) => {
@@ -185,18 +202,20 @@ function precacheEverythingElseInBackground() {
   // Song files go in SONGDATA_CACHE, not CACHE_VERSION — see the comment
   // on SONGDATA_CACHE up top for why that split matters (in short: so a
   // later app-version bump doesn't wipe every already-downloaded song).
-  caches.open(SONGDATA_CACHE).then((cache) => {
-    SONG_DB_FOLDERS.forEach((folder) => {
-      fetch(`./data/${folder}/manifest.json`)
-        .then((res) => res.json())
-        .then((songFiles) => {
-          const songUrls = songFiles.map((f) => `./data/${folder}/${f}`);
-          return cacheBestEffort(cache, [`./data/${folder}/manifest.json`, ...songUrls]);
-        })
-        .catch((err) => {
-          console.warn(`Songbook SW: background song precache skipped for "${folder}" —`, err);
-        });
-    });
+  caches.open(SONGDATA_CACHE).then(async (cache) => {
+    // Process databases one at a time so four large databases do not each start
+    // their own precache flood in parallel.
+    for (const folder of SONG_DB_FOLDERS) {
+      try {
+        const res = await fetch(`./data/${folder}/manifest.json`);
+        if (!res.ok) throw new Error(`manifest.json responded ${res.status}`);
+        const songFiles = await res.json();
+        const songUrls = songFiles.map((f) => `./data/${folder}/${f}`);
+        await cacheBestEffort(cache, [`./data/${folder}/manifest.json`, ...songUrls]);
+      } catch (err) {
+        console.warn(`Songbook SW: background song precache skipped for "${folder}" —`, err);
+      }
+    }
   });
 }
 
@@ -232,6 +251,21 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  if (isSongManifestRequest(new URL(event.request.url))) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.ok) {
+            const clone = response.clone();
+            caches.open(SONGDATA_CACHE).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.open(SONGDATA_CACHE).then((cache) => cache.match(event.request)))
     );
     return;
   }
