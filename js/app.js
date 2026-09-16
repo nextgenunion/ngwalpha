@@ -2442,15 +2442,35 @@ function runTabFadeTransition(fromEl, toEl) {
   toEl.addEventListener('animationend', cleanup);
 }
 
+// Coalesces rapid-fire calls (e.g. several 'input' events landing before
+// the browser gets a chance to paint — common on mobile when holding
+// backspace, which can auto-repeat faster than one search-list re-render
+// takes) down to a single call on the next animation frame, always using
+// whatever's current at that point rather than queuing up one run per
+// keystroke. Combined with getSearchCache() above (which removes the
+// actual per-song recompute cost), this is a second, cheap safety net
+// specifically for bursts of events arriving faster than a frame.
+function coalesceToNextFrame(fn) {
+  let scheduled = false;
+  return () => {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      fn();
+    });
+  };
+}
+
 // ---------------------------------------------------------
 // Songs page: search + sort + list rendering
 // ---------------------------------------------------------
 function bindSongsPage() {
   const input = document.getElementById('search-input');
-  input.addEventListener('input', () => {
+  input.addEventListener('input', coalesceToNextFrame(() => {
     state.query = input.value.trim().toLowerCase();
     renderSongList({ animate: true });
-  });
+  }));
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
      css/style.css) on whichever button was just clicked. This can't be
@@ -2503,10 +2523,10 @@ function bindSongsPage() {
 // ---------------------------------------------------------
 function bindUserSongsPage() {
   const input = document.getElementById('user-song-search-input');
-  input.addEventListener('input', () => {
+  input.addEventListener('input', coalesceToNextFrame(() => {
     state.userSongQuery = input.value.trim().toLowerCase();
     renderUserSongList({ animate: true });
-  });
+  }));
 
   document.getElementById('new-user-song-btn').addEventListener('click', () => {
     openSongEditor(null);
@@ -2529,16 +2549,46 @@ function stripChords(lyricsArr) {
   return lyricsArr.join(' \n ').replace(/\[[^\]]+\]/g, '');
 }
 
+// Search performance: matchesQuery()/relevanceRank() used to rebuild each
+// song's full searchable text (title + number + alt titles + artist +
+// stripChords(lyrics), all re-lowercased) from scratch on every single
+// keystroke, for every song in the active source. That's fine for a
+// handful of songs, but on a database with hundreds of songs — each with
+// dozens of lyric lines — redoing that regex-strip-and-join for the whole
+// list on every keystroke is exactly the kind of per-frame cost that reads
+// as a freeze on a mid-range phone, especially on backspace/rapid typing
+// where several 'input' events can land faster than the list can finish
+// re-rendering in between them.
+//
+// getSearchCache() computes it ONCE per song and stashes it directly on
+// the song object (a non-enumerable-ish `__searchCache`, by convention —
+// it's not part of the JSON schema, just a runtime memo), so every search
+// after the first for that song is just a cheap property read. This is
+// safe to cache indefinitely because songs are treated as immutable once
+// loaded: User Song edits (saveUserSong()) always install a brand-new
+// object into state.sources.user.songs rather than mutating an existing
+// one in place, so an edited song naturally gets a fresh, uncached object
+// — there's no path where a cached song's fields change out from under it.
+function getSearchCache(song) {
+  if (!song.__searchCache) {
+    const title = (song.title || '').toLowerCase();
+    const altTitles = (song.alternateTitles || []).filter(Boolean).map(a => a.toLowerCase());
+    const artist = (song.artist || '').toLowerCase();
+    const haystack = [
+      title,
+      song.number != null ? String(song.number) : '', // some sources' songs have no number — see DB_SOURCES' hasNumbers
+      ...altTitles,
+      artist,
+      stripChords(song.lyrics).toLowerCase(),
+    ].join(' \n ');
+    song.__searchCache = { title, altTitles, artist, haystack };
+  }
+  return song.__searchCache;
+}
+
 function matchesQuery(song, q) {
   if (!q) return true;
-
-  const haystack = [
-    song.title,
-    song.number != null ? String(song.number) : '', // some sources' songs have no number — see DB_SOURCES' hasNumbers
-    ...(song.alternateTitles || []),
-    song.artist || '',
-    stripChords(song.lyrics),
-  ].join(' \n ').toLowerCase();
+  const { haystack } = getSearchCache(song);
 
   // Every word in the query must appear somewhere in the combined text,
   // in any order — so "God awesome" matches "God Is an Awesome God"
@@ -2554,9 +2604,8 @@ function relevanceRank(song, q) {
   const query = q.trim().toLowerCase();
   if (!query) return 6;
 
-  const title = (song.title || '').toLowerCase();
-  const altTitles = (song.alternateTitles || []).filter(Boolean).map(a => a.toLowerCase());
-  const artist = (song.artist || '').toLowerCase();
+  const { title, altTitles, artist } = getSearchCache(song);
+
 
   if (title === query) return 0;                              // exact title match
   if (title.startsWith(query)) return 1;                       // title starts with query
@@ -2565,6 +2614,23 @@ function relevanceRank(song, q) {
   if (altTitles.some(a => a.includes(query))) return 4;         // alternate title contains query
   if (artist.includes(query)) return 5;                         // artist match
   return 6;                                                     // everything else (e.g. lyrics)
+}
+
+// Alphabetical sort's script grouping: Cyrillic titles first, then titles
+// starting with any other letter (Latin, Mongolian traditional script,
+// Korean, etc.), then anything starting with a digit/#/symbol last —
+// rather than a plain localeCompare, which would interleave scripts
+// character-code-by-character (and often put digits/symbols before
+// letters entirely) instead of keeping each group together the way the
+// Songbook's fast-scroll rail (see computeScrollIndexEntries()) expects
+// to walk it. Only the string's first character decides the group; within
+// a group, localeCompare still does the actual alphabetical ordering.
+function titleScriptRank(title) {
+  const ch = (title || '').trim().charAt(0);
+  if (!ch) return 2;
+  if (/\p{Script=Cyrillic}/u.test(ch)) return 0;
+  if (/\p{L}/u.test(ch)) return 1;
+  return 2; // digits, #, punctuation, anything not a letter
 }
 
 // sourceKey (optional) lets this fall back to alphabetical even if
@@ -2590,6 +2656,13 @@ function sortSongs(list, q, sourceKey = state.activeDbSource) {
     if (state.sortBy === 'num' && hasNumbers) {
       return (a.number - b.number) * dir;
     }
+    // dir flips both the group order and the in-group ordering together,
+    // so Descending is a true mirror of Ascending (symbols/digits first,
+    // then other-letter titles, then Cyrillic last) rather than only
+    // reversing within a fixed group order.
+    const scriptRankA = titleScriptRank(a.title);
+    const scriptRankB = titleScriptRank(b.title);
+    if (scriptRankA !== scriptRankB) return (scriptRankA - scriptRankB) * dir;
     return a.title.localeCompare(b.title) * dir;
   });
 
@@ -5688,7 +5761,7 @@ function openAddSongsModal(playlistId) {
     listWrap.style.height = 'auto'; // see the exit cleanup's comment above on why this precedes the scrollHeight read
     animateWrapHeightTo(listWrap, listWrap.scrollHeight, startHeight);
   };
-  input.addEventListener('input', renderItems);
+  input.addEventListener('input', coalesceToNextFrame(renderItems));
   renderItems();
 
   openModal(t('addSongsTitle'), wrap);

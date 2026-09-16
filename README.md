@@ -17,6 +17,48 @@ written or imported directly on-device — and the **Song Editor** used to
 create and edit them. Sheet Music is still ahead — see "Built for what's
 next", below.
 
+## What's new in v4.2.4-alpha
+
+- **Alphabetical sort now groups by script** — Cyrillic-titled songs
+  first, then anything starting with another letter (Latin, traditional
+  Mongolian script, etc.), then titles starting with a digit/`#`/symbol
+  last. Previously a plain `localeCompare()` interleaved these by raw
+  character code, which especially scattered digit/symbol-led titles
+  throughout the list instead of collecting them at one end
+- Only the grouping is new (`titleScriptRank()`); within a group it's
+  still ordinary `localeCompare()`. **Descending** mirrors this exactly
+  (symbols/digits first, Cyrillic last) rather than only reversing
+  within a fixed group order, so it's a true flip of Ascending
+- The fast-scroll rail (Songbook page's edge scrollbar) needed no
+  changes — it already just buckets by consecutive first-letter changes
+  in whatever order `sortSongs()` hands it, so it follows the new
+  grouping automatically
+- Search itself (`matchesQuery()`/relevance ranking) is untouched — this
+  only changes the order of the *Sort by A–Z* list, not what search
+  finds or how it ranks results
+
+## What's new in v4.2.3-alpha
+
+- **Fixed search lag/freezing on backspace with large song databases** —
+  `matchesQuery()`/`relevanceRank()` were rebuilding and re-lowercasing
+  each song's *entire* searchable text (title, alt titles, artist, and
+  the full lyrics with chords stripped out via regex) from scratch on
+  every single keystroke, for every song in the active database. Fine
+  for a handful of songs; on a database with hundreds of songs it's real
+  work repeated on every character typed or deleted, which is what was
+  showing up as a freeze on mobile
+- That's now computed once per song and cached on the song object itself
+  (`getSearchCache()`), so every search after a song's first match is a
+  cheap property read instead of a rebuild. Safe to cache indefinitely —
+  User Song edits always install a fresh object rather than mutating an
+  existing one in place, so an edited song naturally starts uncached
+- Also added `coalesceToNextFrame()`, which folds several `input` events
+  landing faster than the browser can paint (e.g. holding backspace,
+  which can auto-repeat faster than one re-render takes) into a single
+  update on the next animation frame — applied to the Songs search, User
+  Songs search, and the playlist "add songs" picker's search, the three
+  places that filter against a full song list per keystroke
+
 ## What's new in v4.2.2-alpha
 
 - **New song database: `mongolian2` ("Монгол")** — a second, separate

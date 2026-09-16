@@ -6,8 +6,8 @@ window.SONGBOOK_LANG.mn = {
 
   appTitle: "Дууны ном",
   searchPlaceholder: "Гарчиг, дугаар, эсвэл үгээр хайх…",
-  sortByAlpha: "Цагаан толгой",
-  sortByNumber: "Дугаар",
+  sortByAlpha: "Цагаан толгойгоор",
+  sortByNumber: "Дугаараар",
   sortAsc: "Өсөх",
   sortDesc: "Буурах",
   resultsAll: (n) => `${n} дуу`,
