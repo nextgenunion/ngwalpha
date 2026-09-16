@@ -2722,11 +2722,19 @@ html[data-theme="dark"] .toast {
    here rather than getting a second, conflicting transform — the 93% pop
    reads fine on a small icon button but looks like an unpleasant squish
    on a full-width row like a checklist item (or the About/dev-options
-   settings row). Tokens: see --press-* in :root above. */
-button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav)) {
+   settings row). .sort-btn is excluded for a different reason: it already
+   gets a complete, deliberate press animation from .sort-btn-tap (see
+   that class near .sort-btn's own definition), added by JS on every
+   click regardless of which button was previously selected. This generic
+   :active scale used to still apply underneath that on .sort-btn (a
+   leftover from before .sort-btn-tap existed) — same property
+   (transform), so the two didn't blend, they visibly played one after
+   the other: a quick scale-and-snap-back pop, then the sort-btn-tap lip
+   collapse right behind it. Tokens: see --press-* in :root above. */
+button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav):not(.sort-btn)) {
   transition: transform var(--press-duration-out) var(--press-ease);
 }
-button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav)):active {
+button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav):not(.sort-btn)):active {
   transform: scale(var(--press-scale-icon));
   transition-duration: var(--press-duration-in);
 }
@@ -2750,15 +2758,15 @@ button:disabled { transform: none !important; }
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
 }
-/* Unselected .sort-btn still gets a light tap scale on :active — this
-   one's safe to leave on :active (unlike the selected/pressed lip
-   above) because an unselected button's own visual state never
-   changes on click, so there's no race with a state update landing
-   after mouseup. */
-.sort-btn:active {
-  transform: scale(var(--press-scale-pill));
-  transition-duration: var(--press-duration-in);
-}
+/* .sort-btn deliberately has no :active rule of its own here — it's
+   excluded from the universal button-pop above (see that comment) and
+   .sort-btn-tap is now its only press animation. An :active scale used
+   to live here too ("safe to leave," the reasoning went, since an
+   unselected button's own visual state doesn't change on click) but
+   that reasoning missed that the *clicked* button's state does change,
+   right as .sort-btn-tap starts playing on it — so every click layered
+   this rule's scale-and-release on top of the tap keyframe, which is
+   the double-animation bug this comment used to cause. */
 /* .btn-primary gets the lip collapse instead of the shared scale-press
    above — combining a shadow-collapse with a simultaneous scale-down
    reads as muddy rather than snappy, so this overrides the rule above
