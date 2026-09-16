@@ -23,6 +23,7 @@ window.SONGBOOK_LANG.en = {
   navUserSongs: "User Songs",
   backAria: "Back to song list",
   keyLabel: "Key:",
+  altTitlesPrefix: "Also known as:",
   transposeReset: "Reset",
   lyricsGroup: "Lyrics",
   chordsGroup: "Chords",

@@ -1564,7 +1564,18 @@ html[data-theme="dark"] .sv-header-immersive::before {
 }
 .pv-title-swap { animation: pv-title-swap .22s ease; }
 .sv-artist { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.9rem; }
-.sv-alt-title { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.85rem; font-style: italic; }
+/* Now shown below the lyrics (see index.html) rather than under the
+   title, so it needs its own centering/spacing/divider rather than
+   inheriting .sv-title-centered's. */
+.sv-alt-title {
+  margin: 28px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-style: italic;
+}
 
 .transpose-bar {
   display: flex;

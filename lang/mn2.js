@@ -19,6 +19,9 @@ window.SONGBOOK_LANG.mn2 = {
   navUserSongs: "Миний дуу",
   backAria: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ ᠤ᠋ᠨ ᠵᠢᠭᠰᠠᠭᠠᠯᠲᠠ ᠤᠷᠤᠭᠤ ᠪᠤᠴᠠᠬᠤ",
   keyLabel: "ᠲᠣᠨᠠᠯᠢ:",
+  // TODO: placeholder Cyrillic, not transliterated yet — same reason as
+  // the other TODO-flagged keys below.
+  altTitlesPrefix: "Өөр нэрс:",
   transposeReset: "ᠳᠠᢈᠢᠨ ᠲᠣᢈᠢᠷᠠᠭᠤᠯᠬᠤ",
   lyricsGroup: "ᠦᢉᠡ",
   chordsGroup: "ᠠᠻᠻᠣᠷᠳ᠋",

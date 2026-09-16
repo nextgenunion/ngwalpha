@@ -19,6 +19,7 @@ window.SONGBOOK_LANG.mn = {
   navUserSongs: "Миний дуу",
   backAria: "Дууны жагсаалт руу буцах",
   keyLabel: "Тональ:",
+  altTitlesPrefix: "Өөр нэрс:",
   transposeReset: "Буцаах",
   lyricsGroup: "Үг",
   chordsGroup: "Аккорд",

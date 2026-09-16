@@ -176,7 +176,7 @@ self.addEventListener('activate', (event) => {
 // with it manually, since a service worker can't just import app.js's
 // module-scoped const). Adding a new database here is the same one-line
 // addition as adding it to DB_SOURCES.
-const SONG_DB_FOLDERS = ['mongolian', 'english', 'hymn'];
+const SONG_DB_FOLDERS = ['mongolian', 'english', 'hymn', 'mongolian2'];
 
 function precacheEverythingElseInBackground() {
   caches.open(CACHE_VERSION).then((cache) => {

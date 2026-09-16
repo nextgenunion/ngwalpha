@@ -103,6 +103,7 @@ const state = {
     official: { songs: [], loadFailed: false },
     english: { songs: [], loadFailed: false },
     sda: { songs: [], loadFailed: false },
+    mongolian2: { songs: [], loadFailed: false },
     // User Songs (v3): not fetched from a manifest like official/english —
     // loaded from IndexedDB via UserSongStorage (see loadUserSongs()) —
     // but shaped identically otherwise, so every list/search/sort/song-view
@@ -516,6 +517,10 @@ const DB_SOURCES = {
   official: { folder: 'mongolian', hasNumbers: true },
   english:  { folder: 'english',   hasNumbers: false },
   sda:      { folder: 'hymn',      hasNumbers: true },
+  // Second Mongolian-language database ("Монгол" in #db-select, no "(ДАС)"
+  // qualifier since it isn't the ДАС songbook the 'official' source is).
+  // Its source files have no `number` field, same situation as 'english'.
+  mongolian2: { folder: 'mongolian2', hasNumbers: false },
 };
 
 // One JSON file per song, listed in <folder>/manifest.json. Adding a song
@@ -603,7 +608,8 @@ const SONGDB_NAME = 'songbook-db';
 // Bumped 4 → 5 to add 'user-songs-trash' (see TrashStorage below) — same
 // additive-only onupgradeneeded as every prior bump, so this is a
 // no-op for every store an already-installed device already has.
-const SONGDB_VERSION = 5;
+// Bumped 5 → 6 to add 'mongolian2-songs' for the new 'mongolian2' source.
+const SONGDB_VERSION = 6;
 // One object store per song source (see state.sources/DB_SOURCES above),
 // so each source's offline backup lives independently and nothing
 // collides. 'user' is reserved, unused, so v2's User Songs source can
@@ -614,6 +620,7 @@ const SONGDB_STORES = {
                       // existing installs' offline backup carries over as-is
   english: 'english-songs',
   sda: 'sda-songs',
+  mongolian2: 'mongolian2-songs',
   user: 'user-songs',
   // User Songs trash bin (v4.2): a deleted user song moves here instead of
   // being wiped outright, so it can be recovered. Same one-key-per-song
@@ -3418,7 +3425,11 @@ function openSong(song, opts = {}) {
   const altEl = document.getElementById('sv-alt-title');
   const altTitles = (song.alternateTitles || []).filter(Boolean);
   if (altTitles.length) {
-    altEl.textContent = altTitles.join(' • ');
+    // Now rendered at the bottom of the song (see index.html), detached
+    // from the title it's naming — so it gets a translated label prefix
+    // (t('altTitlesPrefix')) here that it didn't need when it sat right
+    // under the title itself.
+    altEl.textContent = `${t('altTitlesPrefix')} ${altTitles.join(' • ')}`;
     altEl.hidden = false;
   } else {
     altEl.textContent = '';

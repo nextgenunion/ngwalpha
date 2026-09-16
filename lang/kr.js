@@ -19,6 +19,7 @@ window.SONGBOOK_LANG.kr = {
   navUserSongs: "내 곡",
   backAria: "곡 목록으로 돌아가기",
   keyLabel: "조:",
+  altTitlesPrefix: "다른 이름:",
   transposeReset: "초기화",
   lyricsGroup: "가사",
   chordsGroup: "코드",

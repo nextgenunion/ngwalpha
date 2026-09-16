@@ -17,6 +17,24 @@ written or imported directly on-device — and the **Song Editor** used to
 create and edit them. Sheet Music is still ahead — see "Built for what's
 next", below.
 
+## What's new in v4.2.2-alpha
+
+- **New song database: `mongolian2` ("Монгол")** — a second, separate
+  Mongolian-language songbook alongside the existing "Монгол (ДАС)"
+  database, selectable from Settings → Song database. Currently seeded
+  with 7 songs (`m002`–`m008`); more can be added the normal way (new
+  `mNNN.json` + a manifest.json line — see "Multiple song databases")
+- **Alternate titles moved to the bottom of the song view** — `#sv-alt-title`
+  now renders below the lyrics (with a translated "Also known as:" /
+  `altTitlesPrefix` label) instead of under the title, and picked up a
+  divider to set it apart as reference info rather than part of the
+  song's identity. Search/ranking behavior (`matchesQuery()`/
+  `relevanceRank()`) is unchanged — see the new "Alternate titles" section
+  below for the full system
+- `SONGDB_STORES`/`SONGDB_VERSION` bumped 5 → 6 for `mongolian2`'s own
+  IndexedDB offline-backup store, and `service-worker.js`'s
+  `SONG_DB_FOLDERS` updated so it's precached for offline use
+
 ## What's new in this version
 
 - **Trash Bin for User Songs** — deleting a User Song (from the song-view
@@ -283,21 +301,29 @@ the root copy if it isn't needed; it's not referenced anywhere).
 ## Multiple song databases
 
 Each song database is its own folder under `data/`: `data/mongolian/`
-("Монгол (ДАС)", the default), `data/english/` ("English", 6 generic
-public-domain hymns), and `data/hymn/` ("English (SDA)", 695 hymns from an
-SDA hymnal). Every database has the same shape: one JSON file per song
-plus that folder's own `manifest.json` listing them (see "Why song data
-moved to one JSON file per song" below for that part's own reasoning).
+("Монгол (ДАС)", the default), `data/mongolian2/` ("Монгол", a second,
+separate Mongolian-language songbook — see below), `data/english/`
+("English", 6 generic public-domain hymns), and `data/hymn/` ("English
+(SDA)", 695 hymns from an SDA hymnal). Every database has the same
+shape: one JSON file per song plus that folder's own `manifest.json`
+listing them (see "Why song data moved to one JSON file per song" below
+for that part's own reasoning).
 
 The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
 
 ```js
 const DB_SOURCES = {
-  official: { folder: 'mongolian', hasNumbers: true },
-  english:  { folder: 'english',   hasNumbers: false },
-  sda:      { folder: 'hymn',      hasNumbers: true },
+  official:   { folder: 'mongolian',  hasNumbers: true },
+  english:    { folder: 'english',    hasNumbers: false },
+  sda:        { folder: 'hymn',       hasNumbers: true },
+  mongolian2: { folder: 'mongolian2', hasNumbers: false },
 };
 ```
+
+`data/mongolian2/` currently only has 7 songs (`m002`–`m008`) — its
+manifest.json lists only those, not the full ~2,300-song list it may
+eventually grow to. Add more the normal way (a new `mNNN.json` + a new
+line in its manifest.json); nothing else needs to change.
 
 Adding a database (a next-gen version of this app, a different language,
 a different congregation's songbook) is: create the folder + its
@@ -452,6 +478,56 @@ doesn't touch any of this — as of v3, **User Songs** (the "User Songs" tab
 → **+**) is an in-app Song Editor using this exact same `[Am]` notation in
 a plain textarea, with a live preview, that saves straight to on-device
 storage — see "What's new in this version" above.
+
+## Alternate titles — how the system works (read this before adding any)
+
+Every song can carry an `alternateTitles` array — other names people
+search for it by: an English original a translation is based on, a
+common nickname, an older/alternate transliteration, etc. It's a plain
+array of strings on the song object, right next to `title`:
+
+```json
+{
+  "id": "m002",
+  "title": "Үй түмэн шалтгаан",
+  "alternateTitles": ["10,000 Reasons", "10000 шалтгаан"],
+  "artist": "Джонас Мырин, Матт Редман",
+  ...
+}
+```
+
+It's read in exactly three places in `js/app.js`, and nowhere else —
+there's no separate index or lookup table to keep in sync:
+
+- **`matchesQuery()`** folds `alternateTitles` into the same searchable
+  text as the title, artist, and lyrics, so typing an alt name in the
+  search box finds the song.
+- **`relevanceRank()`** ranks an exact/partial alt-title match above a
+  lyrics match but below an actual title match, so searching an alt
+  name surfaces the right song near the top without letting it outrank
+  a real title hit on a *different* song.
+- **`openSong()`** renders the list (joined with `" • "`, prefixed with
+  the translated `altTitlesPrefix` string — see `lang/*.js`) into
+  `#sv-alt-title`, which sits at the **bottom of the song view**, below
+  the lyrics — deliberately not under the title, since it's reference
+  info for someone who already knows the song rather than something
+  needed to identify which song this is.
+
+An empty array, or the field left off entirely, is fine — both
+`matchesQuery()` and `openSong()` already guard for that
+(`song.alternateTitles || []`), so it's not required on every song.
+
+**Guidance for whoever (human or AI) is filling these in:** only add an
+alternate title you're actually confident is correct — a name stated
+directly, or a well-known original that a song's own `artist` credit
+makes unambiguous (e.g. crediting Lenny LeBlanc & Paul Baloche is
+enough to know a song is "Above All"). Don't guess at a probable
+English original from lyrics/theme alone; a wrong alt title actively
+misleads search and shows up as reference info in the song view itself,
+so leaving it blank is safer than a confident-looking wrong guess. Each
+array entry is one full name, not a fragment — put a Mongolian
+transliteration and an English original as two separate entries (as
+above), not concatenated into one string.
 
 ## Interface language (Mongolian / English)
 

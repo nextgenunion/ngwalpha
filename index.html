@@ -200,7 +200,6 @@
       <span id="sv-number" class="sv-number"></span>
       <h2 id="sv-title"></h2>
       <p id="sv-artist" class="sv-artist" hidden></p>
-      <p id="sv-alt-title" class="sv-alt-title" hidden></p>
     </div>
   </header>
 
@@ -230,6 +229,14 @@
   <div id="sv-labels" class="sv-labels"></div>
 
   <div id="lyrics-container" class="lyrics-container"></div>
+
+  <!-- Alternate/original titles (e.g. the English name a translated song
+       is known by) — deliberately placed here, at the bottom of the song
+       content below the lyrics, rather than under the title up top: it's
+       reference info for someone who already knows the song, not part of
+       identifying which song this is. See matchesQuery()/relevanceRank()
+       in app.js for how these same alternateTitles also feed search. -->
+  <p id="sv-alt-title" class="sv-alt-title" hidden></p>
 
   <div id="sv-audio" class="sv-audio" hidden></div>
 
@@ -357,6 +364,7 @@
       </div>
       <select id="db-select" class="select-input">
         <option value="official">Монгол (ДАС)</option>
+        <option value="mongolian2">Монгол</option>
         <option value="english" id="db-option-en">English</option>
         <option value="sda">English (SDA)</option>
       </select>
