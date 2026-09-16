@@ -4119,6 +4119,13 @@ function closePlaylistMenu() {
 
 let playlistEditMode = false;
 function setPlaylistEditMode(on) {
+  // Already in the requested state — nothing to actually change. Without
+  // this, openPlaylist()'s unconditional setPlaylistEditMode(false) (to
+  // guarantee every playlist opens fresh, not mid-edit) would replay the
+  // Finish-pill/title-swap/row-handle animations on every single ordinary
+  // open, not just the ones actually leaving edit mode.
+  if (playlistEditMode === on) return;
+
   // Leaving edit mode commits any pending title edit first, so Done
   // (or backing out) always saves rather than silently discarding it.
   if (playlistEditMode && !on) commitPlaylistTitleEdit();
@@ -4151,8 +4158,8 @@ function setPlaylistEditMode(on) {
   }
 
   const doneBtn = document.getElementById('playlist-done-btn');
-  doneBtn.hidden = !on;
   doneBtn.textContent = t('doneBtn');
+  showOrHidePillDone(doneBtn, on);
 
   // If the three-dot menu happens to be open while edit mode changes out
   // from under it (e.g. the person hits the top "Finish" button without
@@ -4169,13 +4176,49 @@ function setPlaylistEditMode(on) {
     initIcons(kebabEditBtn);
   }
 
-  renderPlaylistTitle();
+  renderPlaylistTitle({ animateSwap: true });
+}
+
+// The [hidden] attribute maps straight to display:none, which can't be
+// transitioned — so on its own, toggling `.hidden` makes the Finish pill
+// just pop in/out instead of appearing/disappearing smoothly. This
+// animates the button in on show, and defers actually hiding it on the
+// way out until the fade-out animation has finished playing.
+function showOrHidePillDone(btn, show) {
+  btn.classList.remove('is-entering', 'is-exiting');
+  if (prefersReducedMotion()) {
+    btn.hidden = !show;
+    return;
+  }
+  if (show) {
+    btn.hidden = false;
+    void btn.offsetWidth; // restart the animation even if a previous run is still settling
+    btn.classList.add('is-entering');
+    btn.addEventListener('animationend', function onEnd() {
+      btn.classList.remove('is-entering');
+      btn.removeEventListener('animationend', onEnd);
+    }, { once: true });
+  } else {
+    btn.classList.add('is-exiting');
+    btn.addEventListener('animationend', function onEnd() {
+      btn.classList.remove('is-exiting');
+      btn.hidden = true;
+      btn.removeEventListener('animationend', onEnd);
+    }, { once: true });
+  }
 }
 
 // Renders pv-title as either a static heading (normal browsing) or an
 // inline text input (edit mode) — the "rename" affordance IS the title
 // itself while editing, rather than a separate menu item + popup.
-function renderPlaylistTitle() {
+// animateSwap: true fades the swap between the two (including the
+// input's edit-mode underline appearing/disappearing) instead of it
+// popping instantly — pass this only from the actual edit-mode toggle
+// (setPlaylistEditMode), not from routine re-renders (adding a song,
+// reopening the playlist, a language change) where the mode itself
+// isn't changing and nothing should animate.
+function renderPlaylistTitle(opts = {}) {
+  const { animateSwap = false } = opts;
   const pl = getPlaylist(state.activePlaylistId);
   if (!pl) return;
   const titleEl = document.getElementById('pv-title');
@@ -4197,6 +4240,16 @@ function renderPlaylistTitle() {
     titleEl.appendChild(input);
   } else {
     titleEl.textContent = playlistDisplayName(pl);
+  }
+
+  if (animateSwap && !prefersReducedMotion()) {
+    titleEl.classList.remove('pv-title-swap');
+    void titleEl.offsetWidth;
+    titleEl.classList.add('pv-title-swap');
+    titleEl.addEventListener('animationend', function onEnd() {
+      titleEl.classList.remove('pv-title-swap');
+      titleEl.removeEventListener('animationend', onEnd);
+    }, { once: true });
   }
 }
 

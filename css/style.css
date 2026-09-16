@@ -1552,6 +1552,17 @@ html[data-theme="dark"] .sv-header-immersive::before {
   padding: 0 0 2px;
 }
 .pv-title-input:focus { outline: none; }
+/* Fades the pv-title swap between the static heading and the edit-mode
+   input (see renderPlaylistTitle's animateSwap in app.js) — the input's
+   own border-bottom (the "underline") is otherwise just part of an
+   element that gets created/destroyed outright on that swap, so without
+   this it appeared and disappeared instantly along with everything
+   else, rather than easing in/out like the rest of edit mode does. */
+@keyframes pv-title-swap {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+.pv-title-swap { animation: pv-title-swap .22s ease; }
 .sv-artist { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.9rem; }
 .sv-alt-title { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.85rem; font-style: italic; }
 
@@ -2956,6 +2967,24 @@ html[data-theme="dark"] .btn-pill-done {
   .btn-pill-done { transition: none; }
 }
 .btn-pill-done[hidden] { display: none; }
+/* Fade/scale for the Finish pill's own appear/disappear (see
+   showOrHidePillDone in app.js) — [hidden] alone can't transition since
+   it maps straight to display:none, which is why this used to just pop
+   in and out instantly instead of animating like everything else that
+   changes when edit mode toggles. */
+@keyframes pill-done-enter {
+  from { opacity: 0; transform: scale(.85); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pill-done-exit {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(.85); }
+}
+.btn-pill-done.is-entering { animation: pill-done-enter .18s ease; }
+.btn-pill-done.is-exiting { animation: pill-done-exit .18s ease forwards; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .btn-pill-done.is-entering, .btn-pill-done.is-exiting { animation: none; }
+}
 .btn-pill-toggle {
   flex-shrink: 0;
   border: 1px solid var(--line);
