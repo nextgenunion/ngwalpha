@@ -635,6 +635,7 @@ body.nav-hidden .page-inner {
 .sort-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 14px;
   overflow-x: auto;
   margin-top: 12px;
@@ -642,11 +643,6 @@ body.nav-hidden .page-inner {
   scrollbar-width: none;
 }
 .sort-row::-webkit-scrollbar { display: none; }
-/* Pushes the labels kebab to the row's far end, clear of the two sort
-   groups, without needing justify-content: space-between on the row
-   itself (which would also space the two sort-groups apart from each
-   other — they should stay snug together on the left). */
-#song-labels-btn { margin-left: auto; }
 .sort-group {
   display: flex;
   gap: 8px;
@@ -716,46 +712,6 @@ html[data-theme="dark"] .sort-btn-tap {
 @media (prefers-reduced-motion: reduce) {
   .sort-btn { transition: none; }
   .sort-btn-tap { animation: none; }
-}
-
-/* Built by openLabelsMenu() in js/app.js — same pill look as .sort-btn
-   above, but a single-select toggle rather than always-one-active:
-   tapping the already-pressed chip clears the filter back to "no
-   filter", which .sort-btn's radio-like pair never does.
-   Was an always-visible, horizontally-scrolling chip row directly under
-   the sort buttons; now lives as the content of the labels kebab
-   dropdown instead, built fresh each time the button opens. Wraps within
-   the dropdown's own width rather than scrolling, since a small popover
-   panel doesn't have the edge-to-edge width a full page row did. */
-.label-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 14px;
-  max-width: 240px;
-}
-.label-filter-chip {
-  flex-shrink: 0;
-  border: 1px solid var(--line);
-  background: var(--paper-dim);
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 7px 13px;
-  border-radius: 999px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background .15s, color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
-}
-.label-filter-chip[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-html[data-theme="dark"] .label-filter-chip[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--paper-dim);
-  border-color: var(--accent);
 }
 
 .results-count {
@@ -1747,6 +1703,13 @@ html[data-theme="dark"] .seg-toggle-thumb { background: var(--accent); }
 html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--paper-dim); }
 
 .sv-labels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+/* Now toggled hidden by renderSongViewLabels() when a song has no
+   labels (editing moved to the "…" menu, so there's no longer an
+   always-present "+" chip to keep the row non-empty) — needed because
+   the plain .sv-labels rule above sets display: flex unconditionally,
+   which as author CSS beats the browser's own [hidden] default
+   regardless of specificity. Same fix as .btn-pill-done[hidden] below. */
+.sv-labels[hidden] { display: none; }
 .sv-label-chip {
   font-size: 0.72rem;
   font-weight: 600;
@@ -1755,25 +1718,6 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
   border-radius: 999px;
   padding: 4px 10px;
 }
-/* The always-present "add/edit" affix at the end of the chip row — see
-   renderSongViewLabels() in js/app.js. Outlined rather than filled like
-   .sv-label-chip so it doesn't visually pass for another assigned label. */
-.sv-label-add-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--ink-faint);
-  background: transparent;
-  border: 1px dashed var(--line);
-  border-radius: 999px;
-  padding: 4px 10px 4px 8px;
-  cursor: pointer;
-  transition: color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
-}
-.sv-label-add-chip svg { width: 13px; height: 13px; }
-.sv-label-add-chip:hover { color: var(--ink-soft); border-color: var(--ink-faint); }
 
 /* ---------- lyrics + chords ---------- */
 .lyrics-container {
@@ -2754,7 +2698,7 @@ button:disabled { transform: none !important; }
    .sort-btn's own definition for why it needs a real keyframe animation
    instead of a plain :active rule. */
 .seg-toggle-btn:active, .btn-pill-toggle:active,
-.label-filter-chip:active, .label-suggestion-chip:active, .sv-label-add-chip:active {
+.label-suggestion-chip:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
 }
@@ -2810,12 +2754,6 @@ html[data-theme="dark"] .btn-pill-done:active {
   justify-content: space-between;
 }
 .page-header-row h1 { padding: 0; }
-/* User Songs' header row now has two trailing buttons (labels kebab +
-   New song) instead of one — grouped in their own flex child so
-   justify-content: space-between above still only ever sees two
-   top-level items (the <h1> and this group), keeping the two buttons
-   snug next to each other rather than spread across the row. */
-.page-header-row-actions { display: flex; align-items: center; gap: 8px; }
 
 .playlist-list { list-style: none; margin: 16px 0 0; padding: 0; }
 .playlist-row {

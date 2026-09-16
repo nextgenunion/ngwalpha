@@ -124,9 +124,6 @@ const state = {
                       // from `query` (the Songs page's) so switching tabs
                       // doesn't clobber whichever search the person was
                       // mid-typing on the other page.
-  songLabelFilter: null,     // active label filter chip on the Songs page —
-                              // reset in applyDbSource() like `query` above
-  userSongLabelFilter: null, // same, for the User Songs page's own chip row
   presentationMode: false, // toggled from the song view's "…" menu — see
                             // togglePresentationMode()/applyPresentationMode()
                             // below. Session-only (not persisted to
@@ -290,6 +287,7 @@ const ICON_FILES = {
   'heart-filled': 'icons/svg/heart-filled.svg',
   'menu-kebab': 'icons/svg/menu-kebab.svg',
   'presentation': 'icons/svg/presentation.svg',
+  'tag': 'icons/svg/tag.svg',
   'plus': 'icons/svg/plus.svg',
   'trash': 'icons/svg/trash.svg',
   'pencil': 'icons/svg/pencil.svg',
@@ -1413,7 +1411,6 @@ function applyLandscapeMode() {
 function applyDbSource(sourceKey) {
   state.activeDbSource = sourceKey;
   state.query = '';
-  state.songLabelFilter = null;
   const searchInput = document.getElementById('search-input');
   if (searchInput) searchInput.value = '';
 
@@ -2024,15 +2021,6 @@ function bindSongsPage() {
       renderSongList({ animate: true });
     });
   });
-
-  document.getElementById('song-labels-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleLabelsMenu('song-labels-btn', state.activeDbSource, state.songLabelFilter, (label) => {
-      state.songLabelFilter = label;
-      renderSongList({ animate: true });
-    });
-  });
-  document.addEventListener('click', () => closeLabelsMenu());
 }
 
 // ---------------------------------------------------------
@@ -2053,15 +2041,6 @@ function bindUserSongsPage() {
   document.getElementById('new-user-song-btn').addEventListener('click', () => {
     openSongEditor(null);
   });
-
-  document.getElementById('user-song-labels-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleLabelsMenu('user-song-labels-btn', 'user', state.userSongLabelFilter, (label) => {
-      state.userSongLabelFilter = label;
-      renderUserSongList({ animate: true });
-    });
-  });
-  document.addEventListener('click', () => closeLabelsMenu());
 }
 
 function renderUserSongList(opts = {}) {
@@ -2158,73 +2137,6 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-// Toggles the labels kebab button's visibility for one page — shown only
-// once the source actually has at least one labelled song, so it never
-// sits there as a dead button before anyone's tagged anything. The chip
-// list itself is no longer built here; it's built fresh each time the
-// button is opened (see openLabelsMenu() below), the same way the song
-// view's "…" menu builds its own dropdown on open rather than keeping it
-// pre-rendered and hidden.
-function updateLabelsMenuButton(btnId, sourceKey) {
-  const btn = document.getElementById(btnId);
-  if (!btn) return;
-  btn.hidden = !labelsInUse(sourceKey).length;
-  if (btn.hidden) closeLabelsMenu();
-}
-
-let labelsMenuOpen = false;
-function toggleLabelsMenu(btnId, sourceKey, activeFilter, onSelect) {
-  labelsMenuOpen ? closeLabelsMenu() : openLabelsMenu(btnId, sourceKey, activeFilter, onSelect);
-}
-
-// Same dynamic-build/animate-in/animate-out pattern as
-// openSongViewMenu()/openPlaylistMenu() — see those for the fuller
-// explanation of why this isn't just a pre-rendered, hidden-toggled
-// element. onSelect gets the newly-chosen label (or null, clearing the
-// filter) and is responsible for re-rendering the list; this function
-// only owns the dropdown's own open/close/content.
-function openLabelsMenu(btnId, sourceKey, activeFilter, onSelect) {
-  closeLabelsMenu();
-  const btn = document.getElementById(btnId);
-  if (!btn) return;
-  const labels = labelsInUse(sourceKey);
-  if (!labels.length) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'kebab-dropdown';
-  wrap.id = 'labels-kebab-dropdown';
-  wrap.innerHTML = `
-    <div id="labels-menu-chip-row" class="label-filter-row" role="group" aria-label="Filter by label">
-      ${labels.map(label => `
-        <button type="button" class="label-filter-chip" data-label="${escapeHtml(label)}" aria-pressed="${String(label === activeFilter)}">${escapeHtml(labelDisplayText(label))}</button>
-      `).join('')}
-    </div>
-  `;
-  btn.parentElement.style.position = 'relative';
-  btn.parentElement.appendChild(wrap);
-  labelsMenuOpen = true;
-  btn.setAttribute('aria-expanded', 'true');
-
-  wrap.querySelectorAll('.label-filter-chip').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeLabelsMenu();
-      onSelect(chip.dataset.label === activeFilter ? null : chip.dataset.label);
-    });
-  });
-  wrap.addEventListener('click', (e) => e.stopPropagation());
-}
-
-function closeLabelsMenu() {
-  const wrap = document.getElementById('labels-kebab-dropdown');
-  labelsMenuOpen = false;
-  document.querySelectorAll('#song-labels-btn, #user-song-labels-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
-  if (!wrap) return;
-  if (prefersReducedMotion()) { wrap.remove(); return; }
-  wrap.removeAttribute('id');
-  wrap.classList.add('kebab-dropdown-exit');
-  wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
-}
-
 function renderSongList(opts = {}) {
   const {
     sourceKey = state.activeDbSource,
@@ -2232,12 +2144,6 @@ function renderSongList(opts = {}) {
     emptyElId = 'empty-state',
     countElId = 'results-count',
     query = state.query,
-    // Active label filter chip (see the "Labels" section and
-    // updateLabelsMenuButton/openLabelsMenu below) — defaults per
-    // listElId the same way `query` defaults to the Songs page's own
-    // search box, with renderUserSongList() passing its own state field
-    // explicitly.
-    labelFilter = listElId === 'user-song-list' ? state.userSongLabelFilter : state.songLabelFilter,
     // Set by the search inputs and sort buttons (see bindSongsPage/
     // bindUserSongsPage) — everything else that re-renders a list (tab
     // navigation, language change, db switch) leaves this off, since an
@@ -2251,18 +2157,6 @@ function renderSongList(opts = {}) {
   const emptyEl = document.getElementById(emptyElId);
   const countEl = document.getElementById(countElId);
 
-  // The labels kebab only exists on the Songs and User Songs pages'
-  // markup — song-pickers (openAddSongsModal etc.) reuse this same
-  // function against their own listElId with no such button, so this is
-  // a harmless no-op for those. Re-checked on every call (like the
-  // fast-scroll rail below) so a label added/removed elsewhere is
-  // reflected the next time this list is shown — see PAGES' onEnter.
-  if (listElId === 'song-list') {
-    updateLabelsMenuButton('song-labels-btn', sourceKey);
-  } else if (listElId === 'user-song-list') {
-    updateLabelsMenuButton('user-song-labels-btn', sourceKey);
-  }
-
   if (!source || source.loadFailed) {
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
     emptyEl.hidden = true;
@@ -2273,7 +2167,7 @@ function renderSongList(opts = {}) {
   }
 
   const filtered = sortSongs(
-    source.songs.filter(s => matchesQuery(s, query) && (!labelFilter || effectiveLabels(sourceKey, s.id, s).includes(labelFilter))),
+    source.songs.filter(s => matchesQuery(s, query)),
     query, sourceKey
   );
 
@@ -2942,6 +2836,7 @@ function openSongViewMenu() {
   wrap.id = 'sv-kebab-dropdown';
   wrap.innerHTML = `
     <button type="button" id="sv-kebab-add-playlist"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('addToPlaylistTitle'))}</button>
+    <button type="button" id="sv-kebab-labels"><svg data-icon="tag" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>
     ${isUserSong ? `
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
@@ -2957,6 +2852,11 @@ function openSongViewMenu() {
     e.stopPropagation();
     closeSongViewMenu();
     openAddToPlaylistModal(state.activeSourceKey, song.id);
+  });
+  wrap.querySelector('#sv-kebab-labels').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeSongViewMenu();
+    openEditLabelsModal(state.activeSourceKey, song.id);
   });
   const editBtn = wrap.querySelector('#sv-kebab-edit');
   if (editBtn) editBtn.addEventListener('click', (e) => {
@@ -4909,10 +4809,13 @@ function renderSongViewLabels(sourceKey, song) {
   const labelsEl = document.getElementById('sv-labels');
   if (!labelsEl) return;
   const labels = effectiveLabels(sourceKey, song.id, song);
-  labelsEl.innerHTML = labels.map(l => `<span class="sv-label-chip">${escapeHtml(labelDisplayText(l))}</span>`).join('')
-    + `<button type="button" id="sv-label-add-btn" class="sv-label-add-chip"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>`;
-  initIcons(labelsEl);
-  document.getElementById('sv-label-add-btn').addEventListener('click', () => openEditLabelsModal(sourceKey, song.id));
+  // Editing now happens from the "…" menu's "Edit labels" entry (see
+  // openSongViewMenu()) instead of a "+ Edit labels" chip inline here —
+  // this row is just a read-only display of whatever's currently
+  // assigned, so it's hidden entirely rather than showing an empty,
+  // actionless row when a song has no labels yet.
+  labelsEl.hidden = !labels.length;
+  labelsEl.innerHTML = labels.map(l => `<span class="sv-label-chip">${escapeHtml(labelDisplayText(l))}</span>`).join('');
 }
 
 // Applies to ANY song — official or user — since labels are entirely a
