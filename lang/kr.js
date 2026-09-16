@@ -177,6 +177,8 @@ window.SONGBOOK_LANG.kr = {
   userSongsBackupSub: "내 곡을 파일로 복사하여 다른 사람과 공유하세요.",
   landscapeModeTitle: "가로 모드",
   landscapeModeSub: "휴대폰을 가로로 돌렸을 때 화면 공간을 더 확보합니다",
+  hideVerseNumbersTitle: "절 번호 숨기기",
+  hideVerseNumbersSub: "각 절/후렴 위의 작은 \"1, 2, 3…\" 번호를 숨깁니다. \"Bridge:\"같은 명시적 라벨은 계속 표시됩니다.",
   exportBtn: "내보내기",
   importBtn: "가져오기",
   toastPlaylistsExported: "재생목록을 내보냈습니다",

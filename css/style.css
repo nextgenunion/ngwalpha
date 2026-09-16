@@ -1925,6 +1925,16 @@ html[data-lyrics-spacing="loose"] {
   opacity: 0.75;
 }
 
+/* Developer options → Display → "Hide verse numbers" (see
+   applyHideVerseNumbers() in app.js). Only the plain "1, 2, 3…" sequence
+   badge (.lyric-section-index) is hidden — .lyric-section-label (an
+   explicit "Bridge:"/"Гүүр:" label) is a different class on the same
+   element type and is deliberately NOT matched here, so it keeps
+   rendering regardless of this setting. */
+html[data-hide-verse-numbers="true"] .lyric-section-index {
+  display: none;
+}
+
 /* .lyric-token is one whole *visual word* — one flex item on the line, so
    the line's word-gap only ever falls between real words. Most words are
    a single .lyric-piece. When a chord lands mid-word (see renderLyrics in

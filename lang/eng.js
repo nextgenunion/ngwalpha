@@ -181,6 +181,8 @@ window.SONGBOOK_LANG.en = {
   userSongsBackupSub: "Copy your User Songs into a file to share with others.",
   landscapeModeTitle: "Landscape mode",
   landscapeModeSub: "Reclaims screen space for reading when your phone is rotated sideways",
+  hideVerseNumbersTitle: "Hide verse numbers",
+  hideVerseNumbersSub: "Hides the small \"1, 2, 3…\" badge above each verse/chorus. Explicit labels like \"Bridge:\" still show.",
   exportBtn: "Export",
   importBtn: "Import",
   toastPlaylistsExported: "Playlists exported",

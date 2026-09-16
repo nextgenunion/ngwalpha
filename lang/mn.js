@@ -177,6 +177,8 @@ window.SONGBOOK_LANG.mn = {
   userSongsBackupSub: "Миний дуунуудыг файл болгон хуулж авч бусадтай хуваалцах.",
   landscapeModeTitle: "Хэвтээ горим",
   landscapeModeSub: "Утсаа хэвтээ эргүүлэхэд дэлгэцийн зайг илүү ашиглана",
+  hideVerseNumbersTitle: "Бадгийн дугаар нуух",
+  hideVerseNumbersSub: "Бадаг/дахилт бүрийн дээрх жижиг \"1, 2, 3…\" дугаарыг нуух. \"Гүүр:\" зэрэг тодорхой шошготой хэсэг харагдсаар байна.",
   exportBtn: "Хуулах",
   importBtn: "Татах",
   toastPlaylistsExported: "Жагсаалтуудыг амжилттай хууллаа",

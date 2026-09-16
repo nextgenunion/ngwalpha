@@ -154,6 +154,13 @@ const state = {
   lyricsSpacing: 'tight', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
   songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
   landscapeMode: false, // see applyLandscapeMode() — trims header/nav chrome to reclaim vertical space; only takes visual effect on a short, wide (phone-in-landscape) viewport, see the gated media query in style.css
+  // Developer options → Display → "Hide verse numbers" — see
+  // applyHideVerseNumbers(). Only hides the plain "1, 2, 3…" sequence
+  // badge renderLyrics() adds per section (.lyric-section-index); a
+  // section opening with an explicit label like "Bridge:"/"Гүүр:" renders
+  // as .lyric-section-label instead and is NOT affected by this — see the
+  // comment above sectionLabel in renderLyrics() for that split.
+  hideVerseNumbers: false,
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -1675,6 +1682,9 @@ function loadPrefs() {
   state.landscapeMode = localStorage.getItem('sb-landscape-mode') === 'true';
   applyLandscapeMode();
 
+  state.hideVerseNumbers = localStorage.getItem('sb-hide-verse-numbers') === 'true';
+  applyHideVerseNumbers();
+
   // Restore which song database was active (see applyDbSource()). Since
   // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
   // writes dbSelect.value, and dbSelect's own <option value="..."> in
@@ -1854,6 +1864,22 @@ function applyLandscapeMode() {
   document.documentElement.setAttribute('data-landscape-mode', String(state.landscapeMode));
   const toggle = document.getElementById('landscape-mode-toggle');
   if (toggle) toggle.setAttribute('aria-checked', String(state.landscapeMode));
+}
+
+// Developer options → Display → "Hide verse numbers": hides only the
+// plain sequence badge (.lyric-section-index — "1", "2", "3"…) that
+// renderLyrics() adds per section when a song has more than one part and
+// no explicit label. Deliberately does NOT touch .lyric-section-label —
+// the same badge element used when a section opens with an explicit
+// label like "Bridge:"/"Гүүр:" (see renderLyrics()'s sectionLabel) — so
+// that still renders regardless of this setting. Same attribute-driven
+// pattern as applyLandscapeMode() above: setting an attribute on <html>
+// and hiding via CSS means an already-open song updates immediately,
+// with no re-render needed.
+function applyHideVerseNumbers() {
+  document.documentElement.setAttribute('data-hide-verse-numbers', String(state.hideVerseNumbers));
+  const toggle = document.getElementById('dev-hide-verse-numbers-toggle');
+  if (toggle) toggle.setAttribute('aria-checked', String(state.hideVerseNumbers));
 }
 
 // Switches which song database (see DB_SOURCES) the Songs page, search,
@@ -2116,6 +2142,8 @@ function applyLanguage() {
     't-sectionDevDisplay': 'sectionDevDisplay',
     't-landscapeModeTitle': 'landscapeModeTitle',
     't-landscapeModeSub': 'landscapeModeSub',
+    't-hideVerseNumbersTitle': 'hideVerseNumbersTitle',
+    't-hideVerseNumbersSub': 'hideVerseNumbersSub',
     't-sectionDevInProgress': 'sectionDevInProgress',
     't-devTradMongolianTitle': 'devTradMongolianTitle',
     't-devTradMongolianSub': 'devTradMongolianSub',
@@ -3691,12 +3719,16 @@ function renderLyrics(opts = {}) {
 
     if (sectionLabel) {
       const numEl = document.createElement('div');
-      numEl.className = 'lyric-section-number';
+      // .lyric-section-label (not -index) — see applyHideVerseNumbers()'s
+      // comment for why this split matters: the "hide verse numbers" dev
+      // option only ever targets .lyric-section-index, so an explicit
+      // label like "Bridge:"/"Гүүр:" always keeps rendering regardless.
+      numEl.className = 'lyric-section-number lyric-section-label';
       numEl.textContent = sectionLabel;
       sectionEl.appendChild(numEl);
     } else if (numberParts && hasLyricText) {
       const numEl = document.createElement('div');
-      numEl.className = 'lyric-section-number';
+      numEl.className = 'lyric-section-number lyric-section-index';
       numEl.textContent = String(sectionIdx + 1);
       sectionEl.appendChild(numEl);
     }
@@ -5889,6 +5921,13 @@ function bindSettings() {
     state.landscapeMode = !state.landscapeMode;
     applyLandscapeMode();
     localStorage.setItem('sb-landscape-mode', String(state.landscapeMode));
+  });
+
+  const hideVerseNumbersToggle = document.getElementById('dev-hide-verse-numbers-toggle');
+  hideVerseNumbersToggle.addEventListener('click', () => {
+    state.hideVerseNumbers = !state.hideVerseNumbers;
+    applyHideVerseNumbers();
+    localStorage.setItem('sb-hide-verse-numbers', String(state.hideVerseNumbers));
   });
 
   document.querySelectorAll('#lyrics-weight-toggle [data-lyrics-weight]').forEach(btn => {

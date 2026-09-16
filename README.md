@@ -17,6 +17,23 @@ written or imported directly on-device — and the **Song Editor** used to
 create and edit them. Sheet Music is still ahead — see "Built for what's
 next", below.
 
+## What's new in v4.2.5-alpha
+
+- **New Developer option: "Hide verse numbers"** (Settings → Developer
+  options → Display) — hides the small gray "1, 2, 3…" sequence badge
+  `renderLyrics()` adds above each verse/chorus when a song has more
+  than one part. Off by default
+- Deliberately does **not** touch the same-looking badge when a section
+  opens with an explicit label instead of a number — "Bridge:", "Гүүр:",
+  "Дахилт:", etc. still render either way. The two cases were previously
+  the same CSS class (`.lyric-section-number`); they're now split into
+  `.lyric-section-index` (the plain number, hideable) and
+  `.lyric-section-label` (an explicit label, never hidden), so the two
+  can be targeted independently
+- Same attribute-driven pattern as Landscape mode: toggling it sets
+  `data-hide-verse-numbers` on `<html>` and a CSS rule does the hiding,
+  so an already-open song updates instantly with no re-render needed
+
 ## What's new in v4.2.4-alpha
 
 - **Alphabetical sort now groups by script** — Cyrillic-titled songs
