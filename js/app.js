@@ -3437,6 +3437,22 @@ function bindScrollIndexInteraction() {
   window.addEventListener('resize', () => updateScrollThumbPosition());
 }
 
+// Song-list subtitle priority: show the first alternate title when one
+// exists; the artist is only a fallback. This applies consistently across
+// the main song list, playlist contents, and the add-songs picker so a
+// remembered/secondary song name is visible wherever songs are browsed.
+function getSongListSubtitle(song) {
+  if (!song) return '';
+  const rawAltTitles = Array.isArray(song.alternateTitles)
+    ? song.alternateTitles
+    : (song.alternateTitles ? [song.alternateTitles] : []);
+  const firstAltTitle = rawAltTitles
+    .map(title => String(title || '').trim())
+    .find(Boolean);
+  if (firstAltTitle) return firstAltTitle;
+  return String(song.artist || '').trim();
+}
+
 function buildSongRow(song, hasNumbers, q, sourceKey) {
   const li = document.createElement('li');
   li.dataset.rowKey = `${sourceKey}:${song.id}`;
@@ -3455,11 +3471,12 @@ function updateSongRowContent(li, song, hasNumbers, q) {
   // in a tile (see DB_SOURCES' hasNumbers) — harmless in list/compact,
   // where nothing selects on this class.
   row.classList.toggle('has-badge', hasNumbers);
+  const subtitle = getSongListSubtitle(song);
   row.innerHTML = `
     ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
     <span class="song-row-text">
       <span class="song-row-title">${highlight(song.title, q)}</span>
-      ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
+      ${subtitle ? `<span class="song-row-sub">${highlight(subtitle, q)}</span>` : ''}
     </span>
   `;
 }
@@ -5065,11 +5082,12 @@ function renderPlaylistView(opts = {}) {
     // Some sources' songs have no number (see DB_SOURCES' hasNumbers) —
     // drop the badge entirely for those rather than show "undefined".
     const hasNumbers = (DB_SOURCES[ref.sourceKey] || {}).hasNumbers !== false;
+    const subtitle = getSongListSubtitle(song);
     row.innerHTML = `
       ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
       <span class="song-row-text">
         <span class="song-row-title">${escapeHtml(song.title)}</span>
-        ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
+        ${subtitle ? `<span class="song-row-sub">${escapeHtml(subtitle)}</span>` : ''}
       </span>
     `;
     row.addEventListener('click', () => { if (!playlistEditMode) tapSongRowThenOpen(row, () => openSong(song, { sourceKey: ref.sourceKey })); });
@@ -5844,11 +5862,12 @@ function openAddSongsModal(playlistId) {
     item.type = 'button';
     item.className = 'checklist-item';
     item.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, sourceKey, song.id)));
+    const subtitle = getSongListSubtitle(song);
     item.innerHTML = `
       ${hasNumbers ? `<span class="checklist-badge">${song.number}</span>` : ''}
       <span style="flex:1">
         ${escapeHtml(song.title)}
-        ${song.artist ? `<div class="checklist-item-sub">${escapeHtml(song.artist)}</div>` : ''}
+        ${subtitle ? `<div class="checklist-item-sub">${escapeHtml(subtitle)}</div>` : ''}
       </span>
       <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
     `;
