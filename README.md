@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.0.0-alpha — User Songs, Song Editor)
+# Next Gen Worship — Worship Song App (v4.2.0-alpha — Trash Bin)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -18,6 +18,38 @@ create and edit them. Sheet Music is still ahead — see "Built for what's
 next", below.
 
 ## What's new in this version
+
+- **Trash Bin for User Songs** — deleting a User Song (from the song-view
+  ⋮ menu or the Song Editor) now moves it to a Trash Bin instead of
+  erasing it outright. Reached from **Settings → Songs → Trash bin**, the
+  page lists everything currently trashed (newest-deleted-first) with a
+  "N days left" label per song
+- Each trashed row has its own **⋮ menu** with **Recover** (restores it
+  back into User Songs) and **Delete** (permanent, with a confirmation
+  step) — the same per-row kebab pattern the song-view and Playlists
+  pages already use
+- **Select mode** — tapping "Select" in the header swaps every row's
+  checkmark in and shows a bottom action bar with **Select all** /
+  **Deselect all**, plus batch **Recover** and **Delete** for however
+  many songs are checked. Mirrors Playlists' existing edit-mode pattern
+  (`playlistEditMode`) rather than inventing a new one
+- **Automatic 30-day purge** — a trashed song that's been sitting for
+  more than `TRASH_RETENTION_DAYS` (30) is hard-deleted the next time the
+  app opens (`purgeExpiredTrash()`, run once at startup alongside the
+  rest of `init()`'s data loads). There's no background process in a
+  PWA, so "once per app open" is the only reliable cadence — a song that
+  ages out while the app isn't running is simply swept the next time it is
+- Storage-wise, trash is its own IndexedDB object store
+  (`user-songs-trash`, added in `SONGDB_STORES.trash`, bumping
+  `SONGDB_VERSION` 4 → 5) with the same one-key-per-song shape as
+  `user-songs` itself, plus a `deletedAt` timestamp `TrashStorage` reads
+  back to decide what's aged out. A trashed song is simply absent from
+  `user-songs` — not a flag on the song — so every existing
+  `UserSongStorage`/`loadUserSongs()` caller needed no changes
+- Every new interface string ships translated in all four language files
+  (`mn`, `eng`, `kr`, `mn2`)
+
+## What's new in v4.1.19-alpha (User Songs, Song Editor)
 
 - **User Songs** — a new "User Songs" tab in the bottom navigation, between
   Songs and Playlists. Its own list, its own search box, and its own **+**

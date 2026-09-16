@@ -3167,11 +3167,11 @@ html[data-theme="dark"] .btn-pill-done {
 .trash-row {
   cursor: default;
 }
-.trash-row-check {
+span.trash-row-check {
   display: none; /* shown only in select mode via .is-selecting */
   flex-shrink: 0;
 }
-#trash-list.is-selecting .trash-row-check { display: flex; }
+#trash-list.is-selecting span.trash-row-check { display: flex; }
 #trash-list.is-selecting .trash-row-menu-btn { display: none; }
 #trash-list.is-selecting .trash-row { cursor: pointer; }
 #trash-list li.is-selected .trash-row {

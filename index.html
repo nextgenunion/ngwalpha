@@ -364,11 +364,10 @@
     <div class="settings-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-reloadTitle">Refresh song database</span>
-        <span class="settings-row-sub" id="t-reloadSub">Re-download all songs, or fully reload the app if something looks out of date</span>
+        <span class="settings-row-sub" id="t-reloadSub">Re-download all songs if something looks out of date</span>
       </div>
       <div class="settings-row-actions">
         <button id="reload-songs-btn" class="btn-secondary" type="button"></button>
-        <button id="reload-app-btn" class="btn-secondary" type="button"></button>
       </div>
     </div>
     <div class="settings-row">
@@ -427,15 +426,6 @@
         <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
       </div>
     </div>
-    <div class="settings-row">
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-landscapeModeTitle">Landscape mode</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-landscapeModeSub">Reclaims screen space for reading when your phone is rotated sideways</span>
-      </div>
-      <button id="landscape-mode-toggle" class="switch" role="switch" aria-checked="false" aria-label="Landscape mode">
-        <span class="switch-knob"></span>
-      </button>
-    </div>
     <button type="button" class="settings-row settings-row-nav" id="trash-nav-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-trashNavTitle">Trash bin</span>
@@ -463,6 +453,15 @@
       </div>
       <button id="install-btn" class="btn-primary" hidden></button>
       <span id="installed-badge" class="installed-badge" hidden></span>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-reloadAppTitle">Reload app</span>
+        <span class="settings-row-sub" id="t-reloadAppSub">Fully reload the app if something looks out of date</span>
+      </div>
+      <div class="settings-row-actions">
+        <button id="reload-app-btn" class="btn-secondary" type="button"></button>
+      </div>
     </div>
   </section>
 
@@ -652,6 +651,19 @@
         <span class="settings-row-sub" id="t-devPartySub">Preview it without tapping "Accent color" 3 times. Turning this off doesn't disable it — that 3-tap trigger still works on its own.</span>
       </div>
       <button id="dev-party-toggle" class="switch" role="switch" aria-checked="false" aria-label="Force party mode on">
+        <span class="switch-knob"></span>
+      </button>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h3 class="settings-heading" id="t-sectionDevDisplay">Display</h3>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-landscapeModeTitle">Landscape mode</span>
+        <span class="settings-row-sub" id="t-landscapeModeSub">Reclaims screen space for reading when your phone is rotated sideways</span>
+      </div>
+      <button id="landscape-mode-toggle" class="switch" role="switch" aria-checked="false" aria-label="Landscape mode">
         <span class="switch-knob"></span>
       </button>
     </div>
