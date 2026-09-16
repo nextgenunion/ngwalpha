@@ -1628,7 +1628,7 @@ function applyLanguage() {
     't-songViewList': 'songViewList',
     't-songViewCompact': 'songViewCompact',
     't-songViewTiles': 'songViewTiles',
-    't-sectionLangDb': 'sectionLangDb',
+    't-sectionSongs': 'sectionSongs',
     't-uiLangTitle': 'uiLangTitle',
     't-uiLangSub': 'uiLangSub',
     't-dbTitle': 'dbTitle',
@@ -4687,8 +4687,15 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
   const wrap = document.createElement('div');
   wrap.className = 'label-editor';
 
+  // chipsWrap clips and height-animates around chipsEl (see
+  // animateWrapHeightTo) — same approach as .add-songs-list-wrap, so the
+  // editor/modal resizes smoothly as chips are added, removed, or wrap
+  // onto a new line instead of snapping straight to the new size.
+  const chipsWrap = document.createElement('div');
+  chipsWrap.className = 'label-editor-chips-wrap';
   const chipsEl = document.createElement('div');
   chipsEl.className = 'label-editor-chips';
+  chipsWrap.appendChild(chipsEl);
 
   const inputWrap = document.createElement('div');
   inputWrap.className = 'label-editor-input-wrap';
@@ -4703,32 +4710,109 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
   const suggestionsEl = document.createElement('div');
   suggestionsEl.className = 'label-editor-suggestions';
 
-  wrap.appendChild(chipsEl);
+  wrap.appendChild(chipsWrap);
   wrap.appendChild(inputWrap);
   wrap.appendChild(suggestionsEl);
 
+  const buildChip = (label) => {
+    const chip = document.createElement('span');
+    chip.className = 'label-editor-chip';
+    chip.dataset.label = label;
+    chip.innerHTML = `
+      <span>${escapeHtml(labelDisplayText(label))}</span>
+      <button type="button" aria-label="${escapeHtml(t('removeLabelAria'))}"><svg data-icon="close" viewBox="0 0 24 24"></svg></button>
+    `;
+    chip.querySelector('button').addEventListener('click', () => {
+      removeLabel(label);
+      renderChips();
+      renderSuggestions();
+    });
+    return chip;
+  };
+
+  // Plain build for the very first render (opening the modal/editor
+  // shouldn't animate its own initial chips in) and for reduced-motion —
+  // same firstRender/prefersReducedMotion split as openAddSongsModal's
+  // renderItems. Every render after that is diffed: chips already shown
+  // are reused as-is, only the ones actually entering or leaving get a
+  // pop/fade, and the wrap's height animates from what it was a moment
+  // ago to what it is now instead of snapping.
+  let firstRender = true;
   function renderChips() {
     const labels = getLabels();
-    if (!labels.length) {
-      chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+
+    if (firstRender || prefersReducedMotion()) {
+      firstRender = false;
+      chipsEl.innerHTML = '';
+      if (!labels.length) {
+        chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+      } else {
+        labels.forEach(label => chipsEl.appendChild(buildChip(label)));
+      }
+      initIcons(chipsEl);
       return;
     }
-    chipsEl.innerHTML = '';
-    labels.forEach(label => {
-      const chip = document.createElement('span');
-      chip.className = 'label-editor-chip';
-      chip.innerHTML = `
-        <span>${escapeHtml(labelDisplayText(label))}</span>
-        <button type="button" aria-label="${escapeHtml(t('removeLabelAria'))}"><svg data-icon="close" viewBox="0 0 24 24"></svg></button>
-      `;
-      chip.querySelector('button').addEventListener('click', () => {
-        removeLabel(label);
-        renderChips();
-        renderSuggestions();
-      });
-      chipsEl.appendChild(chip);
+
+    const startHeight = chipsWrap.getBoundingClientRect().height;
+    const existingChips = new Map();
+    Array.from(chipsEl.children).forEach(chip => {
+      if (chip.dataset.label) existingChips.set(chip.dataset.label, chip);
     });
-    initIcons(chipsEl);
+
+    if (!labels.length) {
+      existingChips.forEach(chip => chip.remove());
+      chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+      chipsWrap.style.height = 'auto';
+      animateWrapHeightTo(chipsWrap, chipsWrap.scrollHeight, startHeight);
+      return;
+    }
+
+    chipsEl.querySelector('.label-editor-empty')?.remove();
+    const fragment = document.createDocumentFragment();
+    const keptLabels = new Set();
+    labels.forEach(label => {
+      keptLabels.add(label);
+      let chip = existingChips.get(label);
+      if (chip) {
+        if (chip.dataset.state === 'exiting') {
+          delete chip.dataset.state;
+          chip.classList.remove('label-chip-exit');
+          if (chip._exitCleanup) {
+            chip.removeEventListener('animationend', chip._exitCleanup);
+            chip._exitCleanup = null;
+          }
+        }
+      } else {
+        chip = buildChip(label);
+        chip.classList.add('label-chip-enter');
+        chip.addEventListener('animationend', function onEnd() {
+          chip.classList.remove('label-chip-enter');
+          chip.removeEventListener('animationend', onEnd);
+        }, { once: true });
+        initIcons(chip);
+      }
+      fragment.appendChild(chip);
+    });
+
+    existingChips.forEach((chip, label) => {
+      if (keptLabels.has(label) || chip.dataset.state === 'exiting') return;
+      chip.dataset.state = 'exiting';
+      chip.classList.add('label-chip-exit');
+      const cleanup = () => {
+        chip.removeEventListener('animationend', cleanup);
+        chip._exitCleanup = null;
+        const startH = chipsWrap.getBoundingClientRect().height;
+        chip.remove();
+        chipsWrap.style.height = 'auto';
+        animateWrapHeightTo(chipsWrap, chipsWrap.scrollHeight, startH);
+      };
+      chip._exitCleanup = cleanup;
+      chip.addEventListener('animationend', cleanup);
+    });
+
+    chipsEl.appendChild(fragment);
+    chipsWrap.style.height = 'auto';
+    animateWrapHeightTo(chipsWrap, chipsWrap.scrollHeight, startHeight);
   }
 
   // Presets not already assigned, plus previously-used custom labels

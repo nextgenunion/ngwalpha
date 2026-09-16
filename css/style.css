@@ -977,13 +977,32 @@ html[data-theme="dark"] .empty-state::before {
 /* .playlists-empty-state--pinned sits directly under a divider inside an
    otherwise non-empty Playlists page — a full-size illustration there
    would push the "Favorites" playlist above it uncomfortably far up the
-   screen, so it keeps the plain text-only treatment instead. */
+   screen, so ::before's big tinted circle stays suppressed. But Favorites
+   is always pinned in (see loadPlaylists in app.js), so "no playlists
+   yet" is never actually shown any other way — this compact variant is
+   the *only* rendering of #playlists-empty-state that ever reaches the
+   screen, not a rare fallback. It used to skip ::after too and rely on a
+   plain-text 🎶 typed straight into playlistsEmptyState (see lang/*.js)
+   for an icon instead — a leftover from before this accent-colored icon
+   system existed, so it never matched the person's chosen accent color
+   or dark mode the way every other empty state's glyph does. Now it
+   reuses that same ::after music-note glyph, just inline-sized and
+   placed next to the text instead of stacked large above it. */
 .playlists-empty-state--pinned {
   padding-top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
-.playlists-empty-state--pinned::before,
-.playlists-empty-state--pinned::after {
+.playlists-empty-state--pinned::before {
   content: none;
+}
+.playlists-empty-state--pinned::after {
+  position: static;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 /* ---------- song list fast-scroll indicator ----------
@@ -2445,7 +2464,14 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   box-shadow: 0 0 0 rgba(0, 0, 0, 0.22);
   transition-duration: .08s;
 }
-.accent-swatch[aria-pressed="true"] { border-color: var(--ink); transform: scale(1.08); }
+/* var(--ink) here used to read as a flat black/white ring slapped on
+   top of whatever hue the swatch is — it doesn't belong to the app's
+   color language the way every other "selected" state does (see
+   .checklist-item[aria-pressed="true"] .checklist-check, .sort-btn's
+   selected state, etc., which all key off --accent-strong). Matching
+   that convention makes the ring read as the app's own selection
+   indicator rather than a stray border. */
+.accent-swatch[aria-pressed="true"] { border-color: var(--accent-strong); transform: scale(1.08); }
 .accent-swatch[aria-pressed="true"]:active {
   transform: scale(1.08) translateY(var(--chip-lip));
   transition-duration: .08s;
@@ -3234,11 +3260,30 @@ html[data-theme="dark"] .btn-pill-done {
    "Edit labels" modal (openEditLabelsModal) and the Song Editor's inline
    Labels field, so this needs to look at home both inside a .modal-body
    and inline in .editor-form. */
+/* Clips + height-animates around .label-editor-chips (see
+   animateWrapHeightTo/renderChips in js/app.js) so the editor/modal
+   resizes smoothly as chips are added or removed and wrap onto a new
+   line, instead of snapping straight to the new size — same fix as
+   .add-songs-list-wrap above. */
+.label-editor-chips-wrap { overflow: hidden; }
 .label-editor-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Individual chip add/remove — a quick pop in on add (matches the spring
+   feel of .label-suggestion-chip's press elsewhere), a quick fade+shrink
+   on remove. Kept short since several chips can enter/exit at once. */
+@keyframes label-chip-enter {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes label-chip-exit {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.8); }
+}
+.label-editor-chip.label-chip-enter { animation: label-chip-enter .22s cubic-bezier(.34, 1.56, .64, 1); }
+.label-editor-chip.label-chip-exit { animation: label-chip-exit .16s ease-out; pointer-events: none; }
 .label-editor-empty {
   font-size: 0.82rem;
   color: var(--ink-faint);
@@ -3262,6 +3307,17 @@ html[data-theme="dark"] .btn-pill-done {
   width: 18px;
   height: 18px;
   border-radius: 50%;
+  /* Without these resets this is just a bare <button>, so it picks up
+     the browser's native button chrome (grey/white face + border) on
+     top of our flat icon — that's the ring that was showing up instead
+     of a clean "x". Flatten it back down to plain inherited styling. */
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
   color: inherit;
   cursor: pointer;
   flex-shrink: 0;

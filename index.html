@@ -341,6 +341,36 @@
         <button class="accent-swatch" data-accent="red" aria-pressed="false" aria-label="Rose" style="background:#E8919E"></button>
       </div>
     </div>
+  </section>
+
+  <!-- Everything about how songs themselves look and where they come
+       from — the list view, the reading/chord display options, and the
+       song database itself all live together here so "Songs" is the one
+       place to look for any of it, instead of being split across
+       Appearance and a separate Language & Database section. -->
+  <section class="settings-section">
+    <h3 class="settings-heading" id="t-sectionSongs">Songs</h3>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-dbTitle">Song database</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-dbSub">Choose which songbook source to use</span>
+      </div>
+      <select id="db-select" class="select-input">
+        <option value="official">Монгол (ДАС)</option>
+        <option value="english" id="db-option-en">English</option>
+        <option value="sda">English (SDA)</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-reloadTitle">Refresh song database</span>
+        <span class="settings-row-sub" id="t-reloadSub">Re-download all songs, or fully reload the app if something looks out of date</span>
+      </div>
+      <div class="settings-row-actions">
+        <button id="reload-songs-btn" class="btn-secondary" type="button"></button>
+        <button id="reload-app-btn" class="btn-secondary" type="button"></button>
+      </div>
+    </div>
     <div class="settings-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-songViewGroup">List view</span>
@@ -408,8 +438,10 @@
     </div>
   </section>
 
+  <!-- App-level settings that aren't about any one song — the UI
+       language and installing the app itself. -->
   <section class="settings-section">
-    <h3 class="settings-heading" id="t-sectionLangDb">Language &amp; Song Database</h3>
+    <h3 class="settings-heading" id="t-sectionApp">App</h3>
     <div class="settings-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-uiLangTitle">App language</span>
@@ -419,36 +451,11 @@
     </div>
     <div class="settings-row">
       <div class="settings-row-text">
-        <span class="settings-row-title" id="t-dbTitle">Song database</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-dbSub">Choose which songbook source to use</span>
-      </div>
-      <select id="db-select" class="select-input">
-        <option value="official">Монгол (ДАС)</option>
-        <option value="english" id="db-option-en">English</option>
-        <option value="sda">English (SDA)</option>
-      </select>
-    </div>
-  </section>
-
-  <section class="settings-section">
-    <h3 class="settings-heading" id="t-sectionApp">App</h3>
-    <div class="settings-row">
-      <div class="settings-row-text">
         <span class="settings-row-title" id="install-title">Install app</span>
         <span class="settings-row-sub settings-desc-hideable" id="install-sub">Add Next Gen Worship Alpha to your home screen for offline, app-like access</span>
       </div>
       <button id="install-btn" class="btn-primary" hidden></button>
       <span id="installed-badge" class="installed-badge" hidden></span>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-reloadTitle">Refresh song database</span>
-        <span class="settings-row-sub" id="t-reloadSub">Re-download all songs, or fully reload the app if something looks out of date</span>
-      </div>
-      <div class="settings-row-actions">
-        <button id="reload-songs-btn" class="btn-secondary" type="button"></button>
-        <button id="reload-app-btn" class="btn-secondary" type="button"></button>
-      </div>
     </div>
   </section>
 
