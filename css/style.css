@@ -1377,16 +1377,55 @@ html[data-theme="dark"] .sv-header-immersive::before {
    one control that survives, since it's the only way back out of this
    mode — rather than hiding it too, it shrinks down to a small,
    low-profile dot that's still discoverable without competing with the
-   lyrics for attention. */
+   lyrics for attention.
+   A plain display:none swap (the first pass at this) can't be
+   transitioned at all — the browser has nothing to animate between, so
+   everything just cut in and out instantly. These two groups fade AND
+   collapse their own layout space instead, so the surrounding lyrics
+   settle into place smoothly rather than snapping. They need different
+   axes because of how each sits in the layout: #back-btn/#sv-favorite-btn
+   are flex-ROW siblings, so they collapse sideways via max-width;
+   .transpose-bar/.font-controls/#sv-links/#sv-audio are stacked block
+   elements, so they collapse via max-height instead. */
+#back-btn, #sv-favorite-btn {
+  transition: opacity .22s ease, max-width .26s ease, transform .22s ease;
+}
 #page-song-view.presentation-mode #back-btn,
-#page-song-view.presentation-mode #sv-favorite-btn,
+#page-song-view.presentation-mode #sv-favorite-btn {
+  max-width: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  overflow: hidden;
+  pointer-events: none;
+}
+/* max-height can only transition between two numeric values — going
+   from the default "none" straight to "0" gives the browser nothing to
+   interpolate, so it'd still snap instantly despite the transition
+   listed below. These base caps give it a real starting number instead;
+   each is picked generously above that element's actual tallest
+   realistic height (font-controls wrapping to 3 rows on a narrow phone,
+   a song with several links, etc.) so it never clips normal content —
+   it only ever matters once presentation mode drives it down to 0. */
+.transpose-bar { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease, padding .3s ease, border-color .3s ease; max-height: 90px; }
+.font-controls { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 220px; }
+#sv-links { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 320px; }
+#sv-audio { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 100px; }
 #page-song-view.presentation-mode .transpose-bar,
 #page-song-view.presentation-mode .font-controls,
 #page-song-view.presentation-mode #sv-links,
 #page-song-view.presentation-mode #sv-audio {
-  display: none;
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
-/* #back-btn (removed above) was .sv-header-top's other flex child under
+#page-song-view.presentation-mode .transpose-bar {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+}
+/* #back-btn (collapsed above) was .sv-header-top's other flex child under
    justify-content: space-between — with it gone, .sv-header-actions
    would collapse back to the row's start (left) instead of staying at
    the right where the kebab has always lived. */
@@ -1400,15 +1439,24 @@ html[data-theme="dark"] .sv-header-immersive::before {
   border-color: transparent;
   box-shadow: none;
   opacity: 0.4;
-  transition: opacity .15s ease;
+  transition: opacity .15s ease, width .22s ease, height .22s ease;
 }
 #page-song-view.presentation-mode #sv-menu-btn svg {
   width: 14px;
   height: 14px;
+  transition: width .22s ease, height .22s ease;
 }
 #page-song-view.presentation-mode #sv-menu-btn:hover,
 #page-song-view.presentation-mode #sv-menu-btn:active {
   opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  #back-btn, #sv-favorite-btn,
+  .transpose-bar, .font-controls, #sv-links, #sv-audio,
+  #page-song-view.presentation-mode #sv-menu-btn,
+  #page-song-view.presentation-mode #sv-menu-btn svg {
+    transition: none;
+  }
 }
 .sv-header-actions { display: flex; align-items: center; gap: 8px; }
 /* Floating circles still need to stand out against the page's gradient
