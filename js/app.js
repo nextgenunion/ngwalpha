@@ -463,6 +463,10 @@ async function init() {
   // the sweep happening lazily whenever the person next opens the page.
   safe('purgeExpiredTrash', () => purgeExpiredTrash());
   safe('applyLanguage (post-load)', applyLanguage); // re-run so the results count reflects the loaded songs
+  // Search stays lazy-correct either way, but warming immutable song text
+  // during idle time keeps the person's first keystroke from having to
+  // chord-strip/normalise thousands of lyric lines at once.
+  safe('scheduleSearchCacheWarmup', scheduleSearchCacheWarmup);
 }
 
 // Ask the browser not to automatically evict our Cache Storage / IndexedDB
@@ -2597,74 +2601,192 @@ function renderUserSongList(opts = {}) {
 }
 
 function stripChords(lyricsArr) {
-  return lyricsArr.join(' \n ').replace(/\[[^\]]+\]/g, '');
+  return (Array.isArray(lyricsArr) ? lyricsArr : []).join(' \n ').replace(/\[[^\]]+\]/g, '');
 }
 
-// Search performance: matchesQuery()/relevanceRank() used to rebuild each
-// song's full searchable text (title + number + alt titles + artist +
-// stripChords(lyrics), all re-lowercased) from scratch on every single
-// keystroke, for every song in the active source. That's fine for a
-// handful of songs, but on a database with hundreds of songs — each with
-// dozens of lyric lines — redoing that regex-strip-and-join for the whole
-// list on every keystroke is exactly the kind of per-frame cost that reads
-// as a freeze on a mid-range phone, especially on backspace/rapid typing
-// where several 'input' events can land faster than the list can finish
-// re-rendering in between them.
+// Normalises only the things that should be invisible to a person while
+// searching: Unicode composition, case, and repeated whitespace. We do NOT
+// remove punctuation or fold different letters together, because doing so
+// can create surprising false positives in song titles/lyrics.
+function normalizeSearchText(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function searchWords(q) {
+  const query = normalizeSearchText(q);
+  return query ? query.split(' ').filter(Boolean) : [];
+}
+
+// Search performance: the expensive, immutable parts of each song are
+// prepared ONCE and kept on the song object. Lyrics are chord-stripped and
+// normalised only on the first search, which is the biggest win on the
+// 2,000+ song databases.
 //
-// getSearchCache() computes it ONCE per song and stashes it directly on
-// the song object (a non-enumerable-ish `__searchCache`, by convention —
-// it's not part of the JSON schema, just a runtime memo), so every search
-// after the first for that song is just a cheap property read. This is
-// safe to cache indefinitely because songs are treated as immutable once
-// loaded: User Song edits (saveUserSong()) always install a brand-new
-// object into state.sources.user.songs rather than mutating an existing
-// one in place, so an edited song naturally gets a fresh, uncached object
-// — there's no path where a cached song's fields change out from under it.
+// Labels are deliberately NOT stored here. Personal labels can be added or
+// removed while the same song object remains alive, and preset labels can
+// display differently after a language switch. Their search data is tiny,
+// so getSearchLabelData() computes it fresh and avoids stale search results.
 function getSearchCache(song) {
   if (!song.__searchCache) {
-    const title = (song.title || '').toLowerCase();
-    const altTitles = (song.alternateTitles || []).filter(Boolean).map(a => a.toLowerCase());
-    const artist = (song.artist || '').toLowerCase();
-    const haystack = [
+    const title = normalizeSearchText(song.title);
+    const altTitles = (Array.isArray(song.alternateTitles) ? song.alternateTitles : [])
+      .filter(Boolean)
+      .map(normalizeSearchText)
+      .filter(Boolean);
+    const artist = normalizeSearchText(song.artist);
+    const number = song.number != null ? normalizeSearchText(song.number) : '';
+    const lyrics = normalizeSearchText(stripChords(song.lyrics));
+    const titleAndAltHaystack = [title, ...altTitles].filter(Boolean).join(' \n ');
+    const contentHaystack = [title, number, ...altTitles, lyrics].filter(Boolean).join(' \n ');
+    const haystack = [contentHaystack, artist].filter(Boolean).join(' \n ');
+
+    song.__searchCache = {
       title,
-      song.number != null ? String(song.number) : '', // some sources' songs have no number — see DB_SOURCES' hasNumbers
-      ...altTitles,
+      altTitles,
       artist,
-      stripChords(song.lyrics).toLowerCase(),
-    ].join(' \n ');
-    song.__searchCache = { title, altTitles, artist, haystack };
+      number,
+      lyrics,
+      titleAndAltHaystack,
+      contentHaystack,
+      haystack,
+    };
   }
   return song.__searchCache;
 }
 
-function matchesQuery(song, q) {
-  if (!q) return true;
-  const { haystack } = getSearchCache(song);
+// Search both the stored label value and the text the person actually sees.
+// Preset labels use stable English keys internally (e.g. "christmas"), but
+// a Mongolian/Korean UI should still find that label when the translated
+// visible name is typed into Search. Custom labels naturally resolve to
+// themselves through labelDisplayText().
+function getSearchLabelData(sourceKey, song) {
+  const values = [];
+  const seen = new Set();
 
-  // Every word in the query must appear somewhere in the combined text,
-  // in any order — so "God awesome" matches "God Is an Awesome God"
-  // even though that exact phrase never appears contiguously.
-  const words = q.split(/\s+/).filter(Boolean);
-  return words.every(word => haystack.includes(word));
+  effectiveLabels(sourceKey, song.id, song).forEach(label => {
+    [label, labelDisplayText(label)].forEach(value => {
+      const normalized = normalizeSearchText(value);
+      if (normalized && !seen.has(normalized)) {
+        seen.add(normalized);
+        values.push(normalized);
+      }
+    });
+  });
+
+  return {
+    labels: values,
+    haystack: values.join(' \n '),
+  };
 }
 
-// Lower rank = more relevant. Used only while a search query is active,
-// so exact/close title matches float to the top instead of being buried
-// among "contains the word somewhere in the lyrics" results.
-function relevanceRank(song, q) {
-  const query = q.trim().toLowerCase();
-  if (!query) return 6;
+function matchesQuery(song, q, sourceKey = state.activeDbSource) {
+  const query = normalizeSearchText(q);
+  if (!query) return true;
 
-  const { title, altTitles, artist } = getSearchCache(song);
+  const words = searchWords(query);
+  const { haystack } = getSearchCache(song);
+  const labelHaystack = getSearchLabelData(sourceKey, song).haystack;
 
+  // Preserve the current forgiving search behaviour: every query word must
+  // exist somewhere, in any order. Labels now participate too, but because
+  // ranking is handled separately they do not crowd out stronger title or
+  // lyric matches.
+  return words.every(word => haystack.includes(word) || labelHaystack.includes(word));
+}
 
-  if (title === query) return 0;                              // exact title match
-  if (title.startsWith(query)) return 1;                       // title starts with query
-  if (title.includes(query)) return 2;                         // title contains query
-  if (altTitles.some(a => a === query)) return 3;               // exact alternate title
-  if (altTitles.some(a => a.includes(query))) return 4;         // alternate title contains query
-  if (artist.includes(query)) return 5;                         // artist match
-  return 6;                                                     // everything else (e.g. lyrics)
+// Lower rank = more relevant. This order is intentionally user-facing:
+// identify the song first, then strong lyric/title discovery, then broader
+// content matches, and finally low-priority metadata (labels and artist).
+function relevanceRank(song, q, sourceKey = state.activeDbSource) {
+  const query = normalizeSearchText(q);
+  if (!query) return 15;
+
+  const words = searchWords(query);
+  const {
+    title,
+    altTitles,
+    artist,
+    number,
+    lyrics,
+    titleAndAltHaystack,
+    contentHaystack,
+  } = getSearchCache(song);
+  const { labels, haystack: labelHaystack } = getSearchLabelData(sourceKey, song);
+
+  if (title === query) return 0;                                      // exact main title
+  if (altTitles.some(a => a === query)) return 1;                     // exact alternate title
+  if (number && number === query) return 2;                           // exact song number
+  if (lyrics.includes(query)) return 3;                               // exact/contiguous lyric phrase
+  if (title.startsWith(query)) return 4;                              // main title starts with query
+  if (altTitles.some(a => a.startsWith(query))) return 5;             // alternate title starts with query
+  if (title.includes(query)) return 6;                                // main title contains query
+  if (altTitles.some(a => a.includes(query))) return 7;               // alternate title contains query
+  if (words.every(word => titleAndAltHaystack.includes(word))) return 8; // all words in title/alt-title area
+  if (words.every(word => lyrics.includes(word))) return 9;           // all words somewhere in lyrics
+  if (words.every(word => contentHaystack.includes(word))) return 10; // words spread across number/title/alt/lyrics
+  if (labels.some(label => label === query)) return 11;               // exact label (kept intentionally low)
+  if (labels.some(label => label.startsWith(query))) return 12;       // label starts with query
+  if (labelHaystack.includes(query) ||
+      (words.length && words.every(word => labelHaystack.includes(word)))) return 13; // partial/all-word label
+  if (artist.includes(query) ||
+      (words.length && words.every(word => artist.includes(word)))) return 14; // artist match
+
+  // A result can still legitimately reach here when its words are split
+  // across content + label/artist fields. matchesQuery() allows that useful
+  // broad discovery behaviour, but these mixed-metadata matches belong last.
+  return 15;
+}
+
+// Opportunistically prepare the immutable search caches after startup.
+// requestIdleCallback keeps this out of interaction/animation frames; the
+// small fallback batches do the same job on browsers that lack that API.
+// The active database is queued first, then the remaining sources, so the
+// page the person is most likely to search becomes warm earliest.
+let searchCacheWarmupStarted = false;
+function scheduleSearchCacheWarmup() {
+  if (searchCacheWarmupStarted) return;
+  searchCacheWarmupStarted = true;
+
+  const sourceKeys = [
+    state.activeDbSource,
+    ...Object.keys(state.sources).filter(key => key !== state.activeDbSource),
+  ];
+  const songs = [];
+  sourceKeys.forEach(key => {
+    const source = state.sources[key];
+    if (source && Array.isArray(source.songs)) songs.push(...source.songs);
+  });
+  if (!songs.length) return;
+
+  let index = 0;
+  const schedule = (fn) => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(fn, { timeout: 1000 });
+    } else {
+      window.setTimeout(() => fn(null), 16);
+    }
+  };
+
+  const work = (deadline) => {
+    let processed = 0;
+    const maxPerSlice = deadline ? 60 : 24;
+
+    while (index < songs.length && processed < maxPerSlice) {
+      // Always make a little progress, but once we've handled a few songs,
+      // yield if the browser says the idle window is almost over.
+      if (processed >= 8 && deadline && !deadline.didTimeout && deadline.timeRemaining() < 3) break;
+      getSearchCache(songs[index++]);
+      processed++;
+    }
+
+    if (index < songs.length) schedule(work);
+  };
+
+  schedule(work);
 }
 
 // Alphabetical sort's script grouping: Cyrillic titles first, then titles
@@ -2693,15 +2815,24 @@ function titleScriptRank(title) {
 function sortSongs(list, q, sourceKey = state.activeDbSource) {
   const arr = [...list];
   const dir = state.sortOrder === 'desc' ? -1 : 1;
-  const query = (q || '').trim();
+  const query = normalizeSearchText(q);
   // Same "user songs aren't in DB_SOURCES" reasoning as renderSongList's
   // own hasNumbers — see the comment there.
   const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
 
+  // Array.sort() may compare the same song many times. Relevance now checks
+  // several fields (including live labels), so compute each song's rank at
+  // most once per sort/render rather than once per comparator invocation.
+  const rankCache = query ? new Map() : null;
+  const rankFor = (song) => {
+    if (!rankCache.has(song)) rankCache.set(song, relevanceRank(song, query, sourceKey));
+    return rankCache.get(song);
+  };
+
   arr.sort((a, b) => {
     if (query) {
-      const rankA = relevanceRank(a, query);
-      const rankB = relevanceRank(b, query);
+      const rankA = rankFor(a);
+      const rankB = rankFor(b);
       if (rankA !== rankB) return rankA - rankB;
     }
     if (state.sortBy === 'num' && hasNumbers) {
@@ -2761,7 +2892,7 @@ function renderSongList(opts = {}) {
   }
 
   const filtered = sortSongs(
-    source.songs.filter(s => matchesQuery(s, query)),
+    source.songs.filter(s => matchesQuery(s, query, sourceKey)),
     query, sourceKey
   );
 
@@ -5736,7 +5867,7 @@ function openAddSongsModal(playlistId) {
   const renderItems = () => {
     const q = input.value.trim().toLowerCase();
     const sourceKey = state.activeDbSource;
-    const songs = sortSongs(state.sources[sourceKey].songs.filter(s => matchesQuery(s, q)), q, sourceKey);
+    const songs = sortSongs(state.sources[sourceKey].songs.filter(s => matchesQuery(s, q, sourceKey)), q, sourceKey);
     const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
 
     if (firstRender || prefersReducedMotion()) {
