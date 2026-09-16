@@ -189,6 +189,25 @@ window.SONGBOOK_LANG.en = {
   editBtn: "Edit",
   doneBtn: "Done",
   reorderHandle: "Drag to reorder",
+  songOptionsAria: "Song options",
+
+  // Trash bin — Settings → Songs → "Trash bin". See the "Trash Bin page"
+  // section in js/app.js.
+  trashNavTitle: "Trash bin",
+  trashNavSub: "Deleted User Songs, kept for 30 days before they're removed for good",
+  trashTitle: "Trash bin",
+  trashHint: "Deleted songs stay here for 30 days, then they're removed for good.",
+  trashEmptyState: "Nothing in the trash right now.",
+  trashDaysLeft: (n) => n === 1 ? "1 day left" : `${n} days left`,
+  trashSelectBtn: "Select songs",
+  trashSelectAllBtn: "Select all",
+  trashDeselectAllBtn: "Deselect all",
+  trashSelectedCount: (n) => n === 1 ? "1 selected" : `${n} selected`,
+  trashRecoverBtn: "Recover",
+  deleteTrashConfirmOne: (title) => `Permanently delete "${title}"? This can't be undone.`,
+  deleteTrashConfirmMany: (n) => `Permanently delete ${n} songs? This can't be undone.`,
+  toastTrashRecovered: (n) => n === 1 ? "Song recovered" : `${n} songs recovered`,
+  toastTrashDeleted: (n) => n === 1 ? "Song permanently deleted" : `${n} songs permanently deleted`,
 
   // Easter egg: greeting shown by the small mascot that appears on the
   // Songbook page on Saturdays (Sabbath). See initSabbathMascot() in app.js.

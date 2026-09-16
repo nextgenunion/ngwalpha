@@ -436,6 +436,13 @@
         <span class="switch-knob"></span>
       </button>
     </div>
+    <button type="button" class="settings-row settings-row-nav" id="trash-nav-row">
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-trashNavTitle">Trash bin</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-trashNavSub">Deleted User Songs, kept for 30 days before they're removed for good</span>
+      </div>
+      <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
   </section>
 
   <!-- App-level settings that aren't about any one song — the UI
@@ -530,6 +537,53 @@
    <p class="about-copyright" id="about-copyright"></p>
    <p class="about-copyright-terms" id="about-copyright-terms"></p>
  </footer>
+</main>
+
+<!-- ===== TRASH BIN PAGE ===== -->
+<!-- Reached from Settings → Songs → "Trash bin" (#trash-nav-row). Same
+     header shape as #page-playlist-view (back button + title + a
+     header-actions cluster) since it borrows that page's select-mode
+     pattern (see setTrashSelectMode() in app.js) rather than inventing a
+     new one: tapping "Select" swaps the normal per-row "…" menu for a
+     row of checkmarks plus a bottom action bar, exactly like Playlists'
+     own edit mode swaps its row controls. -->
+<main id="page-trash" class="page" data-page="trash" hidden>
+ <div class="page-inner">
+  <header class="song-view-header pv-header">
+    <button id="trash-back-btn" class="icon-btn" aria-label="Back to settings">
+      <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
+    <div class="song-view-title">
+      <h2 id="t-trashTitle">Trash bin</h2>
+      <p id="trash-count" class="sv-artist"></p>
+    </div>
+    <div class="pv-header-actions">
+      <button id="trash-select-all-btn" class="btn-pill-done" hidden></button>
+      <button id="trash-select-btn" class="icon-btn" aria-label="Select songs">
+        <svg data-icon="check" viewBox="0 0 24 24"></svg>
+      </button>
+    </div>
+  </header>
+
+  <p class="trash-hint" id="t-trashHint">Deleted songs stay here for 30 days, then they're removed for good.</p>
+
+  <ul id="trash-list" class="song-list"></ul>
+
+  <p id="trash-empty-state" class="empty-state" hidden></p>
+ </div>
+
+ <!-- Bottom action bar: only shown while trashSelectMode is on (see
+      setTrashSelectMode() toggling [hidden] + .is-selecting on
+      #page-trash). Mirrors the shape of the delete-confirm modal's own
+      .modal-actions (cancel-style + danger button) so Recover/Delete read
+      consistently with the rest of the app's action pairs. -->
+ <div class="trash-select-bar" id="trash-select-bar" hidden>
+   <span id="trash-selected-count" class="trash-selected-count"></span>
+   <div class="trash-select-actions">
+     <button type="button" id="trash-recover-btn" class="btn-secondary" disabled></button>
+     <button type="button" id="trash-delete-btn" class="btn-primary btn-danger" disabled></button>
+   </div>
+ </div>
 </main>
 
 <!-- ===== DEVELOPER OPTIONS PAGE ===== -->

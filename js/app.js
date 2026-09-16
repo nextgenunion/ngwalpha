@@ -157,6 +157,11 @@ const state = {
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
   activePlaylistId: null,
+  trashSongs: [], // User Songs trash bin — loaded by loadTrash(); see the
+                   // "User Songs trash bin" section further down
+  trashQuery: '', // reserved for a future search box on the trash bin page,
+                   // kept separate from query/userSongQuery for the same
+                   // reason those two are kept apart from each other
 
   // ---- Developer options (see initDevOptions()) ----
   // The page itself is only reachable after tapping the About page's app
@@ -225,6 +230,7 @@ const PAGES = {
   'playlist-view':  { elId: 'page-playlist-view',  navKey: 'playlists', rememberScroll: false, hideNav: true },
   'settings':       { elId: 'page-settings',       navKey: 'settings',  rememberScroll: true,  onEnter: () => { resetContactUI(); updateAllSegToggleThumbs({ instant: true }); } },
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
+  'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through
   // history/deep-linking before that, since showPage() itself doesn't
   // gate on state.devUnlocked; the About page's row to get here is what's
@@ -237,7 +243,7 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'about', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'about', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
@@ -430,6 +436,7 @@ async function init() {
   safe('bindModalShell', bindModalShell);
   safe('bindSettings', bindSettings);
   safe('bindAboutPage', bindAboutPage);
+  safe('bindTrashPage', bindTrashPage);
   safe('applyLanguage', applyLanguage);
   safe('registerServiceWorker', registerServiceWorker);
   safe('setupInstallPrompt', setupInstallPrompt);
@@ -441,7 +448,12 @@ async function init() {
   safe('initWakeLock', initWakeLock);
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
-  await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs(), loadPersonalLabels()]);
+  await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs(), loadTrash(), loadPersonalLabels()]);
+  // Sweep anything past its 30-day retention before the Trash Bin page (or
+  // its Settings badge/count, if either ever reads trashSongs) can show it
+  // — every app open gets a fresh, already-clean trash list rather than
+  // the sweep happening lazily whenever the person next opens the page.
+  safe('purgeExpiredTrash', () => purgeExpiredTrash());
   safe('applyLanguage (post-load)', applyLanguage); // re-run so the results count reflects the loaded songs
 }
 
@@ -588,7 +600,10 @@ const SONGDB_NAME = 'songbook-db';
 // section further down) reads and writes it directly, one song per key
 // (its own id), instead of one combined blob. Same store, same reserved
 // slot from v1, different access pattern for a different job.
-const SONGDB_VERSION = 4;
+// Bumped 4 → 5 to add 'user-songs-trash' (see TrashStorage below) — same
+// additive-only onupgradeneeded as every prior bump, so this is a
+// no-op for every store an already-installed device already has.
+const SONGDB_VERSION = 5;
 // One object store per song source (see state.sources/DB_SOURCES above),
 // so each source's offline backup lives independently and nothing
 // collides. 'user' is reserved, unused, so v2's User Songs source can
@@ -600,6 +615,14 @@ const SONGDB_STORES = {
   english: 'english-songs',
   sda: 'sda-songs',
   user: 'user-songs',
+  // User Songs trash bin (v4.2): a deleted user song moves here instead of
+  // being wiped outright, so it can be recovered. Same one-key-per-song
+  // shape as 'user-songs' (see TrashStorage below) — this is a distinct
+  // store, not a flag on the song itself, so a trashed song simply isn't
+  // present in 'user-songs' at all and every existing loadUserSongs()/
+  // UserSongStorage caller needs no changes to keep working exactly as
+  // before.
+  trash: 'user-songs-trash',
 };
 
 function openSongDb() {
@@ -812,7 +835,16 @@ async function saveUserSong(song) {
   await UserSongStorage.put(song);
 }
 
+// Moves a User Song to the trash instead of wiping it outright — see the
+// "User Songs trash bin" section below for TrashStorage/purgeExpiredTrash/
+// restoreTrashedSong, which is where the rest of the trash lifecycle lives.
+// Kept as its own function (rather than folding into trashUserSong) so
+// every existing call site (song-view kebab, editor, confirmDeleteUserSong)
+// keeps working unchanged — "delete" now means "move to trash" everywhere
+// in the app; a separate, explicit action inside the trash bin itself is
+// what actually removes a song for good (see permanentlyDeleteTrashSongs).
 async function deleteUserSong(id) {
+  const song = state.sources.user.songs.find(s => s.id === id);
   state.sources.user.songs = state.sources.user.songs.filter(s => s.id !== id);
   await UserSongStorage.remove(id);
   // A song can be referenced from playlists/Favorites by {sourceKey:
@@ -821,7 +853,428 @@ async function deleteUserSong(id) {
   // touch playlists directly. findSongByRef() simply stops resolving it,
   // and renderPlaylistView()/renderPlaylistsList() already tolerate a ref
   // that no longer resolves to a song (see their own null-checks) — same
-  // as if an official song were ever removed from a manifest.
+  // as if an official song were ever removed from a manifest. The same is
+  // true once a song lands in the trash: it's still gone from every
+  // playlist's point of view until (if ever) it's recovered.
+  if (song) await trashUserSong(song);
+}
+
+// ---------------------------------------------------------
+// User Songs trash bin (v4.2): a deleted User Song moves here — its own
+// object store (see SONGDB_STORES.trash) — instead of being wiped outright,
+// and is hard-deleted automatically once it's been sitting for
+// TRASH_RETENTION_DAYS. Same one-key-per-song access pattern as
+// UserSongStorage above (each song is its own key, its `id`), plus one
+// extra field this store actually needs: `deletedAt`, an epoch-ms
+// timestamp stamped on the way in and read back by purgeExpiredTrash() to
+// decide what's aged out.
+//
+// state.trashSongs is the in-memory mirror the Trash Bin page renders
+// from, exactly the same relationship UserSongStorage has with
+// state.sources.user.songs — every mutator below keeps IndexedDB and this
+// array in lockstep so the UI never needs a separate reload to see its
+// own change.
+// ---------------------------------------------------------
+const TRASH_RETENTION_DAYS = 30;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+const TrashStorage = {
+  async loadAll() {
+    const db = await openSongDb();
+    const songs = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.trash, 'readonly');
+      const req = tx.objectStore(SONGDB_STORES.trash).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return songs;
+  },
+  async put(entry) {
+    const db = await openSongDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
+      tx.objectStore(SONGDB_STORES.trash).put(entry, entry.id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  },
+  async remove(id) {
+    const db = await openSongDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
+      tx.objectStore(SONGDB_STORES.trash).delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  },
+  // Deletes several at once — used by the trash bin's multi-select "Delete"
+  // action so an N-song bulk action is N IndexedDB deletes in one pass
+  // through openSongDb() rather than N separate open/close round-trips.
+  async removeMany(ids) {
+    if (!ids.length) return;
+    const db = await openSongDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
+      const store = tx.objectStore(SONGDB_STORES.trash);
+      ids.forEach(id => store.delete(id));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  },
+};
+
+// Loaded once at startup (see init()) alongside loadUserSongs() — a
+// failure here just leaves the trash bin empty for this session (nothing
+// else in the app depends on trash having loaded), same fail-soft
+// treatment as loadUserSongs() itself.
+async function loadTrash() {
+  try {
+    state.trashSongs = await TrashStorage.loadAll();
+  } catch (err) {
+    console.error('Songbook: failed to load trash from IndexedDB —', err);
+    state.trashSongs = [];
+  }
+}
+
+// Moves one song into the trash: stamps it with deletedAt and writes it to
+// the trash store. Called from deleteUserSong() above — the one and only
+// place a User Song is ever removed from state.sources.user.songs — so
+// every existing delete entry point (song-view kebab, the editor's delete
+// confirm) already routes through here with no changes needed at those
+// call sites.
+async function trashUserSong(song) {
+  const entry = { ...song, deletedAt: Date.now() };
+  state.trashSongs.push(entry);
+  await TrashStorage.put(entry);
+}
+
+// Restores one trashed song back into User Songs — the inverse of
+// trashUserSong(). deletedAt is simply dropped rather than carried into
+// state.sources.user.songs, since saveUserSong()/UserSongStorage never
+// expect that field and a stale one left over from a previous trash trip
+// would otherwise leak back out through exportUserSongs().
+async function restoreTrashedSong(id) {
+  const entry = state.trashSongs.find(s => s.id === id);
+  if (!entry) return;
+  state.trashSongs = state.trashSongs.filter(s => s.id !== id);
+  const { deletedAt, ...song } = entry;
+  await saveUserSong(song);
+  await TrashStorage.remove(id);
+}
+
+// Restores several trashed songs at once — the trash bin's multi-select
+// "Recover" action. Sequential (not Promise.all) so a mid-batch IndexedDB
+// hiccup can't leave User Songs and the trash store disagreeing about
+// which songs made it across; a failure here still leaves whatever
+// completed before it fully recovered rather than none of it.
+async function restoreTrashedSongs(ids) {
+  for (const id of ids) {
+    await restoreTrashedSong(id);
+  }
+}
+
+// Removes one or more trashed songs for good — the trash bin's own
+// "Delete" action (permanent, unlike deleteUserSong() above which only
+// moves a song here in the first place) and the multi-select bulk
+// equivalent. No confirmation lives inside this function itself — see
+// confirmPermanentlyDeleteTrashSongs() in the "Trash Bin page" section,
+// which is what every call site actually goes through.
+async function permanentlyDeleteTrashSongs(ids) {
+  const idSet = new Set(ids);
+  state.trashSongs = state.trashSongs.filter(s => !idSet.has(s.id));
+  await TrashStorage.removeMany(ids);
+}
+
+// Hard-deletes anything that's been sitting in the trash for more than
+// TRASH_RETENTION_DAYS. Run once at startup (see init()) rather than on a
+// timer — this is a PWA with no background process, so "once per app
+// open" is the only reliable cadence available; a song that ages out
+// while the app isn't running simply gets swept the next time it is.
+async function purgeExpiredTrash() {
+  try {
+    const cutoff = Date.now() - TRASH_RETENTION_MS;
+    const expired = state.trashSongs.filter(s => s.deletedAt <= cutoff).map(s => s.id);
+    if (!expired.length) return;
+    await permanentlyDeleteTrashSongs(expired);
+  } catch (err) {
+    // Non-fatal — worst case a handful of expired songs linger one extra
+    // session and get swept next time instead of this one.
+    console.error('Songbook: purgeExpiredTrash failed —', err);
+  }
+}
+
+// ---------------------------------------------------------
+// Trash Bin page: its own list (sorted newest-deleted-first), a per-row
+// "…" menu for Recover/Delete one at a time, and a select mode — mirroring
+// playlistEditMode's shape (see setPlaylistEditMode() above) — for
+// recovering or deleting several songs in one go. Reached from
+// Settings → Songs → "Trash bin" (#trash-nav-row, see bindSettings()).
+// ---------------------------------------------------------
+let trashSelectMode = false;
+let trashSelectedIds = new Set();
+let trashKebabOpenId = null; // id of the row whose "…" menu is currently open, if any
+
+function bindTrashPage() {
+  document.getElementById('trash-back-btn').addEventListener('click', () => history.back());
+
+  document.getElementById('trash-select-btn').addEventListener('click', () => {
+    setTrashSelectMode(!trashSelectMode);
+  });
+  document.getElementById('trash-select-all-btn').addEventListener('click', () => {
+    toggleTrashSelectAll();
+  });
+  document.getElementById('trash-recover-btn').addEventListener('click', () => {
+    if (!trashSelectedIds.size) return;
+    const ids = Array.from(trashSelectedIds);
+    restoreTrashedSongs(ids).then(() => {
+      showToast(t('toastTrashRecovered', ids.length));
+      setTrashSelectMode(false);
+      renderTrashList({ animate: true });
+      if (state.currentPage === 'user-songs') renderUserSongList();
+    }).catch(err => {
+      console.error('Songbook: failed to recover trashed songs —', err);
+      showToast(t('toastSongSaveFailed'));
+    });
+  });
+  document.getElementById('trash-delete-btn').addEventListener('click', () => {
+    if (!trashSelectedIds.size) return;
+    confirmPermanentlyDeleteTrashSongs(Array.from(trashSelectedIds));
+  });
+
+  // Closes whichever row's "…" menu is open when a tap lands outside it —
+  // same pattern as closeSongViewMenu()/closePlaylistMenu() above.
+  document.addEventListener('click', () => closeTrashRowMenu());
+}
+
+function renderTrashList(opts = {}) {
+  const { animate = false } = opts;
+  const listEl = document.getElementById('trash-list');
+  const emptyEl = document.getElementById('trash-empty-state');
+  const countEl = document.getElementById('trash-count');
+
+  // Newest-deleted-first — the songs someone is most likely looking to
+  // recover (an accidental delete they just made) land at the top instead
+  // of being buried under whatever's aged out furthest.
+  const sorted = [...state.trashSongs].sort((a, b) => b.deletedAt - a.deletedAt);
+
+  countEl.textContent = t('resultsAll', sorted.length);
+  emptyEl.hidden = sorted.length !== 0;
+  emptyEl.textContent = t('trashEmptyState');
+
+  listEl.innerHTML = '';
+  sorted.forEach(song => listEl.appendChild(buildTrashRow(song)));
+  initIcons(listEl);
+  if (animate && !prefersReducedMotion()) animateListRefresh(listEl, emptyEl, countEl);
+
+  updateTrashSelectionUI();
+}
+
+function daysRemaining(deletedAt) {
+  const msLeft = (deletedAt + TRASH_RETENTION_MS) - Date.now();
+  return Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+}
+
+function buildTrashRow(song) {
+  const li = document.createElement('li');
+  li.dataset.trashId = song.id;
+
+  const row = document.createElement('div');
+  row.className = 'song-row trash-row';
+  row.innerHTML = `
+    <span class="checklist-check trash-row-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
+    <span class="song-row-text">
+      <span class="song-row-title">${escapeHtml(song.title)}</span>
+      <span class="song-row-sub">${escapeHtml(t('trashDaysLeft', daysRemaining(song.deletedAt)))}</span>
+    </span>
+    <button type="button" class="icon-btn trash-row-menu-btn" aria-label="${escapeHtml(t('songOptionsAria'))}">
+      <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
+    </button>
+  `;
+  li.appendChild(row);
+
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('.trash-row-menu-btn')) return;
+    if (trashSelectMode) toggleTrashSelected(song.id);
+  });
+
+  row.querySelector('.trash-row-menu-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleTrashRowMenu(song.id, row);
+  });
+
+  li.classList.toggle('is-selected', trashSelectedIds.has(song.id));
+  row.setAttribute('aria-pressed', String(trashSelectedIds.has(song.id)));
+  return li;
+}
+
+function toggleTrashSelected(id) {
+  if (trashSelectedIds.has(id)) trashSelectedIds.delete(id);
+  else trashSelectedIds.add(id);
+  updateTrashSelectionUI();
+}
+
+function toggleTrashSelectAll() {
+  const allIds = state.trashSongs.map(s => s.id);
+  const allSelected = allIds.length > 0 && allIds.every(id => trashSelectedIds.has(id));
+  trashSelectedIds = allSelected ? new Set() : new Set(allIds);
+  updateTrashSelectionUI();
+}
+
+// Refreshes everything that depends on trashSelectMode/trashSelectedIds —
+// row checkmarks, the selected-count label, the enabled state of
+// Recover/Delete, and the Select-all pill's label — called after every
+// change to either so the UI can never drift out of sync with them.
+function updateTrashSelectionUI() {
+  const listEl = document.getElementById('trash-list');
+  listEl.classList.toggle('is-selecting', trashSelectMode);
+  listEl.querySelectorAll('li[data-trash-id]').forEach(li => {
+    const id = li.dataset.trashId;
+    const selected = trashSelectedIds.has(id);
+    li.classList.toggle('is-selected', selected);
+    const row = li.firstElementChild;
+    if (row) row.setAttribute('aria-pressed', String(selected));
+  });
+
+  const bar = document.getElementById('trash-select-bar');
+  bar.hidden = !trashSelectMode;
+  document.getElementById('page-trash').classList.toggle('is-selecting', trashSelectMode);
+
+  const count = trashSelectedIds.size;
+  document.getElementById('trash-selected-count').textContent = t('trashSelectedCount', count);
+  document.getElementById('trash-recover-btn').disabled = count === 0;
+  document.getElementById('trash-recover-btn').textContent = t('trashRecoverBtn');
+  document.getElementById('trash-delete-btn').disabled = count === 0;
+  document.getElementById('trash-delete-btn').textContent = t('deleteBtn');
+
+  const allIds = state.trashSongs.map(s => s.id);
+  const allSelected = allIds.length > 0 && allIds.every(id => trashSelectedIds.has(id));
+  const selectAllBtn = document.getElementById('trash-select-all-btn');
+  selectAllBtn.textContent = allSelected ? t('trashDeselectAllBtn') : t('trashSelectAllBtn');
+  // Showing/hiding the pill itself is handled once, on the actual mode
+  // transition, by setTrashSelectMode() below — not here. This function
+  // runs on every render (including the page's very first render, well
+  // before select mode has ever been toggled), and showOrHidePillDone()
+  // queues a real CSS animationend listener each time it's called; calling
+  // it unconditionally on every one of those renders — most of which
+  // aren't a transition at all — stacks up stale listeners from calls
+  // whose animation never played (the button was already display:none),
+  // and one of those going off later is what was silently re-hiding this
+  // button the first time select mode actually turned on.
+}
+
+function setTrashSelectMode(on) {
+  if (trashSelectMode === on) return;
+  trashSelectMode = on;
+  if (!on) trashSelectedIds = new Set();
+  closeTrashRowMenu();
+
+  const selectBtn = document.getElementById('trash-select-btn');
+  selectBtn.innerHTML = `<svg data-icon="${on ? 'close' : 'check'}" viewBox="0 0 24 24"></svg>`;
+  selectBtn.setAttribute('aria-label', t(on ? 'cancelBtn' : 'trashSelectBtn'));
+  initIcons(selectBtn.parentElement);
+
+  // Runs exactly once per actual transition (guarded by the early-return
+  // above) — see updateTrashSelectionUI()'s comment on why the animated
+  // show/hide can't just run unconditionally on every render.
+  showOrHidePillDone(document.getElementById('trash-select-all-btn'), on);
+
+  updateTrashSelectionUI();
+}
+
+// Per-row "…" menu — same open/close/outside-click shape as
+// closeSongViewMenu()/closePlaylistMenu() above, just scoped to one row
+// at a time (trashKebabOpenId) since the trash list can have many rows,
+// unlike song-view/playlist-view which only ever have the one kebab.
+function toggleTrashRowMenu(id, rowEl) {
+  if (trashKebabOpenId === id) { closeTrashRowMenu(); return; }
+  closeTrashRowMenu();
+  const song = state.trashSongs.find(s => s.id === id);
+  if (!song) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'kebab-dropdown';
+  wrap.id = 'trash-kebab-dropdown';
+  wrap.innerHTML = `
+    <button type="button" id="trash-kebab-recover"><svg data-icon="upload" viewBox="0 0 24 24"></svg>${escapeHtml(t('trashRecoverBtn'))}</button>
+    <button type="button" id="trash-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('deleteBtn'))}</button>
+  `;
+  rowEl.style.position = 'relative';
+  rowEl.appendChild(wrap);
+  initIcons(wrap);
+  trashKebabOpenId = id;
+
+  wrap.querySelector('#trash-kebab-recover').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTrashRowMenu();
+    restoreTrashedSong(id).then(() => {
+      showToast(t('toastTrashRecovered', 1));
+      renderTrashList({ animate: true });
+      if (state.currentPage === 'user-songs') renderUserSongList();
+    }).catch(err => {
+      console.error('Songbook: failed to recover trashed song —', err);
+      showToast(t('toastSongSaveFailed'));
+    });
+  });
+  wrap.querySelector('#trash-kebab-delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTrashRowMenu();
+    confirmPermanentlyDeleteTrashSongs([id]);
+  });
+  wrap.addEventListener('click', (e) => e.stopPropagation());
+}
+
+function closeTrashRowMenu() {
+  const wrap = document.getElementById('trash-kebab-dropdown');
+  trashKebabOpenId = null;
+  if (!wrap) return;
+  if (prefersReducedMotion()) { wrap.remove(); return; }
+  wrap.removeAttribute('id');
+  wrap.classList.add('kebab-dropdown-exit');
+  wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
+}
+
+// Shared confirm modal for permanent deletion — takes one id or several
+// (the per-row kebab's Delete and the select-mode bulk Delete both funnel
+// through here), same confirm/cancel shape as confirmDeleteUserSong()'s
+// own modal above.
+function confirmPermanentlyDeleteTrashSongs(ids) {
+  if (!ids.length) return;
+  const wrap = document.createElement('div');
+  const p = document.createElement('p');
+  p.className = 'modal-hint';
+  p.style.marginTop = '0';
+  p.textContent = ids.length === 1
+    ? t('deleteTrashConfirmOne', (state.trashSongs.find(s => s.id === ids[0]) || {}).title || '')
+    : t('deleteTrashConfirmMany', ids.length);
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  actions.innerHTML = `
+    <button type="button" class="btn-secondary" id="delete-trash-cancel"></button>
+    <button type="button" class="btn-primary btn-danger" id="delete-trash-confirm"></button>
+  `;
+  wrap.appendChild(p);
+  wrap.appendChild(actions);
+  actions.querySelector('#delete-trash-cancel').textContent = t('cancelBtn');
+  actions.querySelector('#delete-trash-confirm').textContent = t('deleteBtn');
+
+  actions.querySelector('#delete-trash-cancel').addEventListener('click', closeModal);
+  actions.querySelector('#delete-trash-confirm').addEventListener('click', () => {
+    closeModal();
+    permanentlyDeleteTrashSongs(ids).then(() => {
+      showToast(t('toastTrashDeleted', ids.length));
+      if (trashSelectMode) setTrashSelectMode(false);
+      renderTrashList({ animate: true });
+    }).catch(err => {
+      console.error('Songbook: failed to permanently delete trashed songs —', err);
+      showToast(t('toastSongSaveFailed'));
+    });
+  });
+
+  openModal(t('deleteBtn'), wrap);
 }
 
 // Manual export/import: mirrors exportPlaylists/importPlaylistsFromFile
@@ -1664,6 +2117,10 @@ function applyLanguage() {
     't-userSongsBackupSub': 'userSongsBackupSub',
     't-landscapeModeTitle': 'landscapeModeTitle',
     't-landscapeModeSub': 'landscapeModeSub',
+    't-trashNavTitle': 'trashNavTitle',
+    't-trashNavSub': 'trashNavSub',
+    't-trashTitle': 'trashTitle',
+    't-trashHint': 'trashHint',
   };
   Object.entries(map).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1723,6 +2180,7 @@ function applyLanguage() {
   if (state.currentPage === 'playlists') renderPlaylistsList();
   updateSabbathMascotText(); // re-translate the mascot's bubble if it's showing
   if (state.currentPage === 'playlist-view') renderPlaylistView();
+  if (state.currentPage === 'trash') renderTrashList();
   if (state.activeSong) { updateFavoriteButtonUI(); updateSongViewMenuUI(); }
   // Translated labels (Normal/Semibold/Bold etc.) can be wider or narrower
   // in the new language — instant, since this isn't the person tapping a
@@ -5264,6 +5722,10 @@ function bindAboutPage() {
 function bindSettings() {
   document.getElementById('about-nav-row').addEventListener('click', () => {
     showPage('about', { pushHistory: true, resetScroll: true });
+  });
+
+  document.getElementById('trash-nav-row').addEventListener('click', () => {
+    showPage('trash', { pushHistory: true, resetScroll: true });
   });
 
   document.getElementById('reload-songs-btn').addEventListener('click', reloadSongLibrary);

@@ -185,6 +185,25 @@ window.SONGBOOK_LANG.kr = {
   editBtn: "편집",
   doneBtn: "완료",
   reorderHandle: "끌어서 순서 변경",
+  songOptionsAria: "곡 옵션",
+
+  // Trash bin — Settings → Songs → "Trash bin". See the "Trash Bin page"
+  // section in js/app.js.
+  trashNavTitle: "휴지통",
+  trashNavSub: "삭제된 내 곡은 30일 동안 보관된 후 완전히 삭제됩니다",
+  trashTitle: "휴지통",
+  trashHint: "삭제된 곡은 이곳에 30일간 보관된 후 완전히 삭제됩니다.",
+  trashEmptyState: "휴지통이 비어 있습니다.",
+  trashDaysLeft: (n) => `${n}일 남음`,
+  trashSelectBtn: "곡 선택",
+  trashSelectAllBtn: "전체 선택",
+  trashDeselectAllBtn: "선택 해제",
+  trashSelectedCount: (n) => `${n}개 선택됨`,
+  trashRecoverBtn: "복구",
+  deleteTrashConfirmOne: (title) => `"${title}" 곡을 완전히 삭제할까요? 이 작업은 되돌릴 수 없습니다.`,
+  deleteTrashConfirmMany: (n) => `${n}곡을 완전히 삭제할까요? 이 작업은 되돌릴 수 없습니다.`,
+  toastTrashRecovered: (n) => n === 1 ? "곡을 복구했습니다" : `${n}곡을 복구했습니다`,
+  toastTrashDeleted: (n) => n === 1 ? "곡을 완전히 삭제했습니다" : `${n}곡을 완전히 삭제했습니다`,
 
   // Easter egg: greeting shown by the small mascot that appears on the
   // Songbook page on Saturdays (Sabbath). See initSabbathMascot() in app.js.

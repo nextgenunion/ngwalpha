@@ -185,6 +185,25 @@ window.SONGBOOK_LANG.mn = {
   editBtn: "Засах",
   doneBtn: "Дуусгах",
   reorderHandle: "Эрэмбэлэх",
+  songOptionsAria: "Дууны сонголтууд",
+
+  // Trash bin — Settings → Songs → "Trash bin". See the "Trash Bin page"
+  // section in js/app.js.
+  trashNavTitle: "Хогийн сав",
+  trashNavSub: "Устгасан Миний дуунууд 30 хоногийн турш хадгалагдана, дараа нь бүрмөсөн устгагдана",
+  trashTitle: "Хогийн сав",
+  trashHint: "Устгасан дуунууд энд 30 хоногийн турш хадгалагдаад, дараа нь бүрмөсөн устгагдана.",
+  trashEmptyState: "Хогийн сав одоогоор хоосон байна.",
+  trashDaysLeft: (n) => `${n} хоног үлдлээ`,
+  trashSelectBtn: "Дуунууд сонгох",
+  trashSelectAllBtn: "Бүгдийг сонгох",
+  trashDeselectAllBtn: "Сонголт цуцлах",
+  trashSelectedCount: (n) => `${n} сонгогдлоо`,
+  trashRecoverBtn: "Сэргээх",
+  deleteTrashConfirmOne: (title) => `"${title}" дууг бүрмөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.`,
+  deleteTrashConfirmMany: (n) => `${n} дууг бүрмөсөн устгах уу? Энэ үйлдлийг буцаах боломжгүй.`,
+  toastTrashRecovered: (n) => n === 1 ? "Дуу сэргээгдлээ" : `${n} дуу сэргээгдлээ`,
+  toastTrashDeleted: (n) => n === 1 ? "Дуу бүрмөсөн устгагдлаа" : `${n} дуу бүрмөсөн устгагдлаа`,
 
   // Easter egg: greeting shown by the small mascot that appears on the
   // Songbook page on Saturdays (Sabbath). See initSabbathMascot() in app.js.

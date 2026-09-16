@@ -3120,6 +3120,73 @@ html[data-theme="dark"] .btn-pill-done {
 .kebab-dropdown button svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
 .kebab-dropdown button.is-danger { color: var(--danger); }
 
+/* ---------- Trash Bin page ---------- */
+.trash-hint {
+  margin: 0 0 14px;
+  font-size: 0.83rem;
+  color: var(--ink-faint);
+}
+/* Same fixed-select-bar-at-bottom pattern as #page-about's own footer
+   (see that rule's comment above) — a sibling of .page-inner, positioned
+   against the viewport, only ever visible while trashSelectMode is on
+   (toggled via [hidden] in updateTrashSelectionUI()). No bottom nav on
+   this page (hideNav: true in PAGES), so .page-inner's padding only needs
+   to clear this bar's own height, not the nav's too. */
+.trash-select-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px calc(env(safe-area-inset-bottom) + 12px);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-top: 1px solid var(--line);
+}
+.trash-select-bar[hidden] { display: none; }
+.trash-selected-count {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.trash-select-actions { display: flex; gap: 8px; }
+#page-trash .page-inner {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom) + 16px);
+}
+/* Row shape: a plain (non-button) .song-row so it can host both a leading
+   checkmark (select mode) and a trailing "…" menu button as its own
+   independently-clickable children — a <button> row (like the Songbook's
+   own buildSongRow()) can't nest another interactive control inside it
+   without invalid/inaccessible markup. */
+.trash-row {
+  cursor: default;
+}
+.trash-row-check {
+  display: none; /* shown only in select mode via .is-selecting */
+  flex-shrink: 0;
+}
+#trash-list.is-selecting .trash-row-check { display: flex; }
+#trash-list.is-selecting .trash-row-menu-btn { display: none; }
+#trash-list.is-selecting .trash-row { cursor: pointer; }
+#trash-list li.is-selected .trash-row {
+  border-color: var(--accent-strong);
+  background: var(--accent-tint);
+}
+/* Smaller than the default 38px .icon-btn (see that rule) — this one sits
+   inline inside a list row rather than in a page header, so it keeps the
+   same lip-press styling at a size that doesn't dominate the row. */
+.trash-row-menu-btn {
+  width: 32px;
+  height: 32px;
+}
+.trash-row-menu-btn svg { width: 17px; height: 17px; }
+
 /* ---------- modal ---------- */
 /*
  * --vvh / --vv-top are kept in sync with window.visualViewport by JS
