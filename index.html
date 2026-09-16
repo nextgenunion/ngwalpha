@@ -75,13 +75,14 @@
       <button class="sort-btn" data-sort-order="asc" aria-pressed="true"></button>
       <button class="sort-btn" data-sort-order="desc" aria-pressed="false"></button>
     </div>
+    <!-- Filter-by-label lives inside this kebab now (see openLabelsMenu()
+         in app.js) instead of its own always-visible chip row below the
+         sort buttons — hidden by updateLabelsMenuButton() until this
+         source actually has at least one labelled song. -->
+    <button type="button" id="song-labels-btn" class="icon-btn" aria-label="Filter by label" aria-haspopup="true" aria-expanded="false" hidden>
+      <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
+    </button>
   </div>
-
-  <!-- Built/refreshed by renderLabelFilterRow() in js/app.js, called from
-       renderSongList() — hidden (and left empty) until at least one song
-       in this source has a label. Single-select: tapping the already-
-       active chip clears state.songLabelFilter back to null. -->
-  <div id="song-label-filter-row" class="label-filter-row" role="group" aria-label="Filter by label" hidden></div>
 
   <p id="results-count" class="results-count"></p>
 
@@ -123,19 +124,28 @@
  <div class="page-inner">
   <header class="page-header page-header-row">
     <h1 id="t-userSongsTitle">User Songs</h1>
-    <button id="new-user-song-btn" class="icon-btn" aria-label="New song">
-      <svg data-icon="plus" viewBox="0 0 24 24"></svg>
-    </button>
+    <div class="page-header-row-actions">
+      <button id="new-user-song-btn" class="icon-btn" aria-label="New song">
+        <svg data-icon="plus" viewBox="0 0 24 24"></svg>
+      </button>
+      <!-- Filter-by-label lives inside this kebab now (see
+           openLabelsMenu() in app.js) instead of its own always-visible
+           chip row under the search bar — hidden by updateLabelsMenuButton()
+           until the 'user' source actually has at least one labelled song.
+           Placed last/rightmost in this group since .kebab-dropdown
+           anchors to its parent's right edge (right: 0) — it needs to be
+           the rightmost button here so the popover lines up under it
+           rather than under New song. -->
+      <button type="button" id="user-song-labels-btn" class="icon-btn" aria-label="Filter by label" aria-haspopup="true" aria-expanded="false" hidden>
+        <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
+      </button>
+    </div>
   </header>
 
   <div class="search-bar">
     <svg class="search-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
     <input id="user-song-search-input" class="search-field" type="search" inputmode="search" autocomplete="off">
   </div>
-
-  <!-- See #song-label-filter-row's comment on the Songs page above — same
-       mechanism, scoped to the 'user' source. -->
-  <div id="user-song-label-filter-row" class="label-filter-row" role="group" aria-label="Filter by label" hidden></div>
 
   <p id="user-songs-results-count" class="results-count"></p>
 
@@ -164,10 +174,6 @@
 <!-- ===== PLAYLIST VIEW PAGE ===== -->
 <main id="page-playlist-view" class="page" data-page="playlist-view" hidden>
  <div class="page-inner">
-  <div class="song-view-topbar">
-    <span id="t-topbarAppName2">Дууны ном</span>
-  </div>
-
   <header class="song-view-header pv-header">
     <button id="playlist-back-btn" class="icon-btn" aria-label="Back to playlists">
       <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
@@ -262,10 +268,6 @@
      actually look once saved. -->
 <main id="page-song-editor" class="page" data-page="song-editor" hidden>
  <div class="page-inner">
-  <div class="song-view-topbar">
-    <span id="t-topbarAppName5">Дууны ном</span>
-  </div>
-
   <header class="song-view-header">
     <button id="editor-back-btn" class="icon-btn" aria-label="Cancel">
       <svg data-icon="close" viewBox="0 0 24 24"></svg>
@@ -514,10 +516,6 @@
 <!-- ===== ABOUT PAGE ===== -->
 <main id="page-about" class="page" data-page="about" hidden>
  <div class="page-inner">
-  <div class="song-view-topbar">
-    <span id="t-topbarAppName3">Дууны ном</span>
-  </div>
-
   <header class="song-view-header pv-header">
     <button id="about-back-btn" class="icon-btn" aria-label="Back to settings">
       <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
@@ -553,10 +551,6 @@
      #dev-options-nav-row above (which itself is hidden until unlocked). -->
 <main id="page-dev-options" class="page" data-page="dev-options" hidden>
  <div class="page-inner">
-  <div class="song-view-topbar">
-    <span id="t-topbarAppName4">Тохиргоо</span>
-  </div>
-
   <header class="song-view-header pv-header">
     <button id="dev-options-back-btn" class="icon-btn" aria-label="Back to settings">
       <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>

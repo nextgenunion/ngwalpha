@@ -127,6 +127,16 @@ const state = {
   songLabelFilter: null,     // active label filter chip on the Songs page —
                               // reset in applyDbSource() like `query` above
   userSongLabelFilter: null, // same, for the User Songs page's own chip row
+  presentationMode: false, // toggled from the song view's "…" menu — see
+                            // togglePresentationMode()/applyPresentationMode()
+                            // below. Session-only (not persisted to
+                            // localStorage/Settings): it's a "projecting
+                            // right now" mode rather than a saved
+                            // preference, so it starts back off on reload,
+                            // and deliberately carries across songs within
+                            // the session rather than resetting per-song —
+                            // presenting is normally a whole-session thing,
+                            // not a per-song one.
   personalLabels: { bySongRef: {} }, // see "Labels" section below; loaded
                                       // from storage by loadPersonalLabels()
   editorLabelsDraft: [], // Song Editor's held-until-Save label list — see
@@ -279,6 +289,7 @@ const ICON_FILES = {
   'heart-outline': 'icons/svg/heart-outline.svg',
   'heart-filled': 'icons/svg/heart-filled.svg',
   'menu-kebab': 'icons/svg/menu-kebab.svg',
+  'presentation': 'icons/svg/presentation.svg',
   'plus': 'icons/svg/plus.svg',
   'trash': 'icons/svg/trash.svg',
   'pencil': 'icons/svg/pencil.svg',
@@ -1574,26 +1585,6 @@ function applyLanguage() {
   const map = {
     't-appTitle': 'appTitle',
     't-topbarAppName': 'appTitle',
-    // The playlist-view page's topbar sits above a specific playlist, not
-    // the songbook library, so it should read "Playlist(s)" not "Songbook"
-    // — and it uses the same fuller title as the playlists list page's
-    // heading (playlistsTitle), not the short bottom-nav label.
-    't-topbarAppName2': 'playlistsTitle',
-    // The About page's topbar sits above the settings context it was
-    // opened from (same reasoning as playlist-view above), so it uses
-    // settingsTitle ("Settings") rather than repeating "About" — the
-    // page's own header already says "About" via t-sectionAbout2.
-    't-topbarAppName3': 'settingsTitle',
-    // The Developer options page's topbar follows the same pattern as the
-    // About page's (t-topbarAppName3 above) — it sits above the settings
-    // context it was opened from, so it reuses settingsTitle rather than
-    // repeating "Developer options" (already said via t-sectionDevOptions2).
-    't-topbarAppName4': 'settingsTitle',
-    // The Song Editor's topbar sits above the User Songs context it was
-    // opened from (same pattern as the two above), so it uses
-    // userSongsTitle rather than repeating "New song"/"Edit song" — the
-    // page's own header already says that via editor-page-title.
-    't-topbarAppName5': 'userSongsTitle',
     't-navSongs': 'navSongs',
     't-navSettings': 'navSettings',
     't-navPlaylists': 'navPlaylists',
@@ -1887,6 +1878,17 @@ function prefersReducedMotion() {
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+// Plays the .song-row-tap press animation on the clicked row and gives it
+// a beat to actually be seen before running the navigation itself — see
+// the .song-row-tap comment in style.css for why plain :active isn't
+// enough here. Skipped for reduced-motion users, who go straight through.
+function tapSongRowThenOpen(rowEl, openFn) {
+  if (prefersReducedMotion()) { openFn(); return; }
+  rowEl.classList.add('song-row-tap');
+  rowEl.addEventListener('animationend', () => rowEl.classList.remove('song-row-tap'), { once: true });
+  setTimeout(openFn, 90);
+}
+
 // Runs the push/pop slide for the two SLIDE_PAGES. Both pages involved are
 // simple CSS transforms on their own compositor layer (no layout/paint
 // work on the surrounding page), so this is cheap to animate even on
@@ -2022,6 +2024,15 @@ function bindSongsPage() {
       renderSongList({ animate: true });
     });
   });
+
+  document.getElementById('song-labels-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleLabelsMenu('song-labels-btn', state.activeDbSource, state.songLabelFilter, (label) => {
+      state.songLabelFilter = label;
+      renderSongList({ animate: true });
+    });
+  });
+  document.addEventListener('click', () => closeLabelsMenu());
 }
 
 // ---------------------------------------------------------
@@ -2042,6 +2053,15 @@ function bindUserSongsPage() {
   document.getElementById('new-user-song-btn').addEventListener('click', () => {
     openSongEditor(null);
   });
+
+  document.getElementById('user-song-labels-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleLabelsMenu('user-song-labels-btn', 'user', state.userSongLabelFilter, (label) => {
+      state.userSongLabelFilter = label;
+      renderUserSongList({ animate: true });
+    });
+  });
+  document.addEventListener('click', () => closeLabelsMenu());
 }
 
 function renderUserSongList(opts = {}) {
@@ -2138,44 +2158,71 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-// sourceKey picks which state.sources entry to render — defaults to
-// whichever database is active in Settings → Song database
-// (state.activeDbSource), not a hardcoded 'official', so every Songs-page
-// call site below (search, sort, switching databases) automatically
-// tracks that choice with no per-call-site plumbing. listElId/emptyElId/
-// countElId let a future second list page (e.g. User Songs) reuse this
-// same function against its own DOM ids instead of needing its own copy.
-// sourceKey/listElId/emptyElId/countElId let a second list page (User
-// Songs) reuse this same function against its own DOM ids instead of
-// needing its own copy (see bindUserSongsPage/renderUserSongList). query
-// likewise defaults to state.query (the Songs page's own search box) but
-// can be overridden — User Songs keeps its search text in the separate
-// state.userSongQuery instead, so switching tabs never clobbers whichever
-// box the person was mid-typing in on the other page.
-// Builds/refreshes one page's label filter chip row — a plain, single-
-// select toggle (tapping the already-active chip clears the filter,
-// tapping a different one switches to it), matching how sort-by/sort-
-// order are also always exactly one active choice. Hidden entirely when
-// the source has no labelled songs yet, so it never shows up as an
-// empty, useless row before anyone's tagged anything.
-function renderLabelFilterRow(rowId, sourceKey, activeFilter, onSelect) {
-  const row = document.getElementById(rowId);
-  if (!row) return;
+// Toggles the labels kebab button's visibility for one page — shown only
+// once the source actually has at least one labelled song, so it never
+// sits there as a dead button before anyone's tagged anything. The chip
+// list itself is no longer built here; it's built fresh each time the
+// button is opened (see openLabelsMenu() below), the same way the song
+// view's "…" menu builds its own dropdown on open rather than keeping it
+// pre-rendered and hidden.
+function updateLabelsMenuButton(btnId, sourceKey) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.hidden = !labelsInUse(sourceKey).length;
+  if (btn.hidden) closeLabelsMenu();
+}
+
+let labelsMenuOpen = false;
+function toggleLabelsMenu(btnId, sourceKey, activeFilter, onSelect) {
+  labelsMenuOpen ? closeLabelsMenu() : openLabelsMenu(btnId, sourceKey, activeFilter, onSelect);
+}
+
+// Same dynamic-build/animate-in/animate-out pattern as
+// openSongViewMenu()/openPlaylistMenu() — see those for the fuller
+// explanation of why this isn't just a pre-rendered, hidden-toggled
+// element. onSelect gets the newly-chosen label (or null, clearing the
+// filter) and is responsible for re-rendering the list; this function
+// only owns the dropdown's own open/close/content.
+function openLabelsMenu(btnId, sourceKey, activeFilter, onSelect) {
+  closeLabelsMenu();
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
   const labels = labelsInUse(sourceKey);
-  if (!labels.length) {
-    row.hidden = true;
-    row.innerHTML = '';
-    return;
-  }
-  row.hidden = false;
-  row.innerHTML = labels.map(label => `
-    <button type="button" class="label-filter-chip" data-label="${escapeHtml(label)}" aria-pressed="${String(label === activeFilter)}">${escapeHtml(labelDisplayText(label))}</button>
-  `).join('');
-  row.querySelectorAll('.label-filter-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      onSelect(btn.dataset.label === activeFilter ? null : btn.dataset.label);
+  if (!labels.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'kebab-dropdown';
+  wrap.id = 'labels-kebab-dropdown';
+  wrap.innerHTML = `
+    <div id="labels-menu-chip-row" class="label-filter-row" role="group" aria-label="Filter by label">
+      ${labels.map(label => `
+        <button type="button" class="label-filter-chip" data-label="${escapeHtml(label)}" aria-pressed="${String(label === activeFilter)}">${escapeHtml(labelDisplayText(label))}</button>
+      `).join('')}
+    </div>
+  `;
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(wrap);
+  labelsMenuOpen = true;
+  btn.setAttribute('aria-expanded', 'true');
+
+  wrap.querySelectorAll('.label-filter-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeLabelsMenu();
+      onSelect(chip.dataset.label === activeFilter ? null : chip.dataset.label);
     });
   });
+  wrap.addEventListener('click', (e) => e.stopPropagation());
+}
+
+function closeLabelsMenu() {
+  const wrap = document.getElementById('labels-kebab-dropdown');
+  labelsMenuOpen = false;
+  document.querySelectorAll('#song-labels-btn, #user-song-labels-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  if (!wrap) return;
+  if (prefersReducedMotion()) { wrap.remove(); return; }
+  wrap.removeAttribute('id');
+  wrap.classList.add('kebab-dropdown-exit');
+  wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
 }
 
 function renderSongList(opts = {}) {
@@ -2186,9 +2233,10 @@ function renderSongList(opts = {}) {
     countElId = 'results-count',
     query = state.query,
     // Active label filter chip (see the "Labels" section and
-    // renderLabelFilterRow below) — defaults per listElId the same way
-    // `query` defaults to the Songs page's own search box, with
-    // renderUserSongList() passing its own state field explicitly.
+    // updateLabelsMenuButton/openLabelsMenu below) — defaults per
+    // listElId the same way `query` defaults to the Songs page's own
+    // search box, with renderUserSongList() passing its own state field
+    // explicitly.
     labelFilter = listElId === 'user-song-list' ? state.userSongLabelFilter : state.songLabelFilter,
     // Set by the search inputs and sort buttons (see bindSongsPage/
     // bindUserSongsPage) — everything else that re-renders a list (tab
@@ -2203,22 +2251,16 @@ function renderSongList(opts = {}) {
   const emptyEl = document.getElementById(emptyElId);
   const countEl = document.getElementById(countElId);
 
-  // The filter chip row only exists on the Songs and User Songs pages'
+  // The labels kebab only exists on the Songs and User Songs pages'
   // markup — song-pickers (openAddSongsModal etc.) reuse this same
-  // function against their own listElId with no such row, so this is a
-  // harmless no-op for those. Re-rendered on every call (like the
+  // function against their own listElId with no such button, so this is
+  // a harmless no-op for those. Re-checked on every call (like the
   // fast-scroll rail below) so a label added/removed elsewhere is
   // reflected the next time this list is shown — see PAGES' onEnter.
   if (listElId === 'song-list') {
-    renderLabelFilterRow('song-label-filter-row', sourceKey, labelFilter, (label) => {
-      state.songLabelFilter = label;
-      renderSongList({ animate: true });
-    });
+    updateLabelsMenuButton('song-labels-btn', sourceKey);
   } else if (listElId === 'user-song-list') {
-    renderLabelFilterRow('user-song-label-filter-row', sourceKey, labelFilter, (label) => {
-      state.userSongLabelFilter = label;
-      renderUserSongList({ animate: true });
-    });
+    updateLabelsMenuButton('user-song-labels-btn', sourceKey);
   }
 
   if (!source || source.loadFailed) {
@@ -2781,7 +2823,7 @@ function buildSongRow(song, hasNumbers, q, sourceKey) {
   li.dataset.rowKey = `${sourceKey}:${song.id}`;
   const row = document.createElement('button');
   row.className = 'song-row';
-  row.addEventListener('click', () => openSong(song, { sourceKey }));
+  row.addEventListener('click', () => tapSongRowThenOpen(row, () => openSong(song, { sourceKey })));
   li.appendChild(row);
   updateSongRowContent(li, song, hasNumbers, q);
   return li;
@@ -2904,6 +2946,7 @@ function openSongViewMenu() {
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
     ` : ''}
+    <button type="button" id="sv-kebab-presentation" aria-pressed="${String(state.presentationMode)}"><svg data-icon="presentation" viewBox="0 0 24 24"></svg>${escapeHtml(state.presentationMode ? t('exitPresentationModeBtn') : t('presentationModeBtn'))}</button>
   `;
   btn.parentElement.style.position = 'relative';
   btn.parentElement.appendChild(wrap);
@@ -2927,6 +2970,11 @@ function openSongViewMenu() {
     closeSongViewMenu();
     confirmDeleteUserSong(song);
   });
+  wrap.querySelector('#sv-kebab-presentation').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeSongViewMenu();
+    togglePresentationMode();
+  });
   wrap.addEventListener('click', (e) => e.stopPropagation());
 }
 
@@ -2939,6 +2987,21 @@ function closeSongViewMenu() {
   wrap.removeAttribute('id');
   wrap.classList.add('kebab-dropdown-exit');
   wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
+}
+
+// Presentation mode: hides everything on the song view except the lyrics
+// themselves — back button, favorite, transpose, text size, links, audio
+// — for reading off a screen while projecting without any of the app's
+// own chrome competing for attention. The "…" menu is the one thing that
+// stays, since it's the only way back out of this mode; applyPresentationMode()
+// (via #page-song-view.presentation-mode in style.css) shrinks it down to
+// a low-profile dot instead of hiding it outright.
+function togglePresentationMode() {
+  state.presentationMode = !state.presentationMode;
+  applyPresentationMode();
+}
+function applyPresentationMode() {
+  document.getElementById('page-song-view').classList.toggle('presentation-mode', state.presentationMode);
 }
 
 function updateFavoriteButtonUI() {
@@ -4227,6 +4290,7 @@ function renderPlaylistView() {
 
   document.getElementById('pv-count').textContent = t('playlistSongCount', pl.songs.length);
   emptyEl.textContent = pl.isFavorites ? t('playlistViewEmptyStateFavorites') : t('playlistViewEmptyState');
+  emptyEl.classList.toggle('empty-state--favorites', pl.isFavorites);
 
   listEl.innerHTML = '';
   const resolved = pl.songs
@@ -4265,7 +4329,7 @@ function renderPlaylistView() {
         ${song.artist ? `<span class="song-row-sub">${escapeHtml(song.artist)}</span>` : ''}
       </span>
     `;
-    row.addEventListener('click', () => { if (!playlistEditMode) openSong(song, { sourceKey: ref.sourceKey }); });
+    row.addEventListener('click', () => { if (!playlistEditMode) tapSongRowThenOpen(row, () => openSong(song, { sourceKey: ref.sourceKey })); });
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';

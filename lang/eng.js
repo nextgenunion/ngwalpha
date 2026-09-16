@@ -159,6 +159,8 @@ window.SONGBOOK_LANG.en = {
   saveBtn: "Save",
   deleteBtn: "Delete",
   addToPlaylistTitle: "Add to playlist",
+  presentationModeBtn: "Presentation mode",
+  exitPresentationModeBtn: "Exit presentation mode",
   addSongsTitle: "Add songs",
   removeFromPlaylist: "Remove from playlist",
   menuRename: "Rename",

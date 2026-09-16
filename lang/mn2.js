@@ -171,6 +171,8 @@ window.SONGBOOK_LANG.mn2 = {
   saveBtn: "Хадгалах",
   deleteBtn: "Устгах",
   addToPlaylistTitle: "Жагсаалтад нэмэх",
+  presentationModeBtn: "Танилцуулах горим",
+  exitPresentationModeBtn: "Танилцуулах горимоос гарах",
   addSongsTitle: "Дуу нэмэх",
   removeFromPlaylist: "Жагсаалтаас хасах",
   menuRename: "Нэр солих",

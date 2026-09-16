@@ -155,6 +155,8 @@ window.SONGBOOK_LANG.kr = {
   saveBtn: "저장",
   deleteBtn: "삭제",
   addToPlaylistTitle: "재생목록에 추가",
+  presentationModeBtn: "프레젠테이션 모드",
+  exitPresentationModeBtn: "프레젠테이션 모드 종료",
   addSongsTitle: "곡 추가",
   removeFromPlaylist: "재생목록에서 제거",
   menuRename: "이름 변경",
