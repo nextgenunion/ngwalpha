@@ -438,6 +438,7 @@ async function init() {
   safe('initChristmasSnow', initChristmasSnow);
   safe('bindAccentDiscoEasterEgg', bindAccentDiscoEasterEgg);
   safe('initDevOptions', initDevOptions);
+  safe('initWakeLock', initWakeLock);
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
   await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs(), loadPersonalLabels()]);
@@ -1860,6 +1861,7 @@ function showPage(name, opts = {}) {
   }
 
   state.currentPage = name;
+  updateWakeLock();
 
   if (pushHistory) {
     pushNavState({ page: name });
@@ -4122,10 +4124,50 @@ function setPlaylistEditMode(on) {
   if (playlistEditMode && !on) commitPlaylistTitleEdit();
 
   playlistEditMode = on;
-  document.getElementById('playlist-song-list').classList.toggle('is-editing', on);
+  const listEl = document.getElementById('playlist-song-list');
+  listEl.classList.toggle('is-editing', on);
+
+  // The drag-handle/remove-button (entering) and queue-index (leaving)
+  // swap via a plain CSS display toggle above — necessary to keep the
+  // row width/alignment stable (see the big comment on .song-row-with-
+  // remove in style.css), but on its own that reads as an abrupt pop
+  // rather than a transition. Reuse the same fade-in the song list
+  // already uses for newly-appeared rows on whichever set just became
+  // visible, so entering/exiting edit mode reads as one smooth change
+  // instead of a hard cut.
+  if (!prefersReducedMotion()) {
+    const justShown = on
+      ? listEl.querySelectorAll('.drag-handle, .song-row-remove')
+      : listEl.querySelectorAll('.queue-index');
+    justShown.forEach(el => {
+      el.classList.remove('song-row-enter');
+      void el.offsetWidth; // restart the animation even if it's mid-run from a fast toggle
+      el.classList.add('song-row-enter');
+      el.addEventListener('animationend', function onEnd() {
+        el.classList.remove('song-row-enter');
+        el.removeEventListener('animationend', onEnd);
+      }, { once: true });
+    });
+  }
+
   const doneBtn = document.getElementById('playlist-done-btn');
   doneBtn.hidden = !on;
   doneBtn.textContent = t('doneBtn');
+
+  // If the three-dot menu happens to be open while edit mode changes out
+  // from under it (e.g. the person hits the top "Finish" button without
+  // closing the still-open kebab menu first), its "Edit"/"Done" row was
+  // built from playlistEditMode at open time and is now stale — both its
+  // label and icon would keep showing the old state, AND worse, tapping
+  // it reads the (already-updated) live playlistEditMode variable, so it
+  // would silently do the opposite of what it displays (e.g. show "Done"
+  // but actually re-enter edit mode). Refresh it in place so it always
+  // matches reality.
+  const kebabEditBtn = document.getElementById('kebab-edit');
+  if (kebabEditBtn) {
+    kebabEditBtn.innerHTML = `<svg data-icon="${on ? 'check' : 'pencil'}" viewBox="0 0 24 24"></svg>${escapeHtml(on ? t('doneBtn') : t('editBtn'))}`;
+    initIcons(kebabEditBtn);
+  }
 
   renderPlaylistTitle();
 }
@@ -4182,7 +4224,15 @@ function openPlaylist(id, opts = {}) {
   }
 }
 
-function renderPlaylistView() {
+// animate: true fades newly-added songs in (see the song-row-enter/exit
+// pair renderSongList's and renderPlaylistsList's diffed renders use for
+// the same purpose) instead of the new row just popping straight into
+// place. Pass this from the specific action that added a song (the Add
+// Songs modal), not from routine re-renders (opening the playlist, a
+// drag reorder finishing, a language change) where nothing new actually
+// entered the list.
+function renderPlaylistView(opts = {}) {
+  const { animate = false } = opts;
   const pl = getPlaylist(state.activePlaylistId);
   const listEl = document.getElementById('playlist-song-list');
   const emptyEl = document.getElementById('playlist-view-empty-state');
@@ -4191,6 +4241,15 @@ function renderPlaylistView() {
   document.getElementById('pv-count').textContent = t('playlistSongCount', pl.songs.length);
   emptyEl.textContent = pl.isFavorites ? t('playlistViewEmptyStateFavorites') : t('playlistViewEmptyState');
   emptyEl.classList.toggle('empty-state--favorites', pl.isFavorites);
+
+  // Snapshot which songs were already on screen before the rebuild below,
+  // so a song that's actually new to the list can be told apart from one
+  // that was already there (which should just re-settle with no fade).
+  const prevKeys = animate
+    ? new Set(Array.from(listEl.children)
+        .filter(li => li.dataset && li.dataset.sourceKey)
+        .map(li => `${li.dataset.sourceKey}:${li.dataset.songId}`))
+    : null;
 
   listEl.innerHTML = '';
   const resolved = pl.songs
@@ -4263,6 +4322,15 @@ function renderPlaylistView() {
     li.appendChild(handle);
     li.appendChild(row);
     li.appendChild(removeBtn);
+
+    if (animate && !prefersReducedMotion() && !prevKeys.has(`${ref.sourceKey}:${song.id}`)) {
+      li.classList.add('song-row-enter');
+      li.addEventListener('animationend', function onEnd() {
+        li.classList.remove('song-row-enter');
+        li.removeEventListener('animationend', onEnd);
+      }, { once: true });
+    }
+
     listEl.appendChild(li);
     initIcons(li);
   });
@@ -5004,7 +5072,7 @@ function openAddSongsModal(playlistId) {
       const nowIn = toggleSongInPlaylist(playlistId, sourceKey, song.id);
       item.setAttribute('aria-pressed', String(nowIn));
       if (state.activeSong && state.activeSong.id === song.id) updateFavoriteButtonUI();
-      renderPlaylistView();
+      renderPlaylistView({ animate: true });
       document.getElementById('pv-count').textContent = t('playlistSongCount', getPlaylist(playlistId).songs.length);
     });
     li.appendChild(item);
@@ -5344,6 +5412,74 @@ function showToast(msg, action, duration = 2200) {
     el._toastHideCleanup = cleanup;
     el.addEventListener('animationend', cleanup);
   }, duration);
+}
+
+// ---------------------------------------------------------
+// Screen Wake Lock — keeps the display on while a song is actually open
+// on screen (song-view), so it doesn't dim/lock mid-song the way it
+// would browsing any other page. Released the instant the person leaves
+// song-view for anything else (song list, a playlist, settings, ...) —
+// there's no reason to hold the screen awake there.
+// ---------------------------------------------------------
+let wakeLockSentinel = null;
+// Tracks whether song-view is the current page, independent of whether
+// we actually hold the sentinel right now — the browser revokes the
+// sentinel the moment the tab is backgrounded, but the person hasn't
+// "left" song-view when that happens, so visibilitychange below needs
+// this to know whether to ask for it back on return.
+let wakeLockWanted = false;
+
+function initWakeLock() {
+  // Re-request on return to the tab/app: a wake lock is automatically
+  // (and silently) released by the browser the moment the page is
+  // backgrounded — switching apps, locking the phone by hand, the
+  // screen timing out on its own first — so coming back to a song still
+  // open needs to explicitly ask for it again rather than assuming the
+  // original lock is still held.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && wakeLockWanted && !wakeLockSentinel) {
+      requestWakeLock();
+    }
+    // Nothing to do on hide — the browser releases the sentinel itself
+    // and fires its own 'release' listener (see requestWakeLock below).
+  });
+}
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return; // unsupported browser — screen just times out as normal, nothing else depends on this
+  try {
+    wakeLockSentinel = await navigator.wakeLock.request('screen');
+    wakeLockSentinel.addEventListener('release', () => {
+      // Covers both releaseWakeLock() below AND the browser revoking it
+      // on its own (tab backgrounded) — either way our reference is now
+      // stale, so clear it rather than risk a future .release() call on
+      // an already-released sentinel.
+      wakeLockSentinel = null;
+    });
+  } catch (err) {
+    // Common, harmless causes: battery saver mode, the document isn't
+    // visible at the exact moment of the request, or the platform just
+    // doesn't grant it here — none worth surfacing to the person; the
+    // screen simply behaves as it always did (times out normally).
+    wakeLockSentinel = null;
+  }
+}
+
+function releaseWakeLock() {
+  if (!wakeLockSentinel) return;
+  wakeLockSentinel.release().catch(() => {});
+  wakeLockSentinel = null;
+}
+
+// Called from showPage() on every navigation — cheap no-op when nothing
+// actually needs to change (e.g. moving between two non-song pages).
+function updateWakeLock() {
+  wakeLockWanted = state.currentPage === 'song-view';
+  if (wakeLockWanted) {
+    if (!wakeLockSentinel && document.visibilityState === 'visible') requestWakeLock();
+  } else {
+    releaseWakeLock();
+  }
 }
 
 // ---------------------------------------------------------
