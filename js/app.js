@@ -286,6 +286,22 @@ const ICON_FILES = {
   'social-youtube': 'icons/svg/social-youtube.svg',
   'social-instagram': 'icons/svg/social-instagram.svg',
   'social-website': 'icons/svg/social-website.svg',
+  // Settings page row icons — one per row in Appearance/Songs/App/About
+  // (see index.html's #page-settings) so each option is easier to
+  // recognize at a glance, not just read.
+  'dark-mode': 'icons/svg/dark-mode.svg',
+  'palette': 'icons/svg/palette.svg',
+  'library-music': 'icons/svg/library-music.svg',
+  'refresh': 'icons/svg/refresh.svg',
+  'view-list': 'icons/svg/view-list.svg',
+  'music-note': 'icons/svg/music-note.svg',
+  'visibility-off': 'icons/svg/visibility-off.svg',
+  'format-bold': 'icons/svg/format-bold.svg',
+  'line-spacing': 'icons/svg/line-spacing.svg',
+  'translate': 'icons/svg/translate.svg',
+  'install-mobile': 'icons/svg/install-mobile.svg',
+  'restart-alt': 'icons/svg/restart-alt.svg',
+  'info-outline': 'icons/svg/info-outline.svg',
   // Full-color one-off (not part of the monochrome fill="currentColor" set
   // above) — the Saturday/Sabbath easter-egg mascot. See initSabbathMascot().
   'mascot-sabbath': 'icons/svg/mascot-sabbath.svg',
@@ -2772,13 +2788,19 @@ function runPageSlideTransition(type, fromEl, toEl, opts = {}) {
   void topEl.offsetWidth;
   topEl.classList.add(type === 'push' ? 'page-slide-in' : 'page-slide-out');
 
-  // If a previous transition on this same element got interrupted before
-  // finishing (rapid back-to-back navigation), its 'animationend' listener
-  // never fired and is still attached — drop it before attaching this
-  // one so listeners can't pile up over a long session.
-  if (topEl._slideCleanup) {
-    topEl.removeEventListener('animationend', topEl._slideCleanup);
-  }
+  // If a previous transition involving either of these elements got
+  // interrupted before finishing (rapid back-to-back navigation), its
+  // 'animationend' listener never fired and is still attached. Left in
+  // place, it can fire later and hide whatever element that stale
+  // closure captured as *its* fromEl — even after this new transition has
+  // moved on to a different fromEl/toEl pairing. Drop stale cleanups on
+  // both elements, not just topEl, before attaching this one.
+  [topEl, bottomEl].forEach(el => {
+    if (el._slideCleanup) {
+      el.removeEventListener('animationend', el._slideCleanup);
+      el._slideCleanup = null;
+    }
+  });
   const cleanup = () => {
     topEl.classList.remove('page-slide-in', 'page-slide-out');
     topEl.style.zIndex = '';
@@ -2802,6 +2824,21 @@ function runPageSlideTransition(type, fromEl, toEl, opts = {}) {
 // see the .tab-fade-in CSS comment for why the outgoing page doesn't need
 // its own fade-out animation.
 function runTabFadeTransition(fromEl, toEl) {
+  // Cancel any cleanup left pending from an earlier, still-in-flight
+  // transition on EITHER element. Without this, rapid A->B->A switching
+  // leaves B's cleanup (from the A->B leg) still armed and listening for
+  // B's animationend; when that fires later it hides A — the page we've
+  // since navigated back to and are mid-fade-in on — even though A is now
+  // the correct, current page. Cancelling both, not just toEl's, is what
+  // fixes that: fromEl can just as easily be carrying a stale cleanup from
+  // when it was itself a toEl a moment ago.
+  [fromEl, toEl].forEach(el => {
+    if (el._tabFadeCleanup) {
+      el.removeEventListener('animationend', el._tabFadeCleanup);
+      el._tabFadeCleanup = null;
+    }
+  });
+
   Object.values(PAGES).forEach(p => {
     const el = document.getElementById(p.elId);
     if (el !== fromEl && el !== toEl) el.hidden = true;
@@ -2815,9 +2852,6 @@ function runTabFadeTransition(fromEl, toEl) {
   void toEl.offsetWidth; // restart the animation if one is already mid-flight
   toEl.classList.add('tab-fade-in');
 
-  if (toEl._tabFadeCleanup) {
-    toEl.removeEventListener('animationend', toEl._tabFadeCleanup);
-  }
   const cleanup = () => {
     toEl.classList.remove('tab-fade-in');
     toEl.style.zIndex = '';
@@ -3034,8 +3068,10 @@ function matchesQuery(song, q, sourceKey = state.activeDbSource) {
 }
 
 // Lower rank = more relevant. This order is intentionally user-facing:
-// identify the song first, then strong lyric/title discovery, then broader
-// content matches, and finally low-priority metadata (labels and artist).
+// identify the song first (exact title/number), then title partial matches
+// (a song actually called/titled this beats one that merely quotes the
+// query somewhere in its lyrics), then lyric/content discovery, and
+// finally low-priority metadata (labels and artist).
 function relevanceRank(song, q, sourceKey = state.activeDbSource) {
   const query = normalizeSearchText(q);
   if (!query) return 15;
@@ -3055,11 +3091,18 @@ function relevanceRank(song, q, sourceKey = state.activeDbSource) {
   if (title === query) return 0;                                      // exact main title
   if (altTitles.some(a => a === query)) return 1;                     // exact alternate title
   if (number && number === query) return 2;                           // exact song number
-  if (lyrics.includes(query)) return 3;                               // exact/contiguous lyric phrase
-  if (title.startsWith(query)) return 4;                              // main title starts with query
-  if (altTitles.some(a => a.startsWith(query))) return 5;             // alternate title starts with query
-  if (title.includes(query)) return 6;                                // main title contains query
-  if (altTitles.some(a => a.includes(query))) return 7;               // alternate title contains query
+  // Title/alt-title matches (start-of-string or contiguous-substring) rank
+  // above an exact lyric phrase on purpose: someone typing what looks like
+  // a title wants the song actually called that before a song that merely
+  // quotes the same phrase somewhere in its lyrics. The lyric-phrase check
+  // still sits above the looser word-scatter checks below it, and above
+  // title matches that are themselves only word-scattered (not contiguous)
+  // — see relevanceRank's module comment.
+  if (title.startsWith(query)) return 3;                              // main title starts with query
+  if (altTitles.some(a => a.startsWith(query))) return 4;             // alternate title starts with query
+  if (title.includes(query)) return 5;                                // main title contains query
+  if (altTitles.some(a => a.includes(query))) return 6;               // alternate title contains query
+  if (lyrics.includes(query)) return 7;                               // exact/contiguous lyric phrase
   if (words.every(word => titleAndAltHaystack.includes(word))) return 8; // all words in title/alt-title area
   if (words.every(word => lyrics.includes(word))) return 9;           // all words somewhere in lyrics
   if (words.every(word => contentHaystack.includes(word))) return 10; // words spread across number/title/alt/lyrics
@@ -6024,10 +6067,14 @@ function openDbPickerModal() {
   thumb.className = 'seg-toggle-thumb';
   tabs.appendChild(thumb);
 
+  const listWrap = document.createElement('div');
+  listWrap.className = 'db-picker-list-wrap';
   const list = document.createElement('ul');
   list.className = 'checklist';
+  listWrap.appendChild(list);
 
-  const renderList = () => {
+  const renderList = ({ animate = false } = {}) => {
+    const startHeight = listWrap.getBoundingClientRect().height;
     list.innerHTML = '';
     Object.keys(DB_SOURCES).filter(key => DB_SOURCES[key].group === currentGroup).forEach(key => {
       const isActive = key === state.activeDbSource;
@@ -6052,6 +6099,20 @@ function openDbPickerModal() {
       list.appendChild(li);
     });
     initIcons(list);
+
+    // Switching tabs (All/SDA) swaps the whole checklist in one go rather
+    // than diffing individual rows (unlike renderSongList's per-row diff),
+    // since a database group only has a handful of entries and a plain
+    // crossfade + height-settle reads just as smoothly for a list this
+    // short. The initial render (opening the modal) skips this — nothing's
+    // on screen yet to fade from, so animating there would just delay the
+    // popup's first paint for no visible benefit.
+    if (animate && !prefersReducedMotion()) {
+      animateWrapHeightTo(listWrap, listWrap.scrollHeight, startHeight);
+      list.classList.remove('db-picker-list-enter');
+      void list.offsetWidth; // restart the animation if a previous tab switch is still mid-flight
+      list.classList.add('db-picker-list-enter');
+    }
   };
 
   DB_GROUP_ORDER.forEach(group => {
@@ -6068,13 +6129,13 @@ function openDbPickerModal() {
         b.setAttribute('aria-pressed', String(b === btn));
       });
       positionSegToggleThumb(tabs);
-      renderList();
+      renderList({ animate: true });
     });
     tabs.appendChild(btn);
   });
 
   wrap.appendChild(tabs);
-  wrap.appendChild(list);
+  wrap.appendChild(listWrap);
   renderList();
 
   openModal(t('dbPickerTitle'), wrap);

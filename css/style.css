@@ -2166,6 +2166,22 @@ html[data-lyrics-weight="bold"] .lyric-word { font-weight: 700; }
    only revealed once Developer options is unlocked) stayed visible. Same
    fix pattern as .toast[hidden]/.btn-pill-done[hidden] below. */
 .settings-row[hidden] { display: none; }
+/* Leading icon for a settings row (see index.html — one per row in
+   Appearance/Songs/App/About) so each option reads at a glance rather
+   than by title text alone. Sits as a plain flex sibling before
+   .settings-row-text, so .settings-row's own `gap` already spaces it
+   from the text — nothing extra needed here for that. flex-shrink:0
+   keeps it from being squeezed by a long title/subtitle wrapping on a
+   narrow screen (same reasoning as .settings-row-chevron below), and
+   align-self:center keeps it pinned to the row's vertical center even
+   when a two-line title+subtitle makes the row taller than the icon. */
+.settings-row-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--ink-soft);
+}
 .settings-row-text { display: flex; flex-direction: column; min-width: 0; }
 .settings-row-title { font-size: 0.96rem; font-weight: 600; color: var(--ink); }
 .settings-row-sub { font-size: 0.8rem; color: var(--ink-faint); margin-top: 2px; }
@@ -3363,7 +3379,27 @@ span.trash-row-check {
    evenly, rather than sizing to its (short) label text. */
 .db-picker-tabs { width: 100%; margin: 2px 0 4px; }
 .db-picker-tabs .seg-toggle-btn { flex: 1; text-align: center; }
+/* This seg-toggle is the modal's own top navigation, not a compact
+   inline control (see the comment above), so give it more presence than
+   the base .seg-toggle-btn sizing — taller tap targets and a slightly
+   larger label read better spanning the popup's full width. */
+.db-picker-tabs.seg-toggle { padding: 3px; }
+.db-picker-tabs .seg-toggle-btn { padding: 10px 10px; font-size: 0.85rem; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
+/* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
+   app.js) so switching between the All/SDA tabs can height-animate via
+   animateWrapHeightTo — same pattern as .add-songs-list-wrap below —
+   instead of the popup snapping straight to the new list's size. */
+.db-picker-list-wrap { overflow: hidden; }
+/* Plays once per tab switch (added/removed by renderList's animate:true
+   branch — the initial render skips it, see that comment) so the new
+   group's rows settle in with a soft fade+rise instead of just
+   appearing the instant the old ones are cleared. */
+@keyframes db-picker-list-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.db-picker-list-enter { animation: db-picker-list-enter .22s var(--motion-settle); }
 /* Wraps the Add Songs modal's search results (see openAddSongsModal /
    animateWrapHeightTo in app.js) so the popup's height can be animated
    smoothly as the result count changes on every keystroke, instead of the
