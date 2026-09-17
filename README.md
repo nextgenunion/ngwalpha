@@ -344,12 +344,12 @@ css/style.css        Design tokens + styles (light & dark themes)
 js/app.js            All app logic: search, sort, transpose, language switching, install
 app.js               Mirror of js/app.js — not loaded by index.html; kept in
                      sync as a convenience copy at the repo root
-data/                One folder per song database, each with its own JSON
-                     files + manifest.json (data/mongolian/, data/english/,
-                     data/hymn/ — see DB_SOURCES in js/app.js for the registry)
+data/                One folder per song database: editable per-song JSON +
+                     manifest.json, plus optional generated database.json bootstrap snapshot
+                     (see DB_SOURCES in js/app.js for the registry)
 lang/*.js         Interface text — one file per language (config.js + eng.js/mn.js/kr.js)
 manifest.json         PWA manifest
-service-worker.js     Offline caching (cache-first w/ background refresh)
+service-worker.js     Offline caching (lazy song DB cache + offline app shell)
 icons/                App icons, logos, and icons/svg/ — one SVG file per UI icon
 ```
 
@@ -365,8 +365,13 @@ separate Mongolian-language songbook — see below), `data/english/`
 ("English", 6 generic public-domain hymns), and `data/hymn/` ("English
 (SDA)", 695 hymns from an SDA hymnal). Every database has the same
 shape: one JSON file per song plus that folder's own `manifest.json`
-listing them (see "Why song data moved to one JSON file per song" below
-for that part's own reasoning).
+listing them. A generated `database.json` is a fast bootstrap snapshot, not
+the authoritative latest copy. On a first load it can put the whole library
+on screen in one request; the app then checks the manifest + individual song
+files in the background and saves the merged latest result to IndexedDB.
+Ordinary one-song edits therefore do **not** require rebuilding `database.json`;
+run `python tools/build_song_bundles.py` whenever you want to refresh the
+bootstrap snapshot itself (for example before a larger release).
 
 The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
 
@@ -379,24 +384,20 @@ const DB_SOURCES = {
 };
 ```
 
-`data/mongolian2/` currently only has 7 songs (`m002`–`m008`) — its
-manifest.json lists only those, not the full ~2,300-song list it may
-eventually grow to. Add more the normal way (a new `mNNN.json` + a new
-line in its manifest.json); nothing else needs to change.
+`data/mongolian2/` currently contains 1,433 songs in this build. Add or
+edit songs through the individual JSON files + `manifest.json`; those files
+are the latest/authoritative layer. Rebuild `database.json` only when you want
+to refresh the fast bootstrap snapshot.
 
 Adding a database (a next-gen version of this app, a different language,
 a different congregation's songbook) is: create the folder + its
-`manifest.json` + song files, add one entry here, add one `<option>` to
-`#db-select` in `index.html` (its `value` is this registry's key — see
-`bindSettings()`/`loadPrefs()` in `js/app.js`), one `SONGDB_STORES` entry
-plus a `SONGDB_VERSION` bump (both further down in `js/app.js`, for that
-database's IndexedDB offline backup), and one entry in
-`service-worker.js`'s `SONG_DB_FOLDERS` (for offline precaching) — see
-the comment above `DB_SOURCES` in `js/app.js` for the full list, with the
-sda database as the worked example. Every function that loads or
-displays song data reads a database's folder and `hasNumbers` from this
-registry rather than assuming a fixed path or that every song has a
-number.
+`manifest.json` + song files, optionally run `python tools/build_song_bundles.py`
+to create its bootstrap snapshot, add one entry here, add one `<option>` to
+`#db-select` in `index.html` (its
+`value` is this registry's key), and add one `SONGDB_STORES` entry plus a
+`SONGDB_VERSION` bump for the IndexedDB offline backup. The service worker
+handles `/data/` generically now, so there is no second database registry
+there and no all-database background precache.
 
 `hasNumbers: false` (as set for the English database) means that
 database's songs have no `number` field at all — the app hides the
@@ -504,11 +505,12 @@ and all — it's never cropped, so there's no safe-zone constraint on it.
 ## Editing the song list
 
 To add a song: create `data/<folder>/sNNN.json` (copy an existing one as a
-template — `<folder>` is `mongolian`, `english`, or `hymn`, or a folder
-you've registered in `DB_SOURCES`, see "Multiple song databases" above) and add
-its filename to that folder's own `manifest.json`. To edit a song: open
-its file directly. Nothing in `js/app.js` needs to change either way —
-each database's manifest is the only "index" the app needs for it.
+template) and add its filename to that folder's own `manifest.json`. To edit a
+song, edit its individual JSON file. Those individual files are authoritative,
+so ordinary song changes do not require a `database.json` rebuild. Run
+`python tools/build_song_bundles.py` only when you want the one-request
+bootstrap snapshot refreshed. Nothing in `js/app.js` needs to change for
+ordinary song edits.
 
 Chords are written inline in the lyric line using square brackets right
 before the syllable they land on:

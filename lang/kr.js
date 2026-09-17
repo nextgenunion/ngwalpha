@@ -14,6 +14,7 @@ window.SONGBOOK_LANG.kr = {
   resultsFiltered: (n, total) => `${total}곡 중 ${n}곡`,
   emptyState: "찬양집 속에 그런 곡은 없네요. 언젠가 추가될지도 몰라요 😉",
   songLoadError: "곡 목록을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
+  songsLoading: "노래를 불러오는 중…",
   navSongs: "찬양",
   navSettings: "설정",
   navUserSongs: "내 곡",

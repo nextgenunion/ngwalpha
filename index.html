@@ -66,6 +66,13 @@
     <input id="search-input" type="search" inputmode="search" autocomplete="off">
   </div>
 
+  <!-- Text-free progress line for the selected database's background
+       individual-file sync. The app is already usable while this runs;
+       it simply fills left-to-right and fades away when finished. -->
+  <div id="song-sync-progress" class="song-sync-progress" aria-hidden="true">
+    <div id="song-sync-progress-bar" class="song-sync-progress-bar"></div>
+  </div>
+
   <div class="sort-row">
     <div class="sort-group" role="group" aria-label="Sort by">
       <button class="sort-btn" data-sort-by="num" aria-pressed="true"></button>

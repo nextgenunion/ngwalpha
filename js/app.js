@@ -7,11 +7,11 @@
 //
 // Data-driven: song content lives as one JSON file per song, one folder
 // per song database under /data/ (see DB_SOURCES further down for the
-// registry of which folder belongs to which source), loaded at runtime
-// by loadAllSongData(). Adding a song = add a JSON file + one line in
-// that source's manifest.json — nothing here needs to change. Adding a
-// whole new database = a new folder + manifest + one DB_SOURCES entry +
-// one <option> in index.html's #db-select.
+// registry of which folder belongs to which source), loaded lazily at
+// runtime. Each database may also ship a generated database.json bootstrap
+// snapshot for the one-request fast path. Individual song JSON files remain
+// authoritative and update that snapshot in the background, so rebuilding
+// database.json is optional for ordinary one-song corrections.
 // =========================================================
 
 // Sourced from version.js (loaded before this file in index.html) so this
@@ -40,54 +40,33 @@ function markVersionSeen() {
   }
 }
 
-// --- Hard update backstop -------------------------------------------------
-// Everything above (scrollRestoration, controllerchange auto-reload,
-// updateViaCache) fixes the *normal* service-worker update path. This is a
-// second, independent line of defense that doesn't rely on any of that
-// machinery noticing anything: it runs the instant this script itself
-// executes, compares APP_VERSION against what's remembered from last time,
-// and if they don't match, wipes every service worker + cache directly and
-// forces one reload. So even if a device somehow never sees a normal SW
-// update (host-level caching quirks, timing races, whatever), the first
-// time it happens to load a genuinely fresh copy of this file, it will
-// self-heal rather than staying stuck on stale code indefinitely.
+// --- Version/update backstop -------------------------------------------------
+// A previous version of this backstop tried to "self-heal" a stale install by
+// unregistering every service worker and deleting every cache before reloading.
+// That created a real offline hole: the installed PWA icon could remain while
+// Chrome temporarily had no worker/app shell left to launch, which is exactly
+// when Chrome falls back to its own generated "You're offline" PWA screen.
 //
-// The normal update paths (registerServiceWorker()'s controllerchange
-// listener, and the manual reloadApp() button) call markVersionSeen()
-// themselves just before they reload, specifically so this backstop sees
-// nothing to do on the load that follows. Without that, this ran a SECOND,
-// redundant reload after every single normal update — the mismatch here
-// used to only ever get cleared by this same block, so it could never tell
-// "a normal path just updated this" apart from "nothing ever has".
-//
-// This wipes EVERY cache bucket, including the separate offline-fallback
-// one (see OFFLINE_CACHE in service-worker.js) — deliberately: this path
-// only runs when something is stale/wrong enough to need a full reset, so
-// it shouldn't leave anything behind, offline.html included. The
-// reload this triggers re-registers the service worker, whose install
-// step repopulates OFFLINE_CACHE immediately after — the only real gap is
-// the reload itself failing while genuinely offline, which no caching
-// strategy can paper over.
-(function hardUpdateBackstop() {
+// Keep the backstop non-destructive instead. If fresh page code notices that
+// the remembered version changed, simply mark it seen and nudge the existing
+// registration to check for an update. Normal service-worker versioning and the
+// controllerchange handler below do the actual handoff atomically, so the old
+// worker/cache remain usable until the new one is ready. The explicit
+// Settings -> Reload app action is still available when a person deliberately
+// wants the destructive full reset while online.
+(function versionUpdateBackstop() {
   try {
     const seen = localStorage.getItem(SEEN_VERSION_KEY);
-    if (seen && seen !== APP_VERSION) {
-      localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION);
-      const wipe = [];
-      if ('serviceWorker' in navigator) {
-        wipe.push(navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister()))));
-      }
-      if ('caches' in window) {
-        wipe.push(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));
-      }
-      Promise.all(wipe).catch(() => {}).finally(() => window.location.reload());
-      return;
-    }
     localStorage.setItem(SEEN_VERSION_KEY, APP_VERSION);
+    if (seen && seen !== APP_VERSION && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration()
+        .then((reg) => reg && reg.update())
+        .catch(() => {});
+    }
   } catch (e) {
-    // localStorage unavailable (e.g. private browsing edge cases) — the
-    // normal service-worker update path above still applies, just skip
-    // this extra backstop rather than letting it break anything.
+    // localStorage/service-worker access can be unavailable in private or
+    // restricted browsing contexts. The ordinary registration path below
+    // still works where the platform permits it.
   }
 })();
 
@@ -100,10 +79,10 @@ function markVersionSeen() {
 // page, and a call site — without rewriting any of this.
 const state = {
   sources: {
-    official: { songs: [], loadFailed: false },
-    english: { songs: [], loadFailed: false },
-    sda: { songs: [], loadFailed: false },
-    mongolian2: { songs: [], loadFailed: false },
+    official: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
+    english: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
+    sda: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
+    mongolian2: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
     // User Songs (v3): not fetched from a manifest like official/english —
     // loaded from IndexedDB via UserSongStorage (see loadUserSongs()) —
     // but shaped identically otherwise, so every list/search/sort/song-view
@@ -219,18 +198,12 @@ const state = {
 //                       so it always starts at the top instead.
 //   onEnter          — optional callback run each time this page is shown.
 const PAGES = {
-  // onEnter re-renders the list (same pattern as user-songs/playlists
-  // below) — not because the songs themselves change on every visit, but
-  // because the fast-scroll rail's popup (scrollIndexEntries, see
-  // measureScrollIndexEntries() in js/app.js) measures each row's pixel
-  // position via getBoundingClientRect(), which collapses to zero for an
-  // element inside a hidden page. The Songbook List/Compact/Tiles toggle
-  // lives on the Settings page (#song-view-toggle in index.html), so
-  // switching it calls renderSongList() while #page-songs itself is
-  // hidden — that measurement is worthless. Re-measuring here, once the
-  // page is actually visible again, is what makes the popup show the
-  // right letter/number instead of getting stuck on the very last one.
-  'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true, onEnter: () => renderSongList() },
+  // Songs deliberately does NOT re-render its potentially-thousands of
+  // rows on every return. onSongsPageEnter() only re-measures the existing
+  // fast-scroll buckets once the hidden page is visible again (hidden-page
+  // getBoundingClientRect() values collapse to zero). Actual list rebuilds
+  // still happen when source/search/sort/view data changes.
+  'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true, onEnter: () => onSongsPageEnter() },
   'song-view':      { elId: 'page-song-view',      navKey: 'songs',     rememberScroll: false, hideNav: true },
   'user-songs':     { elId: 'page-user-songs',      navKey: 'user-songs', rememberScroll: true, onEnter: () => renderUserSongList() },
   'song-editor':    { elId: 'page-song-editor',    navKey: 'user-songs', rememberScroll: false, hideNav: true },
@@ -414,6 +387,10 @@ function t(key, ...args) {
 // ---------------------------------------------------------
 // Boot
 // ---------------------------------------------------------
+// Start service-worker registration as soon as this deferred script executes,
+// before waiting for DOMContentLoaded or window.load. That shrinks the first-
+// visit window where an installed Chrome PWA has no controlling worker yet.
+registerServiceWorker();
 document.addEventListener('DOMContentLoaded', init);
 
 // Each startup step runs independently — if one throws (a missing element,
@@ -446,7 +423,6 @@ async function init() {
   safe('bindAboutPage', bindAboutPage);
   safe('bindTrashPage', bindTrashPage);
   safe('applyLanguage', applyLanguage);
-  safe('registerServiceWorker', registerServiceWorker);
   safe('setupInstallPrompt', setupInstallPrompt);
   safe('initHistoryNav', initHistoryNav);
   safe('initSabbathMascot', initSabbathMascot);
@@ -456,7 +432,11 @@ async function init() {
   safe('initWakeLock', initWakeLock);
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
-  await Promise.all([loadAllSongData(), loadPlaylists(), loadUserSongs(), loadTrash(), loadPersonalLabels()]);
+  // Only the selected official database is loaded at startup. Other
+  // databases stay untouched until the person actually switches to them
+  // (or opens a playlist that references one), which keeps startup fast
+  // and avoids downloading thousands of songs the person may never use.
+  await Promise.all([loadSongDataFor(state.activeDbSource), loadPlaylists(), loadUserSongs(), loadTrash(), loadPersonalLabels()]);
   // Sweep anything past its 30-day retention before the Trash Bin page (or
   // its Settings badge/count, if either ever reads trashSongs) can show it
   // — every app open gets a fresh, already-clean trash list rather than
@@ -495,26 +475,20 @@ async function requestPersistentStorage() {
 // 'data/songs/' or that every song has a number — so none of THAT code
 // needs to change for a new database. Adding one (the sda database is
 // the worked example) does still touch a small, fixed set of spots
-// elsewhere, each a one-line addition:
-//   1. A new folder + manifest.json + song files under data/.
+// elsewhere, each a small fixed addition:
+//   1. A new folder + manifest.json + song files under data/. Optionally run
+//      tools/build_song_bundles.py to create a fast bootstrap database.json.
 //   2. One entry here in DB_SOURCES (folder + hasNumbers).
-//   3. One entry in state.sources, above (just above this block) —
-//      loadSongDataFor()/loadAllSongData() write into
-//      state.sources[sourceKey], so a source missing from here throws
-//      the moment its own load resolves.
+//   3. One entry in state.sources, above (just above this block).
 //   4. One entry in SONGDB_STORES (the source's IndexedDB backup store),
-//      further below — AND a SONGDB_VERSION bump next to it, since only
-//      a version bump makes existing installs' onupgradeneeded actually
-//      create the new store; without one, IndexedDB fallback for that
-//      source silently never works on devices that already have the app.
-//   5. One entry in service-worker.js's SONG_DB_FOLDERS, so the new
-//      database gets precached for offline use (kept in sync with
-//      DB_SOURCES by hand — a service worker can't import this file).
-//   6. One <option> for it in index.html's #db-select, with its value
-//      equal to its DB_SOURCES key — dbSelect reads/writes that key
-//      directly (see bindSettings() and the 'sb-db' restore in
-//      loadPrefs()), so no further translation table is needed as new
-//      options are added.
+//      further below — AND a SONGDB_VERSION bump so existing installs
+//      create the new store in onupgradeneeded.
+//   5. One <option> for it in index.html's #db-select, with its value
+//      equal to its DB_SOURCES key.
+//
+// service-worker.js no longer needs a per-database registry: /data/
+// requests are handled generically, and databases are cached only when
+// app.js actually asks for them.
 //
 //   folder     — the data/ subfolder this source's songs and
 //                manifest.json live in.
@@ -534,135 +508,176 @@ const DB_SOURCES = {
   mongolian2: { folder: 'mongolian2', hasNumbers: false },
 };
 
-// One JSON file per song, listed in <folder>/manifest.json. Adding a song
-// = add its JSON file + one line in that source's manifest; nothing else
-// in the app needs to change.
+// One JSON file per song remains the editable/latest source of truth, listed
+// in <folder>/manifest.json. database.json is intentionally only a fast
+// bootstrap snapshot: it lets a first-time device show a complete library in
+// one request, but it does NOT need to be regenerated every time one song is
+// corrected. After the bootstrap is visible, the selected database quietly
+// refreshes from the individual files in bounded batches and saves the merged
+// latest result to IndexedDB for the next launch.
 //
-// Uses Promise.allSettled rather than Promise.all deliberately: the
-// manifest and the actual files on disk can drift out of sync (a song
-// removed without updating the manifest, a typo in a filename, a song
-// still mid-upload). With Promise.all, ONE missing/broken file rejects
-// the whole batch and the entire library — every other song, including
-// ones that are perfectly fine — silently fails to load. That's the bug
-// that made the app look like it had no songs (and so no working audio
-// player) at all. allSettled loads everything that *does* work and just
-// warns about what doesn't, so one bad entry can't take down the rest.
+// Startup priority therefore is:
+//   1. IndexedDB latest merged copy (instant on returning devices)
+//   2. database.json bootstrap snapshot (one request on a first load)
+//   3. individual files as a last-resort bootstrap if both above are absent
+// Then, while online, the individual files are fetched in the background and
+// become authoritative. Only the currently selected database gets that
+// background sync; other databases stay untouched until selected.
 // ---------------------------------------------------------
-async function fetchSongData(sourceKey, { forceRefresh = false } = {}) {
+
+function songDataBaseUrl(sourceKey) {
   const dbSource = DB_SOURCES[sourceKey];
   if (!dbSource) throw new Error(`unknown song source "${sourceKey}"`);
-  const base = `data/${dbSource.folder}`;
+  return `data/${dbSource.folder}`;
+}
 
+async function fetchSongBundleSnapshot(sourceKey, { forceRefresh = false, signal } = {}) {
+  const base = songDataBaseUrl(sourceKey);
   const headers = forceRefresh ? { 'X-Force-Refresh': '1' } : {};
-  const manifestRes = await fetch(`${base}/manifest.json`, { headers });
+  // Versioned URL means a newly deployed app can ship a refreshed snapshot,
+  // while an older snapshot can still remain perfectly useful as a bootstrap
+  // between releases. The service worker treats this as cache-first.
+  const url = `${base}/database.json?v=${encodeURIComponent(SONGBOOK_VERSION_NUMBER)}`;
+  const res = await fetch(url, {
+    headers,
+    signal,
+    cache: forceRefresh ? 'reload' : 'default',
+  });
+  if (!res.ok) throw new Error(`database.json responded ${res.status}`);
+  const payload = await res.json();
+  const songs = Array.isArray(payload)
+    ? payload
+    : payload && Array.isArray(payload.songs) ? payload.songs : null;
+  if (!songs) throw new Error('database.json did not contain a song array');
+  if (payload && !Array.isArray(payload) && Number.isFinite(payload.count) && payload.count !== songs.length) {
+    throw new Error(`database.json count mismatch (${payload.count} declared, ${songs.length} loaded)`);
+  }
+  return songs;
+}
+
+async function fetchIndividualSongData(sourceKey, {
+  forceRefresh = false,
+  signal,
+  onProgress,
+} = {}) {
+  const base = songDataBaseUrl(sourceKey);
+  const headers = forceRefresh ? { 'X-Force-Refresh': '1' } : {};
+  const fetchOptions = {
+    headers,
+    signal,
+    // These are the authoritative/latest files. Ask HTTP caches to validate
+    // them rather than accepting a fresh-but-old browser cache entry forever.
+    cache: forceRefresh ? 'reload' : 'no-cache',
+  };
+
+  const manifestRes = await fetch(`${base}/manifest.json`, fetchOptions);
   if (!manifestRes.ok) throw new Error(`manifest.json responded ${manifestRes.status}`);
   const files = await manifestRes.json();
+  if (!Array.isArray(files)) throw new Error('manifest.json did not contain a file list');
 
-  // Do NOT fire the entire manifest at fetch() at once. A database can contain
-  // thousands of small song files (mongolian2 has 2,309); launching thousands
-  // of requests simultaneously can exhaust Chromium/WebView renderer/network
-  // resources and make a large, random-looking tail of otherwise valid songs
-  // fail with resource/network errors. Load in bounded batches instead.
   const SONG_FETCH_BATCH_SIZE = 16;
-  const results = [];
+  const successful = [];
+  const failed = [];
+  let completed = 0;
+  if (onProgress) onProgress(0, files.length);
 
   for (let i = 0; i < files.length; i += SONG_FETCH_BATCH_SIZE) {
+    if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const batch = files.slice(i, i + SONG_FETCH_BATCH_SIZE);
     const settled = await Promise.allSettled(batch.map(async (file) => {
       let lastErr = null;
-      // One retry is cheap for tiny JSON files and recovers transient network/
-      // service-worker races without hiding a genuinely broken/missing file.
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const res = await fetch(`${base}/${file}`, { headers });
-          if (!res.ok) throw new Error(`${file} responded ${res.status}`);
-          return await res.json();
-        } catch (err) {
-          lastErr = err;
-          if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 60));
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await fetch(`${base}/${file}`, fetchOptions);
+            if (!res.ok) throw new Error(`${file} responded ${res.status}`);
+            const song = await res.json();
+            return { file, song };
+          } catch (err) {
+            lastErr = err;
+            if (err && err.name === 'AbortError') throw err;
+            if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 60));
+          }
         }
+        throw lastErr;
+      } finally {
+        completed += 1;
+        if (onProgress) onProgress(completed, files.length);
       }
-      throw lastErr;
     }));
-    results.push(...settled);
+
+    settled.forEach((result, index) => {
+      if (result.status === 'fulfilled') successful.push(result.value);
+      else failed.push({ file: batch[index], error: result.reason });
+    });
+
+    // Cached responses can make a whole batch resolve nearly instantly. Give
+    // input/scroll/paint work one event-loop turn between batches so a large
+    // 1,000+ song sync stays background work instead of monopolizing a frame.
+    if (i + SONG_FETCH_BATCH_SIZE < files.length) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
   }
 
-  const failed = results.filter(r => r.status === 'rejected');
+  if (successful.length === 0 && files.length > 0) {
+    throw new Error('all song files failed to load');
+  }
   if (failed.length) {
     console.warn(
-      `Songbook: ${failed.length} of ${files.length} song file(s) failed to load and were skipped —`,
-      failed.map(r => r.reason && r.reason.message ? r.reason.message : r.reason)
+      `Songbook: ${failed.length} of ${files.length} authoritative song file(s) failed to load —`,
+      failed.map(item => item.error && item.error.message ? item.error.message : item.error)
     );
   }
 
-  const songs = results.filter(r => r.status === 'fulfilled').map(r => r.value);
-  if (songs.length === 0 && files.length > 0) {
-    // Every single file failed (e.g. fully offline with no cache yet) —
-    // that's the one case that should still surface as a real failure so
-    // loadSongDataFor()'s IndexedDB-backup fallback below kicks in.
-    throw new Error('all song files failed to load');
-  }
-  // hadFailures (some, but not all, files failed) lets loadSongDataFor()
-  // tell "a complete library" apart from "an incomplete one that still
-  // technically succeeded" — e.g. reconnecting partway through a slow
-  // download. See its use there for why that distinction matters.
-  return { songs, hadFailures: failed.length > 0 };
+  return {
+    songs: successful.map(item => item.song),
+    files,
+    successfulFiles: successful.map(item => item.file),
+    hadFailures: failed.length > 0,
+  };
+}
+
+// If an individual-file sync is partial, never shrink a previously usable
+// library just because a few requests failed. Successful individual files
+// overwrite the same IDs in the bootstrap/local copy and brand-new songs are
+// appended; old entries are only removed when a complete authoritative sync
+// succeeds, because only then do we know a missing manifest entry is a real
+// deletion rather than a network failure.
+function mergePartialSongUpdate(baseSongs, updatedSongs) {
+  const result = Array.isArray(baseSongs) ? baseSongs.slice() : [];
+  const indexById = new Map();
+  result.forEach((song, index) => {
+    if (song && song.id != null) indexById.set(String(song.id), index);
+  });
+  updatedSongs.forEach((song) => {
+    if (!song || song.id == null) return;
+    const key = String(song.id);
+    if (indexById.has(key)) result[indexById.get(key)] = song;
+    else {
+      indexById.set(key, result.length);
+      result.push(song);
+    }
+  });
+  return result;
 }
 
 // ---------------------------------------------------------
-// IndexedDB backup: a second, independent offline copy of the song data.
-// Cache Storage (used by the service worker) is the primary mechanism and
-// is enough on its own in normal use — this exists purely as a fallback
-// for the edge case where Cache Storage has been evicted by the OS under
-// storage pressure (a real, documented mobile behavior, and a different
-// eviction policy than IndexedDB's) while the network is also unavailable.
+// IndexedDB latest-local copy. Unlike database.json, this is rewritten after
+// a successful/partial authoritative sync, so returning devices can render the
+// newest library they have ever seen without waiting on the network.
 // ---------------------------------------------------------
 const SONGDB_NAME = 'songbook-db';
-// Bumped 1 → 2 to add 'user-songs', 2 → 3 to add 'english-songs', then
-// 3 → 4 to add 'sda-songs' below (an IndexedDB store can only be created
-// inside onupgradeneeded, which only fires on a version increase).
-// onupgradeneeded is written to only create stores that don't already
-// exist, so each of these upgrades is additive for already-installed
-// devices — their existing official-songs backup is untouched. This is
-// the one part of adding a database that isn't a same-file, no-bump
-// addition like the others (see the "adding a database" list above
-// DB_SOURCES) — skipping the bump would leave the new store never
-// created on any device that already has the app installed, silently
-// disabling that source's offline fallback for exactly the devices that
-// most need it.
-//
-// 'user-songs' specifically is used differently from 'songs'/'english-
-// songs'/'sda-songs': those three are a fetch() backup (one blob under
-// the 'all-songs' key — see saveSongsToIndexedDb/loadSongsFromIndexedDb
-// below). User Songs have no network source to fall back FROM — this
-// store IS their only copy — so UserSongStorage (see "User Songs"
-// section further down) reads and writes it directly, one song per key
-// (its own id), instead of one combined blob. Same store, same reserved
-// slot from v1, different access pattern for a different job.
-// Bumped 4 → 5 to add 'user-songs-trash' (see TrashStorage below) — same
-// additive-only onupgradeneeded as every prior bump, so this is a
-// no-op for every store an already-installed device already has.
-// Bumped 5 → 6 to add 'mongolian2-songs' for the new 'mongolian2' source.
+// Bumped 1 -> 2 to add 'user-songs', 2 -> 3 to add 'english-songs', then
+// 3 -> 4 to add 'sda-songs', 4 -> 5 to add trash, and 5 -> 6 to add
+// 'mongolian2-songs'. No schema change is needed for the bootstrap/sync
+// architecture: each fetched source still stores one array under 'all-songs'.
 const SONGDB_VERSION = 6;
-// One object store per song source (see state.sources/DB_SOURCES above),
-// so each source's offline backup lives independently and nothing
-// collides. 'user' is reserved, unused, so v2's User Songs source can
-// start saving to IndexedDB immediately — no further DB version bump
-// needed when that day comes.
 const SONGDB_STORES = {
-  official: 'songs', // kept as 'songs', not renamed to 'official-songs', so
-                      // existing installs' offline backup carries over as-is
+  official: 'songs',
   english: 'english-songs',
   sda: 'sda-songs',
   mongolian2: 'mongolian2-songs',
   user: 'user-songs',
-  // User Songs trash bin (v4.2): a deleted user song moves here instead of
-  // being wiped outright, so it can be recovered. Same one-key-per-song
-  // shape as 'user-songs' (see TrashStorage below) — this is a distinct
-  // store, not a flag on the song itself, so a trashed song simply isn't
-  // present in 'user-songs' at all and every existing loadUserSongs()/
-  // UserSongStorage caller needs no changes to keep working exactly as
-  // before.
   trash: 'user-songs-trash',
 };
 
@@ -694,7 +709,6 @@ async function saveSongsToIndexedDb(sourceKey, songs) {
     });
     db.close();
   } catch (err) {
-    // Non-fatal — this is a backup layer, not the primary path.
     console.warn(`Songbook: could not save "${sourceKey}" songs to IndexedDB —`, err);
   }
 }
@@ -713,71 +727,264 @@ async function loadSongsFromIndexedDb(sourceKey) {
   return songs;
 }
 
-// Loads one source (any key in DB_SOURCES) — network first, falling back
-// to the IndexedDB backup on failure, exactly the same recovery path
-// regardless of which source this is. Called once per registered source
-// at startup (see loadAllSongData() below) rather than assuming there's
-// only ever one.
-async function loadSongDataFor(sourceKey) {
-  const source = state.sources[sourceKey];
-  try {
-    const { songs, hadFailures } = await fetchSongData(sourceKey);
-    if (hadFailures) {
-      // Some (not all) song files failed — most often a slow or spotty
-      // connection dropping partway through the batch (e.g. reconnecting
-      // mid-download after being offline/throttled). fetchSongData()
-      // still "succeeds" in that case since at least some songs came
-      // through, but the result may be a shrunken subset of the real
-      // library rather than an intentionally smaller one. If a previous
-      // successful load already backed up a fuller copy to IndexedDB,
-      // prefer that over silently showing an incomplete songbook.
-      try {
-        const backup = await loadSongsFromIndexedDb(sourceKey);
-        if (backup && backup.length > songs.length) {
-          console.warn(`Songbook: "${sourceKey}" network load was incomplete (${songs.length} song(s)) — using the fuller IndexedDB backup (${backup.length} song(s)) instead.`);
-          source.songs = backup;
-          source.loadFailed = false;
-          return;
-        }
-      } catch (dbErr) {
-        // No usable backup to compare against — fall through and use
-        // the partial network result below; it's still better than
-        // nothing for a first-ever load.
-      }
-    }
-    source.songs = songs;
-    saveSongsToIndexedDb(sourceKey, source.songs); // fire-and-forget; don't block on this
-    source.loadFailed = false;
-  } catch (err) {
-    console.error(`Songbook: failed to load "${sourceKey}" song data over the network —`, err);
-    try {
-      const backup = await loadSongsFromIndexedDb(sourceKey);
-      if (backup && backup.length) {
-        console.warn(`Songbook: network/cache load failed for "${sourceKey}" — recovered songs from IndexedDB backup.`);
-        source.songs = backup;
-        source.loadFailed = false;
-        return;
-      }
-    } catch (dbErr) {
-      console.error(`Songbook: IndexedDB backup also unavailable for "${sourceKey}" —`, dbErr);
-    }
-    // Most likely cause if there's no backup either: the app was opened
-    // directly from disk (file://), where browsers block fetch() of local
-    // files. Serving it over http(s) — even just localhost — resolves this.
-    // (Dev-facing note only — songLoadError below is the plain, actionless
-    // message an actual end user sees; it deliberately doesn't mention any
-    // of this, since there's nothing a real user could do about it.)
-    source.songs = [];
-    source.loadFailed = true;
+// Thin, text-free progress line below the Songs search box. It only reflects
+// the selected database's work; background/bootstrap loads done solely to
+// resolve another database referenced by a playlist do not surface UI here.
+let songSyncFadeTimer = null;
+function setSongSyncProgress(sourceKey, completed, total, { indeterminate = false } = {}) {
+  if (sourceKey !== state.activeDbSource) return;
+  const track = document.getElementById('song-sync-progress');
+  const bar = document.getElementById('song-sync-progress-bar');
+  if (!track || !bar) return;
+  if (songSyncFadeTimer) {
+    clearTimeout(songSyncFadeTimer);
+    songSyncFadeTimer = null;
+  }
+  track.classList.add('is-active');
+  track.classList.toggle('is-indeterminate', indeterminate);
+  if (!indeterminate) {
+    const ratio = total > 0 ? Math.max(0, Math.min(1, completed / total)) : 0;
+    bar.style.transform = `scaleX(${ratio})`;
   }
 }
 
-// Loads every registered source (see DB_SOURCES) in parallel at startup.
-// Each source's load is independent — the English database being empty,
-// broken, or slow never blocks or fails the Mongolian one, or vice versa.
-async function loadAllSongData() {
-  await Promise.all(Object.keys(DB_SOURCES).map(loadSongDataFor));
+function finishSongSyncProgress(sourceKey) {
+  if (sourceKey !== state.activeDbSource) return;
+  const track = document.getElementById('song-sync-progress');
+  const bar = document.getElementById('song-sync-progress-bar');
+  if (!track || !bar) return;
+  track.classList.remove('is-indeterminate');
+  bar.style.transform = 'scaleX(1)';
+  songSyncFadeTimer = setTimeout(() => {
+    track.classList.remove('is-active');
+    songSyncFadeTimer = setTimeout(() => {
+      bar.style.transform = 'scaleX(0)';
+      songSyncFadeTimer = null;
+    }, 300);
+  }, 150);
 }
+
+function resetSongSyncProgress(sourceKey) {
+  if (sourceKey !== state.activeDbSource) return;
+  const track = document.getElementById('song-sync-progress');
+  const bar = document.getElementById('song-sync-progress-bar');
+  if (!track || !bar) return;
+  if (songSyncFadeTimer) clearTimeout(songSyncFadeTimer);
+  songSyncFadeTimer = null;
+  track.classList.remove('is-active', 'is-indeterminate');
+  bar.style.transform = 'scaleX(0)';
+}
+
+function isAbortError(err) {
+  return !!(err && err.name === 'AbortError');
+}
+
+// Fetch the latest individual files for the selected database without
+// blocking its already-visible bootstrap/local copy. One sync attempt per
+// source per session is enough; switching away aborts the old source so the
+// app never keeps downloading a database that is no longer selected.
+async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, manual = false } = {}) {
+  const source = state.sources[sourceKey];
+  if (!source || !DB_SOURCES[sourceKey]) return Promise.resolve(null);
+  if (!manual && source.syncAttempted) return source.songs;
+  if (source.syncPromise) {
+    const oldSyncWasAborted = !!(source.syncController && source.syncController.signal.aborted);
+    if (!manual && !oldSyncWasAborted) return source.syncPromise;
+    // A person explicitly requested Refresh, or this source was selected
+    // again while its previous pass was still unwinding from an abort. Wait
+    // for that cleanup before starting another 1,000+ file sweep.
+    if (manual && source.syncController && !source.syncController.signal.aborted) {
+      try { source.syncController.abort(); } catch (e) {}
+    }
+    try { await source.syncPromise; } catch (e) {}
+  }
+  if (!manual && sourceKey !== state.activeDbSource) return source.songs;
+  if (!navigator.onLine && !manual) return source.songs;
+
+  // Abort a different selected database that may still be downloading.
+  Object.entries(state.sources).forEach(([key, other]) => {
+    if (key !== sourceKey && other && other.syncController) {
+      try { other.syncController.abort(); } catch (e) {}
+      // Let that promise clear its own controller/promise in finally; clearing
+      // them here would allow a second sync to overlap before the abort has
+      // actually unwound.
+      other.syncAttempted = false;
+    }
+  });
+
+  const controller = new AbortController();
+  source.syncController = controller;
+  setSongSyncProgress(sourceKey, 0, 0, { indeterminate: true });
+
+  source.syncPromise = (async () => {
+    try {
+      const result = await fetchIndividualSongData(sourceKey, {
+        forceRefresh,
+        signal: controller.signal,
+        onProgress: (completed, total) => {
+          setSongSyncProgress(sourceKey, completed, total, { indeterminate: total <= 0 });
+        },
+      });
+
+      const nextSongs = result.hadFailures
+        ? mergePartialSongUpdate(source.songs, result.songs)
+        : result.songs;
+
+      source.songs = nextSongs;
+      source.loadFailed = false;
+      source.loaded = true;
+      source.syncAttempted = true;
+      await saveSongsToIndexedDb(sourceKey, nextSongs);
+
+      // Update the visible Songs list once at the END, not after each file,
+      // so a background sync never makes rows jump around while the person
+      // is reading/searching. Preserve current query/sort state.
+      searchCacheWarmSources.delete(sourceKey);
+      if (state.activeDbSource === sourceKey && state.currentPage === 'songs') {
+        renderSongList();
+        scheduleSearchCacheWarmup(sourceKey);
+      } else if (state.activeDbSource === sourceKey) {
+        // The list is hidden (song view/settings/etc.). Mark its DOM snapshot
+        // stale so onSongsPageEnter() rebuilds it once when the person comes
+        // back instead of displaying the pre-sync rows indefinitely.
+        const listEl = document.getElementById('song-list');
+        if (listEl) listEl.dataset.renderSourceKey = '';
+      }
+      finishSongSyncProgress(sourceKey);
+      return nextSongs;
+    } catch (err) {
+      if (!isAbortError(err)) {
+        console.warn(`Songbook: latest individual-file sync failed for "${sourceKey}" —`, err);
+        // Avoid hammering the same broken connection on every page revisit.
+        // A manual Refresh can always retry; an offline->online transition
+        // resets this below when the browser actually reports connectivity.
+        source.syncAttempted = true;
+        finishSongSyncProgress(sourceKey);
+      } else {
+        resetSongSyncProgress(sourceKey);
+      }
+      if (manual && !isAbortError(err)) throw err;
+      return source.songs;
+    } finally {
+      if (source.syncController === controller) {
+        source.syncController = null;
+        source.syncPromise = null;
+      }
+    }
+  })();
+
+  return source.syncPromise;
+}
+
+function scheduleSongDataSync(sourceKey) {
+  const start = () => {
+    if (state.activeDbSource !== sourceKey) return;
+    syncSongDataFromIndividuals(sourceKey);
+  };
+  // Let the bootstrap/local list paint first; the authoritative sweep is
+  // intentionally background work and should never compete with first paint.
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => setTimeout(start, 0));
+  } else {
+    setTimeout(start, 0);
+  }
+}
+
+async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
+  const source = state.sources[sourceKey];
+  if (!source || !DB_SOURCES[sourceKey]) throw new Error(`unknown song source "${sourceKey}"`);
+  const shouldSync = syncLatest !== undefined ? syncLatest : sourceKey === state.activeDbSource;
+
+  if (source.loaded) {
+    if (shouldSync) scheduleSongDataSync(sourceKey);
+    return source.songs;
+  }
+  if (source.loadPromise) {
+    const songs = await source.loadPromise;
+    if (shouldSync) scheduleSongDataSync(sourceKey);
+    return songs;
+  }
+
+  source.loadPromise = (async () => {
+    // Returning device: the merged IndexedDB copy is normally the newest and
+    // requires no network at all, so prefer it over the release snapshot.
+    try {
+      const localSongs = await loadSongsFromIndexedDb(sourceKey);
+      if (Array.isArray(localSongs) && localSongs.length) {
+        source.songs = localSongs;
+        source.loadFailed = false;
+        source.loaded = true;
+        return source.songs;
+      }
+    } catch (err) {
+      console.warn(`Songbook: no IndexedDB bootstrap available for "${sourceKey}" —`, err);
+    }
+
+    // First-time/recovered device: one-request snapshot so the UI can become
+    // usable quickly before thousands of authoritative files are checked.
+    try {
+      if (sourceKey === state.activeDbSource) setSongSyncProgress(sourceKey, 0, 0, { indeterminate: true });
+      const snapshot = await fetchSongBundleSnapshot(sourceKey);
+      source.songs = snapshot;
+      source.loadFailed = false;
+      source.loaded = true;
+      // Keep storage writes ordered: the background authoritative sync only
+      // starts after this bootstrap promise resolves, so this older snapshot
+      // can never finish writing *after* a newer individual-file result.
+      await saveSongsToIndexedDb(sourceKey, snapshot);
+      return source.songs;
+    } catch (bundleErr) {
+      console.warn(`Songbook: database.json bootstrap failed for "${sourceKey}"; trying individual files —`, bundleErr);
+    }
+
+    // Last-resort first load: if neither local nor database.json is usable,
+    // the individual source files can still construct the app database.
+    try {
+      const result = await fetchIndividualSongData(sourceKey, {
+        onProgress: (completed, total) => {
+          if (sourceKey === state.activeDbSource) setSongSyncProgress(sourceKey, completed, total, { indeterminate: total <= 0 });
+        },
+      });
+      source.songs = result.songs;
+      source.loadFailed = false;
+      source.loaded = true;
+      source.syncAttempted = !result.hadFailures;
+      await saveSongsToIndexedDb(sourceKey, source.songs);
+      finishSongSyncProgress(sourceKey);
+      return source.songs;
+    } catch (err) {
+      console.error(`Songbook: failed to bootstrap "${sourceKey}" song data —`, err);
+      source.songs = [];
+      source.loadFailed = true;
+      source.loaded = true;
+      resetSongSyncProgress(sourceKey);
+      return source.songs;
+    }
+  })();
+
+  try {
+    const songs = await source.loadPromise;
+    // Once bootstrap is visible, authoritative sync is deliberately detached
+    // from this promise so startup/navigation never waits for it.
+    if (shouldSync && source.loaded && !source.loadFailed && !source.syncAttempted) {
+      if (navigator.onLine) scheduleSongDataSync(sourceKey);
+      else finishSongSyncProgress(sourceKey);
+    }
+    return songs;
+  } finally {
+    source.loadPromise = null;
+  }
+}
+
+// If the app started offline and later regains connectivity, give the selected
+// database one chance to catch up automatically. No other database is touched.
+window.addEventListener('online', () => {
+  const source = state.sources[state.activeDbSource];
+  if (source && source.loaded) {
+    source.syncAttempted = false;
+    syncSongDataFromIndividuals(state.activeDbSource);
+  }
+});
 
 // ---------------------------------------------------------
 // User Songs (v3): locally-authored/imported songs, stored on-device only
@@ -849,19 +1056,41 @@ function genUserSongId() {
   return 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-// Loaded once at startup (see init()) alongside loadAllSongData()/
+// Older builds stored a derived __searchCache directly on song objects.
+// Strip it whenever User Songs cross a persistence/export boundary so that
+// implementation detail can never leak into backups or be re-imported as
+// stale data. New builds use a WeakMap for search caches, so this is mainly
+// cleanup for existing installs/files created by an older version.
+function sanitizeUserSongRecord(song) {
+  if (song && typeof song === 'object' && Object.prototype.hasOwnProperty.call(song, '__searchCache')) {
+    delete song.__searchCache;
+  }
+  return song;
+}
+
+// Loaded once at startup (see init()) alongside the selected database/
 // loadPlaylists() — a failure here just leaves User Songs empty (with
 // state.sources.user.loadFailed set so renderSongList() shows the same
 // "couldn't load" row it already knows how to show for official/English),
 // never blocks the rest of the app from starting.
 async function loadUserSongs() {
   try {
-    state.sources.user.songs = await UserSongStorage.loadAll();
+    const loaded = await UserSongStorage.loadAll();
+    let cleanedLegacyCache = false;
+    loaded.forEach(song => {
+      if (song && Object.prototype.hasOwnProperty.call(song, '__searchCache')) cleanedLegacyCache = true;
+      sanitizeUserSongRecord(song);
+    });
+    state.sources.user.songs = loaded;
     state.sources.user.loadFailed = false;
+    state.sources.user.loaded = true;
+    // Clean old persisted records once, without making startup wait on it.
+    if (cleanedLegacyCache) loaded.forEach(song => UserSongStorage.put(song).catch(() => {}));
   } catch (err) {
     console.error('Songbook: failed to load user songs from IndexedDB —', err);
     state.sources.user.songs = [];
     state.sources.user.loadFailed = true;
+    state.sources.user.loaded = true;
   }
 }
 
@@ -869,6 +1098,7 @@ async function loadUserSongs() {
 // state.sources.user.songs is an update, otherwise it's an insert) in both
 // IndexedDB and the in-memory list, keeping them in lockstep.
 async function saveUserSong(song) {
+  sanitizeUserSongRecord(song);
   const list = state.sources.user.songs;
   const idx = list.findIndex(s => s.id === song.id);
   if (idx === -1) list.push(song);
@@ -1324,7 +1554,8 @@ function confirmPermanentlyDeleteTrashSongs(ids) {
 // so this is the honest way to carry hand-authored songs to a different
 // browser on the same phone (or as a manual backup) without a server.
 function exportUserSongs() {
-  const blob = new Blob([JSON.stringify(state.sources.user.songs, null, 2)], { type: 'application/json' });
+  const exportSongs = state.sources.user.songs.map(song => sanitizeUserSongRecord({ ...song }));
+  const blob = new Blob([JSON.stringify(exportSongs, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1349,11 +1580,13 @@ async function importUserSongsFromFile(file) {
     // User Songs are stored one key per song (see UserSongStorage above),
     // so the store is cleared first rather than just overwritten, to
     // avoid leaving pre-import songs orphaned behind the new list.
+    const cleanData = data.map(song => sanitizeUserSongRecord(song));
     await UserSongStorage.clear();
-    for (const song of data) {
+    for (const song of cleanData) {
       await UserSongStorage.put(song);
     }
-    state.sources.user.songs = data;
+    state.sources.user.songs = cleanData;
+    state.sources.user.loaded = true;
     if (state.currentPage === 'user-songs') renderUserSongList();
     if (state.currentPage === 'playlists') renderPlaylistsList();
     if (state.currentPage === 'playlist-view') renderPlaylistView();
@@ -1365,30 +1598,34 @@ async function importUserSongsFromFile(file) {
   }
 }
 
-// Manual "Refresh song database" button: asks the service worker to try the
-// network first (see the X-Force-Refresh handling in service-worker.js),
-// falling back to the existing cached copy if that fails — so a refresh
-// attempted while offline just silently keeps the offline copy intact
-// instead of ever deleting it. The cache is only ever replaced by data
-// that's confirmed to have loaded successfully. Unlike the initial load, a
-// failure here also leaves the source's songs alone — no point wiping out songs
-// that were already showing just because this refresh attempt failed.
-// Only refreshes whichever source is currently active in Settings → Song
-// database — not every registered source — since that's the one whose
-// staleness the person is actually looking at and asking to fix.
+// Manual "Refresh song database" button: checks the authoritative individual
+// song files for whichever database is currently selected. database.json is
+// only the bootstrap snapshot, so it does not have to be regenerated for a
+// one-song correction. While offline the action simply keeps the current local
+// copy intact; while online it uses the same thin progress line as automatic
+// background sync and never wipes already-visible songs on a failed refresh.
 async function reloadSongLibrary() {
   const btn = document.getElementById('reload-songs-btn');
   btn.disabled = true;
   btn.textContent = t('reloadBtnBusy');
 
   const sourceKey = state.activeDbSource;
+  const source = state.sources[sourceKey];
+  if (!navigator.onLine) {
+    showToast(t('toastLibraryOffline'));
+    btn.disabled = false;
+    btn.textContent = t('reloadBtn');
+    return;
+  }
   try {
-    const { songs } = await fetchSongData(sourceKey, { forceRefresh: true });
-    const source = state.sources[sourceKey];
-    source.songs = songs;
-    source.loadFailed = false;
-    saveSongsToIndexedDb(sourceKey, source.songs);
+    // Manual refresh means "check the authoritative individual files now".
+    // database.json remains only the fast bootstrap snapshot and is never
+    // required to be rebuilt for a one-song correction.
+    if (source) source.syncAttempted = false;
+    await syncSongDataFromIndividuals(sourceKey, { forceRefresh: true, manual: true });
     renderSongList();
+    searchCacheWarmSources.delete(sourceKey);
+    scheduleSearchCacheWarmup(sourceKey);
     showToast(navigator.onLine ? t('toastLibraryReloaded') : t('toastLibraryOffline'));
   } catch (err) {
     console.error('Songbook: manual song database refresh failed —', err);
@@ -1922,8 +2159,32 @@ function applyHideVerseNumbers() {
 // snaps sortBy to 'alpha' so the Songs page never gets stuck showing a
 // sort control for a field that doesn't exist; switching to a numbered
 // source later restores it.
+function renderSongLoadingState() {
+  const listEl = document.getElementById('song-list');
+  const emptyEl = document.getElementById('empty-state');
+  const countEl = document.getElementById('results-count');
+  // Loading is intentionally represented ONLY by the thin progress line
+  // under Search — no spinner, status sentence, or temporary list row.
+  if (listEl) listEl.innerHTML = '';
+  if (emptyEl) emptyEl.hidden = true;
+  if (countEl) countEl.textContent = '';
+  setSongSyncProgress(state.activeDbSource, 0, 0, { indeterminate: true });
+  const track = document.getElementById('song-scroll-index');
+  if (track) track.hidden = true;
+}
+
 function applyDbSource(sourceKey) {
+  if (!DB_SOURCES[sourceKey]) sourceKey = 'official';
+  const previousSourceKey = state.activeDbSource;
+  if (previousSourceKey !== sourceKey) {
+    const previousSource = state.sources[previousSourceKey];
+    if (previousSource && previousSource.syncController) {
+      try { previousSource.syncController.abort(); } catch (e) {}
+      previousSource.syncAttempted = false;
+    }
+  }
   state.activeDbSource = sourceKey;
+  resetSongSyncProgress(sourceKey);
   state.query = '';
   const searchInput = document.getElementById('search-input');
   if (searchInput) searchInput.value = '';
@@ -1938,7 +2199,31 @@ function applyDbSource(sourceKey) {
     if (alphaBtn) alphaBtn.setAttribute('aria-pressed', 'true');
   }
 
-  renderSongList();
+  const source = state.sources[sourceKey];
+  const listEl = document.getElementById('song-list');
+  if (source && source.loaded) {
+    // Database changes are made from Settings, where #page-songs is hidden.
+    // Don't spend a frame building thousands of invisible rows there; mark
+    // the list stale and let onSongsPageEnter() build it once when needed.
+    if (state.currentPage === 'songs') renderSongList();
+    else if (listEl) listEl.dataset.renderSourceKey = '';
+    scheduleSearchCacheWarmup(sourceKey);
+    loadSongDataFor(sourceKey); // schedules the selected source's latest sync
+    return;
+  }
+
+  // Settings can switch databases while the Songs page is hidden. Start
+  // the selected database immediately, but don't touch any unrelated DB or
+  // build a hidden song list. The thin progress line will already be active
+  // if the person returns to Songs before bootstrap/sync finishes.
+  if (state.currentPage === 'songs') renderSongLoadingState();
+  else if (listEl) listEl.dataset.renderSourceKey = '';
+  loadSongDataFor(sourceKey).then(() => {
+    if (state.activeDbSource !== sourceKey) return;
+    if (state.currentPage === 'songs') renderSongList();
+    else if (listEl) listEl.dataset.renderSourceKey = '';
+    scheduleSearchCacheWarmup(sourceKey);
+  });
 }
 
 // ---------------------------------------------------------
@@ -2622,16 +2907,17 @@ function searchWords(q) {
 }
 
 // Search performance: the expensive, immutable parts of each song are
-// prepared ONCE and kept on the song object. Lyrics are chord-stripped and
-// normalised only on the first search, which is the biggest win on the
-// 2,000+ song databases.
+// prepared ONCE, but kept outside the song object in a WeakMap. Derived
+// search state must never leak into User Song exports/IndexedDB or survive
+// an import as stale metadata.
 //
-// Labels are deliberately NOT stored here. Personal labels can be added or
-// removed while the same song object remains alive, and preset labels can
-// display differently after a language switch. Their search data is tiny,
-// so getSearchLabelData() computes it fresh and avoids stale search results.
+// Labels are deliberately NOT cached here. Personal labels can change while
+// the same song object remains alive, and preset labels can display
+// differently after a language switch.
+const songSearchCache = new WeakMap();
 function getSearchCache(song) {
-  if (!song.__searchCache) {
+  let cached = songSearchCache.get(song);
+  if (!cached) {
     const title = normalizeSearchText(song.title);
     const altTitles = (Array.isArray(song.alternateTitles) ? song.alternateTitles : [])
       .filter(Boolean)
@@ -2644,7 +2930,7 @@ function getSearchCache(song) {
     const contentHaystack = [title, number, ...altTitles, lyrics].filter(Boolean).join(' \n ');
     const haystack = [contentHaystack, artist].filter(Boolean).join(' \n ');
 
-    song.__searchCache = {
+    cached = {
       title,
       altTitles,
       artist,
@@ -2654,8 +2940,9 @@ function getSearchCache(song) {
       contentHaystack,
       haystack,
     };
+    songSearchCache.set(song, cached);
   }
-  return song.__searchCache;
+  return cached;
 }
 
 // Search both the stored label value and the text the person actually sees.
@@ -2741,27 +3028,17 @@ function relevanceRank(song, q, sourceKey = state.activeDbSource) {
   return 15;
 }
 
-// Opportunistically prepare the immutable search caches after startup.
-// requestIdleCallback keeps this out of interaction/animation frames; the
-// small fallback batches do the same job on browsers that lack that API.
-// The active database is queued first, then the remaining sources, so the
-// page the person is most likely to search becomes warm earliest.
-let searchCacheWarmupStarted = false;
-function scheduleSearchCacheWarmup() {
-  if (searchCacheWarmupStarted) return;
-  searchCacheWarmupStarted = true;
+// Opportunistically prepare immutable search data only for a database that
+// is actually loaded/used. This keeps first-search latency low without
+// quietly warming every other registered database in the background.
+const searchCacheWarmSources = new Set();
+function scheduleSearchCacheWarmup(sourceKey = state.activeDbSource) {
+  const source = state.sources[sourceKey];
+  if (!source || !source.loaded || !Array.isArray(source.songs) || !source.songs.length) return;
+  if (searchCacheWarmSources.has(sourceKey)) return;
+  searchCacheWarmSources.add(sourceKey);
 
-  const sourceKeys = [
-    state.activeDbSource,
-    ...Object.keys(state.sources).filter(key => key !== state.activeDbSource),
-  ];
-  const songs = [];
-  sourceKeys.forEach(key => {
-    const source = state.sources[key];
-    if (source && Array.isArray(source.songs)) songs.push(...source.songs);
-  });
-  if (!songs.length) return;
-
+  const songs = source.songs;
   let index = 0;
   const schedule = (fn) => {
     if (typeof window.requestIdleCallback === 'function') {
@@ -2776,8 +3053,6 @@ function scheduleSearchCacheWarmup() {
     const maxPerSlice = deadline ? 60 : 24;
 
     while (index < songs.length && processed < maxPerSlice) {
-      // Always make a little progress, but once we've handled a few songs,
-      // yield if the browser says the idle window is almost over.
       if (processed >= 8 && deadline && !deadline.didTimeout && deadline.timeRemaining() < 3) break;
       getSearchCache(songs[index++]);
       processed++;
@@ -2862,6 +3137,40 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// Search result animations are intentionally limited to rows that are
+// actually visible. Animating hundreds/thousands of off-screen rows wastes
+// main-thread/compositor work the person can never see. Sampling a few
+// points across the viewport handles list/compact/tile layouts without a
+// layout read for every row.
+function visibleSongRowKeys(listEl) {
+  const keys = new Set();
+  if (!listEl || !listEl.isConnected || listEl.hidden) return keys;
+  const rect = listEl.getBoundingClientRect();
+  const top = Math.max(0, rect.top);
+  const bottom = Math.min(window.innerHeight, rect.bottom);
+  if (bottom <= top || rect.width <= 0) return keys;
+
+  const xPositions = [0.12, 0.5, 0.88].map(ratio =>
+    Math.max(1, Math.min(window.innerWidth - 2, rect.left + rect.width * ratio))
+  );
+  const step = 28;
+  for (let y = top + 2; y <= bottom; y += step) {
+    xPositions.forEach(x => {
+      const hit = document.elementFromPoint(x, y);
+      const item = hit && hit.closest ? hit.closest('li[data-row-key]') : null;
+      if (item && listEl.contains(item)) keys.add(item.dataset.rowKey);
+    });
+  }
+  // Include the bottom edge in case a short visible row falls between the
+  // sampling steps.
+  xPositions.forEach(x => {
+    const hit = document.elementFromPoint(x, Math.max(top, bottom - 2));
+    const item = hit && hit.closest ? hit.closest('li[data-row-key]') : null;
+    if (item && listEl.contains(item)) keys.add(item.dataset.rowKey);
+  });
+  return keys;
+}
+
 function renderSongList(opts = {}) {
   const {
     sourceKey = state.activeDbSource,
@@ -2881,6 +3190,22 @@ function renderSongList(opts = {}) {
   const listEl = document.getElementById(listElId);
   const emptyEl = document.getElementById(emptyElId);
   const countEl = document.getElementById(countElId);
+
+  if (listEl) {
+    listEl.dataset.renderSourceKey = sourceKey;
+    listEl.dataset.renderQuery = query || '';
+  }
+
+  if (source && DB_SOURCES[sourceKey] && !source.loaded) {
+    listEl.innerHTML = '';
+    emptyEl.hidden = true;
+    countEl.textContent = '';
+    if (listElId === 'song-list') {
+      setSongSyncProgress(sourceKey, 0, 0, { indeterminate: true });
+      updateSongScrollIndex([], false, '');
+    }
+    return;
+  }
 
   if (!source || source.loadFailed) {
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
@@ -2941,8 +3266,10 @@ function renderSongList(opts = {}) {
     if (li.dataset.rowKey) existingRows.set(li.dataset.rowKey, li);
   });
 
+  const visibleBefore = visibleSongRowKeys(listEl);
   const fragment = document.createDocumentFragment();
   const keptKeys = new Set();
+  const newRows = new Map();
 
   filtered.forEach(song => {
     const key = `${sourceKey}:${song.id}`;
@@ -2963,11 +3290,7 @@ function renderSongList(opts = {}) {
       updateSongRowContent(li, song, hasNumbers, q);
     } else {
       li = buildSongRow(song, hasNumbers, q, sourceKey);
-      li.classList.add('song-row-enter');
-      li.addEventListener('animationend', function onEnd() {
-        li.classList.remove('song-row-enter');
-        li.removeEventListener('animationend', onEnd);
-      }, { once: true });
+      newRows.set(key, li);
     }
     fragment.appendChild(li); // detaches reused rows from listEl, leaving only dropped-out ones behind
   });
@@ -2977,6 +3300,10 @@ function renderSongList(opts = {}) {
   // instantly.
   existingRows.forEach((li, key) => {
     if (keptKeys.has(key) || li.dataset.state === 'exiting') return;
+    if (!visibleBefore.has(key)) {
+      li.remove();
+      return;
+    }
     li.dataset.state = 'exiting';
     li.classList.add('song-row-exit');
     const cleanup = () => {
@@ -2993,7 +3320,60 @@ function renderSongList(opts = {}) {
   // underneath.
   listEl.insertBefore(fragment, listEl.firstChild);
 
+  // Force one layout read now to identify which newly-created rows are
+  // actually visible, then add animation classes before the browser paints.
+  // This avoids both off-screen animation work and a one-frame flash where a
+  // new row would otherwise appear fully opaque before its animation starts.
+  if (newRows.size) {
+    const visibleAfter = visibleSongRowKeys(listEl);
+    visibleAfter.forEach(key => {
+      const li = newRows.get(key);
+      if (!li || !listEl.contains(li)) return;
+      li.classList.add('song-row-enter');
+      li.addEventListener('animationend', function onEnd() {
+        li.classList.remove('song-row-enter');
+        li.removeEventListener('animationend', onEnd);
+      }, { once: true });
+    });
+  }
+
   if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q);
+}
+
+// Returning to Songs should not rebuild thousands of rows just because the
+// page became visible again. The rows themselves are already current; the
+// only thing that needs a visible-page pass is the fast-scroll rail, whose
+// pixel positions can't be measured correctly while #page-songs is hidden.
+function onSongsPageEnter() {
+  const source = state.sources[state.activeDbSource];
+  const listEl = document.getElementById('song-list');
+
+  if (!source || !source.loaded) {
+    renderSongLoadingState();
+    if (source && !source.loadPromise) {
+      loadSongDataFor(state.activeDbSource).then(() => {
+        if (state.currentPage === 'songs') renderSongList();
+      });
+    }
+    return;
+  }
+
+  const renderMatchesCurrentState = listEl
+    && listEl.dataset.renderSourceKey === state.activeDbSource
+    && listEl.dataset.renderQuery === (state.query || '');
+
+  if (!renderMatchesCurrentState) {
+    renderSongList();
+    return;
+  }
+
+  refreshSongScrollIndexMeasurements();
+}
+
+function refreshSongScrollIndexMeasurements() {
+  if (!scrollIndexEntries.length) return;
+  scrollIndexEntries = measureScrollIndexEntries(scrollIndexEntries);
+  updateScrollThumbPosition();
 }
 
 // ---------------------------------------------------------
@@ -4476,6 +4856,15 @@ const LabelStorage = {
     }
   },
   async save(data) {
+    // Keep a current localStorage mirror on every successful change, just
+    // like playlists do. If IndexedDB later becomes unavailable/corrupt,
+    // the fallback is therefore current instead of being an old or missing
+    // copy that was only ever written after a previous failure.
+    try {
+      localStorage.setItem(LABELS_LS_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn('Songbook: labels localStorage mirror write failed —', err);
+    }
     try {
       const db = await this._openDb();
       await new Promise((resolve, reject) => {
@@ -4486,12 +4875,7 @@ const LabelStorage = {
       });
       db.close();
     } catch (err) {
-      console.warn('Songbook: labels IndexedDB write failed, falling back to localStorage —', err);
-      try {
-        localStorage.setItem(LABELS_LS_KEY, JSON.stringify(data));
-      } catch (err2) {
-        console.error('Songbook: labels localStorage write also failed —', err2);
-      }
+      console.warn('Songbook: labels IndexedDB write failed (localStorage mirror still saved) —', err);
     }
   },
 };
@@ -5023,6 +5407,20 @@ function openPlaylist(id, opts = {}) {
   if (pushHistory) {
     pushNavState({ page: 'playlist-view', playlistId: id });
   }
+
+  // Startup only loads the selected song database. A playlist can still
+  // contain references to databases used on an earlier session, so hydrate
+  // those sources only when this playlist actually needs them. This keeps
+  // startup lean without making cross-database Favorites/playlists lose
+  // rows after a reload.
+  const missingSourceKeys = Array.from(new Set(pl.songs
+    .map(ref => ref.sourceKey)
+    .filter(key => DB_SOURCES[key] && state.sources[key] && !state.sources[key].loaded)));
+  if (missingSourceKeys.length) {
+    Promise.all(missingSourceKeys.map(loadSongDataFor)).then(() => {
+      if (state.activePlaylistId === id && state.currentPage === 'playlist-view') renderPlaylistView();
+    });
+  }
 }
 
 // animate: true fades newly-added songs in (see the song-row-enter/exit
@@ -5056,7 +5454,9 @@ function renderPlaylistView(opts = {}) {
   const resolved = pl.songs
     .map(ref => ({ ref, song: findSongByRef(ref.sourceKey, ref.songId) }))
     .filter(x => x.song);
-  emptyEl.hidden = resolved.length !== 0;
+  // If references exist but their lazy source is still loading, don't flash
+  // a false "playlist is empty" message for a moment.
+  emptyEl.hidden = pl.songs.length !== 0 || resolved.length !== 0;
 
   resolved.forEach(({ ref, song }, index) => {
     const li = document.createElement('li');
@@ -6469,15 +6869,15 @@ function registerServiceWorker() {
     window.location.reload();
   });
 
-  window.addEventListener('load', () => {
-    // updateViaCache: 'none' makes the browser always fetch this script
-    // (and anything it imports) fresh over the network when checking for
-    // updates, rather than potentially reusing an HTTP-cached copy.
-    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then((reg) => {
-      console.log('Songbook: service worker registered with scope', reg.scope);
-    }).catch(err => {
-      console.error('Songbook: service worker registration failed —', err);
-    });
+  // Register immediately; do not wait for window.load. Installed PWAs can be
+  // launched again before every image/font has finished, and Chrome's own
+  // generated offline screen is what appears when there is no controlling
+  // worker available to answer that launch navigation. updateViaCache:none
+  // also keeps update checks from reusing an HTTP-cached worker script.
+  navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then((reg) => {
+    console.log('Songbook: service worker registered with scope', reg.scope);
+  }).catch(err => {
+    console.error('Songbook: service worker registration failed —', err);
   });
 }
 

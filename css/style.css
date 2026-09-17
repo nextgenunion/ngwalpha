@@ -631,6 +631,54 @@ body.nav-hidden .page-inner {
 #search-input:focus, .search-field:focus,
 #search-input:focus-visible, .search-field:focus-visible { outline: none; box-shadow: none; }
 
+/* Selected-database sync progress: intentionally only a thin line, no text,
+   spinner, card, or blocking overlay. The 2px track keeps its layout space
+   even at opacity 0, so appearing/disappearing never nudges the sort row. */
+.song-sync-progress {
+  position: relative;
+  height: 2px;
+  margin: 6px 4px -2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity .28s ease;
+  pointer-events: none;
+}
+.song-sync-progress.is-active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.song-sync-progress-bar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-strong);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .16s linear;
+  will-change: transform;
+}
+.song-sync-progress.is-indeterminate .song-sync-progress-bar {
+  width: 34%;
+  transform: translateX(-120%);
+  animation: song-sync-indeterminate .9s ease-in-out infinite;
+}
+@keyframes song-sync-indeterminate {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(390%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .song-sync-progress { transition: none; }
+  .song-sync-progress-bar { transition: none; }
+  .song-sync-progress.is-indeterminate .song-sync-progress-bar {
+    width: 100%;
+    transform: scaleX(.18);
+    transform-origin: left center;
+    animation: none;
+  }
+}
+
 /* ---------- sort row ---------- */
 .sort-row {
   display: flex;
@@ -3580,3 +3628,51 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 
 /* ---------- song-view "…" menu (edit/delete a user song) ---------- */
 #sv-menu-btn { flex-shrink: 0; }
+
+/* ---------- coarse-pointer touch targets ----------
+   Keep the visual controls compact, but give the small 26–38px buttons a
+   roughly 44px invisible hit area on touch devices. Adjacent circular
+   controls get enough gap that these hit areas meet rather than overlap,
+   avoiding ambiguous taps while preserving the existing visual sizing. */
+@media (pointer: coarse) {
+  .icon-btn,
+  .chip-btn,
+  .song-row-remove,
+  .trash-row-menu-btn,
+  .drag-handle,
+  .sort-btn {
+    position: relative;
+  }
+
+  .icon-btn::after,
+  .chip-btn::after,
+  .song-row-remove::after,
+  .trash-row-menu-btn::after,
+  .drag-handle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(44px, 100%);
+    height: max(44px, 100%);
+    transform: translate(-50%, -50%);
+    background: transparent;
+  }
+
+  /* Sort pills are already comfortably wide; only their vertical target
+     needs expansion, so neighboring pills never overlap horizontally. */
+  .sort-btn::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+    background: transparent;
+  }
+
+  .sv-header-actions { gap: 10px; }       /* 34px buttons -> 44px centers */
+  .transpose-controls { gap: 18px; }      /* 26px chips -> 44px centers */
+  .font-group { column-gap: 18px; }       /* A− / A+ pairs stay unambiguous */
+}

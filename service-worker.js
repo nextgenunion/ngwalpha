@@ -12,65 +12,32 @@
 importScripts('./version.js');
 const CACHE_VERSION = self.SONGBOOK_CACHE_VERSION;
 
-// Separate, fixed-name cache just for the offline fallback page. Deliberately
-// NOT part of CACHE_VERSION (the main versioned cache) for two reasons:
-//
-// 1. activate() below deletes every cache bucket except the current
-//    CACHE_VERSION, to drop stale versions on update. If offline.html lived
-//    in that same bucket, a wipe of the main cache (a full "clear site
-//    data", or the person clearing their browser cache/storage by hand)
-//    would take offline.html down with it — so the one time it's actually
-//    needed most (this device has nothing left cached), it wouldn't be
-//    there either, and the fetch handler's fallback would silently resolve
-//    to nothing instead of the offline screen.
-// 2. Because this bucket's name never changes between versions, it isn't
-//    touched by the version-rotation cleanup at all — it survives updates
-//    the same way it survives a manual cache clear, without needing to be
-//    re-downloaded on every single version bump.
+// Separate, fixed-name cache just for the app's own last-resort offline
+// page. Keeping it outside CACHE_VERSION means ordinary app version rotation
+// does not delete it while a new shell is being activated. It cannot survive
+// an explicit browser/site-data clear (no web app can), but as long as the
+// service worker itself still exists, navigation below will prefer the full
+// cached app shell and use offline.html only if that shell is unavailable.
 const OFFLINE_CACHE = 'songbook-offline-fallback';
 
-// Same idea as OFFLINE_CACHE above, and for the same "must survive a
-// version bump" reason — but for song data instead of the offline page.
-//
-// Bug this fixes: song files (hundreds of small JSON files under data/)
-// used to live in the versioned CACHE_VERSION bucket alongside the app
-// shell. Every version bump's activate() wipes every bucket except the
-// new CACHE_VERSION — so a routine app update was ALSO silently deleting
-// every song file that had already been downloaded, at the exact moment
-// registerServiceWorker()'s controllerchange handler auto-reloads the
-// page to pick up that update. A person on a slow/metered connection who
-// happened to have the app open when an update landed would get the new
-// app shell instantly (tiny, and already downloaded during the update
-// check) but then hit a fully-empty song cache and have to re-download
-// every song file from scratch over that slow connection — looking
-// exactly like "the app reloaded and now the songs won't load" even
-// though their device had a perfectly good copy moments earlier.
-//
-// Keeping song data in its own never-versioned bucket means a version
-// bump only replaces the (small, fast) app-shell files; already-cached
-// songs simply carry over untouched across every update, version after
-// version, the same way OFFLINE_CACHE always has. Song content updates
-// still reach the device — see the fetch handler's stale-while-revalidate
-// below, plus the explicit "Refresh song database" button — just not by
-// blowing away the whole library first.
+// Song data lives in a stable cache so an app-shell version bump does not
+// erase databases that were already used offline. Runtime loading is lazy:
+// only the selected/needed database is requested by app.js. database.json is
+// a cache-first bootstrap snapshot; manifest.json + individual song files are
+// network-first because those individual files are the authoritative/latest
+// source after the fast bootstrap is already visible.
 const SONGDATA_CACHE = 'songbook-data';
 
-// Whether a request is for song data (manifest.json or a song's own JSON
-// file under any data/<folder>/ — see SONG_DB_FOLDERS below) rather than
-// an app-shell file. Used by the fetch handler and the background
-// precache below to route song requests to SONGDATA_CACHE instead of the
-// versioned CACHE_VERSION bucket — see the comment on SONGDATA_CACHE
-// above for why that split exists.
 function isSongDataRequest(url) {
   return url.pathname.includes('/data/');
 }
 
-// Manifests are tiny but authoritative. Returning a stale cached manifest first
-// can make a newly-expanded database look permanently smaller for that launch
-// (e.g. an old 667-entry manifest even though 2,309 files are deployed). Ask the
-// network first for manifests and only fall back to cache when offline.
 function isSongManifestRequest(url) {
   return isSongDataRequest(url) && url.pathname.endsWith('/manifest.json');
+}
+
+function isSongBundleRequest(url) {
+  return isSongDataRequest(url) && url.pathname.endsWith('/database.json');
 }
 
 // The core shell: without any one of these the app can't run at all, so
@@ -80,6 +47,7 @@ function isSongManifestRequest(url) {
 const CORE_SHELL = [
   './',
   './index.html',
+  './offline.html',
   './manifest.json',
   './version.js',
   './css/style.css',
@@ -108,11 +76,14 @@ const BEST_EFFORT_ASSETS = [
   './icons/svg/mail-contact.svg',
   './icons/svg/copy.svg',
   './icons/svg/nav-songs-bookmark.svg',
+  './icons/svg/nav-user-songs.svg',
   './icons/svg/nav-settings-gear.svg',
   './icons/svg/nav-playlist.svg',
   './icons/svg/heart-outline.svg',
   './icons/svg/heart-filled.svg',
   './icons/svg/menu-kebab.svg',
+  './icons/svg/presentation.svg',
+  './icons/svg/tag.svg',
   './icons/svg/plus.svg',
   './icons/svg/trash.svg',
   './icons/svg/pencil.svg',
@@ -124,12 +95,11 @@ const BEST_EFFORT_ASSETS = [
   './icons/svg/social-youtube.svg',
   './icons/svg/social-instagram.svg',
   './icons/svg/social-website.svg',
+  './icons/svg/mascot-sabbath.svg',
 ];
 
 async function cacheBestEffort(cache, urls) {
-  // Keep background precaching bounded too. Running cache.add() for thousands
-  // of song URLs at once competes with app.js's foreground song loader and can
-  // trigger the same browser resource exhaustion the loader avoids.
+  // Small bounded batches keep optional icon caching out of the critical path.
   const CACHE_BATCH_SIZE = 8;
   const results = [];
   for (let i = 0; i < urls.length; i += CACHE_BATCH_SIZE) {
@@ -157,150 +127,157 @@ self.addEventListener('install', (event) => {
   // shell install (the one thing that's required to succeed) isn't put
   // at risk by it.
   event.waitUntil(
-    Promise.all([
-      caches.open(CACHE_VERSION).then((cache) => cache.addAll(CORE_SHELL)),
-      caches.open(OFFLINE_CACHE).then((cache) => cache.addAll(['./offline.html'])),
-    ]).then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION)
+      .then((cache) => cache.addAll(CORE_SHELL))
+      .then(async () => {
+        // Keep a second copy outside the versioned shell cache. The core copy
+        // above is already guaranteed; failure of this redundant copy must
+        // not strand an otherwise valid worker install.
+        try {
+          const offlineCache = await caches.open(OFFLINE_CACHE);
+          await offlineCache.add('./offline.html');
+        } catch (err) {
+          console.warn('Songbook SW: redundant offline fallback cache failed —', err);
+        }
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
+  // Optional UI assets are small and each failure is already swallowed by
+  // cacheBestEffort(), so keeping this inside waitUntil makes their offline
+  // availability reliable without turning one missing icon into an update
+  // failure. Song databases are deliberately NOT precached here.
   event.waitUntil(
-    caches.keys().then((keys) =>
-      // Drop every cache bucket except the current version's and the two
-      // stable, never-versioned buckets — anything else is a stale
-      // versioned cache left over from before an update. OFFLINE_CACHE
-      // and SONGDATA_CACHE are deliberately exempt here even though their
-      // names never change: this cleanup is about dropping old
-      // *versions* of the app shell, not about deciding what belongs in
-      // the current one, and neither of them is part of CACHE_VERSION at
-      // all (see the comments on each above).
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION && k !== OFFLINE_CACHE && k !== SONGDATA_CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys
+          .filter((k) => k !== CACHE_VERSION && k !== OFFLINE_CACHE && k !== SONGDATA_CACHE)
+          .map((k) => caches.delete(k)))
+      ),
+      caches.open(CACHE_VERSION).then((cache) => cacheBestEffort(cache, BEST_EFFORT_ASSETS)),
+    ]).then(() => self.clients.claim())
   );
-
-  // Bulk precaching of icons + all song files happens here, in the
-  // background, deliberately OUTSIDE of event.waitUntil — so activation
-  // itself completes fast and unconditionally, and this can never delay or
-  // break it. If it gets interrupted partway (tab closed, device sleeps),
-  // it simply doesn't finish this time; nothing is left broken, and songs
-  // still get cached individually as they're viewed via the fetch handler
-  // below, plus the IndexedDB backup in app.js covers the rest.
-  precacheEverythingElseInBackground();
 });
 
-// One entry per song database (see DB_SOURCES in app.js — kept in sync
-// with it manually, since a service worker can't just import app.js's
-// module-scoped const). Adding a new database here is the same one-line
-// addition as adding it to DB_SOURCES.
-const SONG_DB_FOLDERS = ['mongolian', 'english', 'hymn', 'mongolian2'];
-
-function precacheEverythingElseInBackground() {
-  caches.open(CACHE_VERSION).then((cache) => {
-    cacheBestEffort(cache, BEST_EFFORT_ASSETS);
-  });
-  // Song files go in SONGDATA_CACHE, not CACHE_VERSION — see the comment
-  // on SONGDATA_CACHE up top for why that split matters (in short: so a
-  // later app-version bump doesn't wipe every already-downloaded song).
-  caches.open(SONGDATA_CACHE).then(async (cache) => {
-    // Process databases one at a time so four large databases do not each start
-    // their own precache flood in parallel.
-    for (const folder of SONG_DB_FOLDERS) {
-      try {
-        const res = await fetch(`./data/${folder}/manifest.json`);
-        if (!res.ok) throw new Error(`manifest.json responded ${res.status}`);
-        const songFiles = await res.json();
-        const songUrls = songFiles.map((f) => `./data/${folder}/${f}`);
-        await cacheBestEffort(cache, [`./data/${folder}/manifest.json`, ...songUrls]);
-      } catch (err) {
-        console.warn(`Songbook SW: background song precache skipped for "${folder}" —`, err);
-      }
-    }
-  });
-}
-
-// Strategy: cache-first for everything, EXCEPT requests explicitly marked
-// as a manual refresh (X-Force-Refresh header) — those go network-first,
-// updating the cache on success, and fall back to whatever's already
-// cached if the network fails. This means a manual refresh attempted while
-// offline just silently keeps the existing offline copy instead of ever
-// deleting it — the cache is only ever replaced by data that's confirmed
-// to have loaded successfully, never cleared ahead of time "just in case".
-//
-// Every read/write below goes through targetCacheFor() rather than always
-// using CACHE_VERSION — song-data requests (see isSongDataRequest above)
-// have to land in SONGDATA_CACHE, or a song fetched here (e.g. during
-// app.js's normal per-song loading, not just the background precache)
-// would end up back in the versioned bucket and get wiped by the very
-// next version bump anyway, undoing the fix SONGDATA_CACHE exists for.
+// Cache routing. The full app shell gets a dedicated navigation path so an
+// installed PWA launch never depends on the exact URL string ("./", index.html,
+// query params, etc.) being present in Cache Storage. If the current shell is
+// cached, serve index.html directly. If it is not, try the network, then our
+// own offline.html. Chrome's generated PWA offline page should therefore only
+// be reachable when Chrome has no controlling service worker at all.
 function targetCacheFor(request) {
   return isSongDataRequest(new URL(request.url)) ? SONGDATA_CACHE : CACHE_VERSION;
 }
 
+async function networkFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+      return response;
+    }
+    const cached = await cache.match(request);
+    return cached || response;
+  } catch (err) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw err;
+  }
+}
+
+async function cacheFirst(request, cacheName, { ignoreSearchFallback = false } = {}) {
+  const cache = await caches.open(cacheName);
+  let cached = await cache.match(request);
+  // database.json is only a bootstrap snapshot, so when offline an older
+  // version-query copy is still far better than no library at all.
+  if (!cached && ignoreSearchFallback) {
+    cached = await cache.match(request, { ignoreSearch: true });
+  }
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response && response.ok) await cache.put(request, response.clone());
+  return response;
+}
+
+async function appNavigationResponse(request) {
+  const shellCache = await caches.open(CACHE_VERSION);
+  // Always converge installed-PWA/root/query navigations onto the known-good
+  // cached app shell rather than requiring an exact request-URL cache match.
+  const cachedShell = await shellCache.match('./index.html')
+    || await shellCache.match('./');
+  if (cachedShell) return cachedShell;
+
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      // Seed the canonical shell key too, so the next offline launch is not
+      // tied to whichever start/query URL happened to reach us first.
+      await shellCache.put('./index.html', response.clone());
+      return response;
+    }
+  } catch (err) {
+    // Fall through to the custom offline page below.
+  }
+
+  const offlineCache = await caches.open(OFFLINE_CACHE);
+  const offline = await offlineCache.match('./offline.html')
+    || await shellCache.match('./offline.html');
+  if (offline) return offline;
+
+  // Last attempt while the worker still exists. Usually unreachable because
+  // install caches offline.html, but returning fetch here is preferable to an
+  // undefined Response if a browser/storage edge case removed that entry.
+  return fetch('./offline.html');
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  const isNavigation = event.request.mode === 'navigate'
+    || event.request.destination === 'document';
+
+  if (isNavigation) {
+    event.respondWith(appNavigationResponse(event.request));
+    return;
+  }
 
   if (event.request.headers.get('X-Force-Refresh') === '1') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(targetCacheFor(event.request)).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
+    event.respondWith(networkFirst(event.request, targetCacheFor(event.request)));
     return;
   }
 
-  if (isSongManifestRequest(new URL(event.request.url))) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(SONGDATA_CACHE).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.open(SONGDATA_CACHE).then((cache) => cache.match(event.request)))
-    );
+  // database.json is deliberately allowed to be a somewhat older snapshot:
+  // app.js uses it only to get a library on screen quickly, then individual
+  // files update the visible/local database in the background.
+  if (isSongBundleRequest(url)) {
+    event.respondWith(cacheFirst(event.request, SONGDATA_CACHE, { ignoreSearchFallback: true }));
     return;
   }
 
+  // Manifest and individual song JSON are the authoritative/latest layer.
+  // Network-first means a one-song correction can arrive without rebuilding
+  // database.json; cached copies still keep the same selected DB usable offline.
+  if (isSongManifestRequest(url) || isSongDataRequest(url)) {
+    event.respondWith(networkFirst(event.request, SONGDATA_CACHE));
+    return;
+  }
+
+  // Small app-shell/icon requests stay cache-first-ish: return the cached
+  // response immediately and refresh it in the background. Core versioned
+  // updates are still handled atomically by install/activate above.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networkFetch = fetch(event.request)
         .then((response) => {
           if (response && response.ok) {
-            const clone = response.clone();
-            caches.open(targetCacheFor(event.request)).then((cache) => cache.put(event.request, clone));
+            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, response.clone()));
           }
           return response;
         })
-        .catch(() => {
-          if (cached) return cached;
-          // Nothing cached AND the network failed. For a page navigation,
-          // this is the case that used to fall through to the browser's
-          // own generic "no internet" page — jarring in an installed app.
-          // Show our own offline screen instead (cached separately in its
-          // own bucket — see OFFLINE_CACHE above — specifically so it
-          // survives even if this main cache is empty or was just wiped).
-          // Any other kind of request (a script, an image, song data)
-          // just fails as before; the app's own code already handles
-          // those (e.g. loadSongDataFor()'s IndexedDB fallback).
-          const isNavigation = event.request.mode === 'navigate'
-            || event.request.destination === 'document';
-          // Read from OFFLINE_CACHE specifically (not a plain caches.match,
-          // which would search every bucket) — this is the one thing that
-          // has to keep working even if CACHE_VERSION's bucket is gone
-          // entirely, so it shouldn't depend on default cross-cache lookup
-          // behavior to find it.
-          return isNavigation ? caches.open(OFFLINE_CACHE).then((cache) => cache.match('./offline.html')) : undefined;
-        });
-
+        .catch(() => cached);
       return cached || networkFetch;
     })
   );

@@ -18,6 +18,7 @@ window.SONGBOOK_LANG.en = {
   resultsFiltered: (n, total) => `${n} of ${total} songs`,
   emptyState: "No hymn like that in the songbook. Maybe it's one to add someday 😉",
   songLoadError: "Couldn't load the song list. Please try again later.",
+  songsLoading: "Loading songs…",
   navSongs: "Songs",
   navSettings: "Settings",
   navUserSongs: "User Songs",

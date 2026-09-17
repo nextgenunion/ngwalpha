@@ -14,6 +14,7 @@ window.SONGBOOK_LANG.mn = {
   resultsFiltered: (n, total) => `${total}-с ${n} дуу`,
   emptyState: "Магтаал олдсонгүй 🧐 Та ирээдүйд нэмэж болох юм😉",
   songLoadError: "Дуунуудын жагсаалтыг ачаалж чадсангүй. Дараа дахин оролдоно уу.",
+  songsLoading: "Дуунуудыг ачаалж байна…",
   navSongs: "Дууны ном",
   navSettings: "Тохиргоо",
   navUserSongs: "Миний дуу",

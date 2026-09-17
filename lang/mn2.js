@@ -14,6 +14,7 @@ window.SONGBOOK_LANG.mn2 = {
   resultsFiltered: (n, total) => `${total}-с ${n} дуу`,
   emptyState: "ᠲᠣᢈᠢᠷᠠᠬᠤ ᠳᠠᠭᠤᠤ ᠣᠯᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ ᠭᠠᠷᠴᠠᠭ᠂ ᠳ᠋ᠤᠭᠠᠷ᠂ ᠡᠰᠡᠪᠡᠯ ᠦᢉᠡ ᠪᠡᠷ ᠬᠠᠶᠢᠵᠤ ᠦᠵᠡᠨ᠎ᠡ ᠦᠦ᠃ ",
   songLoadError: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ ᠤ᠋ᠨ ᠵᠢᠭᠰᠠᠭᠠᠯᠲᠠ ᠶ᠋ᠢ ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ Дараа дахин оролдоно уу.",
+  songsLoading: "ᠳᠠᠭᠤᠤ ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ…",
   navSongs: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ",
   navSettings: "ᠲᠣᢈᠢᠷᠠᠭ᠎ᠠ",
   navUserSongs: "Миний дуу",
