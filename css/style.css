@@ -2187,7 +2187,14 @@ html[data-lyrics-weight="bold"] .lyric-word { font-weight: 700; }
   flex: 0 0 20px;
   color: var(--ink-soft);
 }
-.settings-row-text { display: flex; flex-direction: column; min-width: 0; }
+/* flex: 1 1 auto makes the title/sub block claim all leftover row width
+   itself, instead of sizing to its own text and leaving .settings-row's
+   space-between to scatter the remainder as uneven gaps around the icon
+   and the trailing control (toggle/segmented control/button/select) —
+   that mismatch, not the icon, was why gaps varied row to row and looked
+   fine only on .settings-row-nav rows (which already had this via their
+   own override below, now redundant but left as-is). */
+.settings-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 .settings-row-title { font-size: 0.96rem; font-weight: 600; color: var(--ink); }
 .settings-row-sub { font-size: 0.8rem; color: var(--ink-faint); margin-top: 2px; }
 /* Hide setting descriptions (Developer options) — see applyDevOptions()
