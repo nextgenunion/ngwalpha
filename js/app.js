@@ -91,7 +91,7 @@ const state = {
   },
   // Which entry in `sources` (and which folder under data/) the Songs
   // page, search, sort, and the playlist song-picker all currently browse.
-  // Driven by Settings → Song database (see the db-select dropdown/
+  // Driven by Settings → Song database (see openDbPickerModal() and
   // 'sb-db' in bindSettings and DB_SOURCES below) — not the same thing as
   // activeSourceKey below, which instead remembers where an *already
   // open* song came from, since a person can switch databases while a
@@ -478,13 +478,16 @@ async function requestPersistentStorage() {
 // elsewhere, each a small fixed addition:
 //   1. A new folder + manifest.json + song files under data/. Optionally run
 //      tools/build_song_bundles.py to create a fast bootstrap database.json.
-//   2. One entry here in DB_SOURCES (folder + hasNumbers).
+//   2. One entry here in DB_SOURCES (folder + hasNumbers + group + label).
 //   3. One entry in state.sources, above (just above this block).
 //   4. One entry in SONGDB_STORES (the source's IndexedDB backup store),
 //      further below — AND a SONGDB_VERSION bump so existing installs
 //      create the new store in onupgradeneeded.
-//   5. One <option> for it in index.html's #db-select, with its value
-//      equal to its DB_SOURCES key.
+// That's it — no index.html edit needed. The Settings → Song database row
+// opens the database-picker modal (see openDbPickerModal()), which reads
+// DB_SOURCES itself and sorts each entry into its group's tab, so a new
+// source just appears there once it's registered here. A brand-new group
+// value picks up its own tab automatically too — see DB_GROUP_ORDER below.
 //
 // service-worker.js no longer needs a per-database registry: /data/
 // requests are handled generically, and databases are cached only when
@@ -497,16 +500,56 @@ async function requestPersistentStorage() {
 //                what that changes in the Songs page (hides "Sort by
 //                number" and the number badges) once this source is the
 //                active one.
+//   group      — which tab of the database-picker modal this source is
+//                sorted into. Any value works as long as it also has an
+//                entry in DB_GROUP_ORDER/DB_GROUP_LABELS below; sources
+//                sharing a group are listed together, in DB_SOURCES'
+//                own key order, under that one tab.
+//   label      — the fixed, never-translated display name shown for this
+//                source in the picker (a proper name for that specific
+//                songbook, e.g. "Монгол (ДАС)"). Use labelKey instead (see
+//                'english' below) for the one case where the name itself
+//                should follow the app's interface language.
+//   labelKey   — a lang-file key (see lang/*.js) to look up via t() for a
+//                display name that changes with the interface language,
+//                instead of a fixed `label`.
 // ---------------------------------------------------------
 const DB_SOURCES = {
-  official: { folder: 'mongolian', hasNumbers: true },
-  english:  { folder: 'english',   hasNumbers: false },
-  sda:      { folder: 'hymn',      hasNumbers: true },
-  // Second Mongolian-language database ("Монгол" in #db-select, no "(ДАС)"
+  official: { folder: 'mongolian', hasNumbers: true,  group: 'sda', label: 'Монгол (ДАС)' },
+  english:  { folder: 'english',   hasNumbers: false, group: 'all', labelKey: 'dbOptionEnglish' },
+  sda:      { folder: 'hymn',      hasNumbers: true,  group: 'sda', label: 'English (SDA)' },
+  // Second Mongolian-language database ("Монгол" in the picker, no "(ДАС)"
   // qualifier since it isn't the ДАС songbook the 'official' source is).
   // Its source files have no `number` field, same situation as 'english'.
-  mongolian2: { folder: 'mongolian2', hasNumbers: false },
+  mongolian2: { folder: 'mongolian2', hasNumbers: false, group: 'all', label: 'Монгол' },
 };
+
+// Tabs for the database-picker modal (see openDbPickerModal()), in display
+// order — 'sda' for the denomination's own official songbooks, 'all' for
+// every other database. A new group only needs an entry here (order) and
+// in DB_GROUP_LABELS (its tab's label) — every DB_SOURCES entry tagged with
+// that group value then shows up under it automatically.
+const DB_GROUP_ORDER = ['sda', 'all'];
+const DB_GROUP_LABELS = { sda: 'dbGroupSda', all: 'dbGroupAll' };
+
+// The display name for a DB_SOURCES entry — its fixed `label`, or t() of
+// its `labelKey` when the name itself should follow the interface
+// language (see 'english' in DB_SOURCES above).
+function dbSourceLabel(sourceKey) {
+  const src = DB_SOURCES[sourceKey];
+  if (!src) return '';
+  return src.labelKey ? t(src.labelKey) : (src.label || sourceKey);
+}
+
+// Keeps the Settings → Song database row's subtitle showing the *current*
+// database's name (rather than a static instructional line) so the active
+// choice is visible at a glance without opening the picker — see
+// openDbPickerModal(). Called from applyDbSource() (selection changed) and
+// applyLanguage() (the 'english' source's name is language-dependent).
+function updateDbRowSub() {
+  const el = document.getElementById('t-dbSub');
+  if (el) el.textContent = dbSourceLabel(state.activeDbSource);
+}
 
 // One JSON file per song remains the editable/latest source of truth, listed
 // in <folder>/manifest.json. database.json is intentionally only a fast
@@ -1950,15 +1993,16 @@ function loadPrefs() {
   applyHideVerseNumbers();
 
   // Restore which song database was active (see applyDbSource()). Since
-  // this version, 'sb-db' stores a DB_SOURCES key directly (bindSettings()
-  // writes dbSelect.value, and dbSelect's own <option value="..."> in
-  // index.html is that key) — so this resolves against DB_SOURCES rather
+  // this version, 'sb-db' stores a DB_SOURCES key directly — the database
+  // picker's checklist items (see openDbPickerModal()) are each keyed by
+  // their DB_SOURCES entry — so this resolves against DB_SOURCES rather
   // than a hardcoded pair, and keeps working as more databases are added.
   // A device upgrading from an older app version has 'mn' or 'en'
-  // already saved — the two-value shorthand that version's dbSelect used
-  // — so those are translated here too. Anything else unrecognized
-  // (including a source key from a since-removed database) falls back to
-  // the default 'official' database rather than leaving no source active.
+  // already saved — the two-value shorthand that older version's plain
+  // <select> used — so those are translated here too. Anything else
+  // unrecognized (including a source key from a since-removed database)
+  // falls back to the default 'official' database rather than leaving no
+  // source active.
   const savedDb = localStorage.getItem('sb-db');
   const legacyDbKeys = { mn: 'official', en: 'english' };
   const resolvedDb = legacyDbKeys[savedDb] || (DB_SOURCES[savedDb] ? savedDb : 'official');
@@ -2184,6 +2228,7 @@ function applyDbSource(sourceKey) {
     }
   }
   state.activeDbSource = sourceKey;
+  updateDbRowSub();
   resetSongSyncProgress(sourceKey);
   state.query = '';
   const searchInput = document.getElementById('search-input');
@@ -2431,7 +2476,6 @@ function applyLanguage() {
     't-uiLangTitle': 'uiLangTitle',
     't-uiLangSub': 'uiLangSub',
     't-dbTitle': 'dbTitle',
-    't-dbSub': 'dbSub',
     't-sectionApp': 'sectionApp',
     't-reloadTitle': 'reloadTitle',
     't-reloadSub': 'reloadSub',
@@ -2490,7 +2534,11 @@ function applyLanguage() {
   document.querySelector('.sort-btn[data-sort-order="asc"]').textContent = t('sortAsc');
   document.querySelector('.sort-btn[data-sort-order="desc"]').textContent = t('sortDesc');
 
-  document.getElementById('db-option-en').textContent = t('dbOptionEnglish');
+  // The row subtitle shows the *current* database's name rather than a
+  // static instruction (see updateDbRowSub()) — 'english's name is itself
+  // language-dependent (dbOptionEnglish), so this needs a re-run here too,
+  // not just from applyDbSource() when the selection changes.
+  updateDbRowSub();
 
   document.getElementById('empty-state').textContent = t('emptyState');
   document.getElementById('about-version-line').textContent = t('versionSub', APP_VERSION);
@@ -5944,6 +5992,101 @@ function openAddToPlaylistModal(sourceKey, songId) {
 }
 
 // ---------------------------------------------------------
+// Database picker (Settings → Song database) — a popup rather than a
+// plain <select>, specifically so it scales as more databases get added:
+// a top seg-toggle tab per DB_GROUP_ORDER entry (currently "All"/"SDA"),
+// and under the active tab a single-select checklist of just that group's
+// DB_SOURCES entries. Both are driven straight off DB_SOURCES/
+// DB_GROUP_ORDER — a new database or a new group needs no changes here,
+// see the comment above DB_SOURCES.
+//
+// Picking a database applies it and closes the popup immediately (like
+// the accent-color swatches) rather than needing a separate confirm step,
+// since there's nothing else to configure on the way in.
+// ---------------------------------------------------------
+function openDbPickerModal() {
+  const wrap = document.createElement('div');
+
+  // Open on whichever tab already contains the active database, so the
+  // person sees their current choice (checkmarked) the instant the popup
+  // appears instead of always landing on the first tab.
+  let currentGroup = (DB_SOURCES[state.activeDbSource] || {}).group || DB_GROUP_ORDER[0];
+
+  // role="group", not "tablist": every other seg-toggle in this app (song
+  // view, chord style, etc.) uses aria-pressed toggle-button semantics
+  // rather than tab semantics (aria-selected) — matching that here keeps
+  // one consistent pattern for screen readers across the whole app.
+  const tabs = document.createElement('div');
+  tabs.className = 'seg-toggle db-picker-tabs';
+  tabs.setAttribute('role', 'group');
+  tabs.setAttribute('aria-label', t('dbPickerTitle'));
+  const thumb = document.createElement('div');
+  thumb.className = 'seg-toggle-thumb';
+  tabs.appendChild(thumb);
+
+  const list = document.createElement('ul');
+  list.className = 'checklist';
+
+  const renderList = () => {
+    list.innerHTML = '';
+    Object.keys(DB_SOURCES).filter(key => DB_SOURCES[key].group === currentGroup).forEach(key => {
+      const isActive = key === state.activeDbSource;
+      const li = document.createElement('li');
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'checklist-item';
+      item.setAttribute('aria-pressed', String(isActive));
+      item.innerHTML = `
+        <span style="flex:1">${escapeHtml(dbSourceLabel(key))}</span>
+        <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
+      `;
+      item.addEventListener('click', () => {
+        if (key !== state.activeDbSource) {
+          applyDbSource(key);
+          localStorage.setItem('sb-db', key);
+          showToast(t('toastDbSaved'));
+        }
+        closeModal();
+      });
+      li.appendChild(item);
+      list.appendChild(li);
+    });
+    initIcons(list);
+  };
+
+  DB_GROUP_ORDER.forEach(group => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'seg-toggle-btn';
+    btn.dataset.dbGroup = group;
+    btn.setAttribute('aria-pressed', String(group === currentGroup));
+    btn.textContent = t(DB_GROUP_LABELS[group] || group);
+    btn.addEventListener('click', () => {
+      if (group === currentGroup) return;
+      currentGroup = group;
+      tabs.querySelectorAll('.seg-toggle-btn').forEach(b => {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      positionSegToggleThumb(tabs);
+      renderList();
+    });
+    tabs.appendChild(btn);
+  });
+
+  wrap.appendChild(tabs);
+  wrap.appendChild(list);
+  renderList();
+
+  openModal(t('dbPickerTitle'), wrap);
+  // The tabs only just became visible (openModal clears the overlay's
+  // `hidden`), so measuring them any earlier would find offsetParent
+  // still null — see positionSegToggleThumb()'s guard. instant:true
+  // because this is the tab snapping to the already-active database's
+  // group, not a tap that should visibly slide.
+  positionSegToggleThumb(tabs, { instant: true });
+}
+
+// ---------------------------------------------------------
 // Labels UI — a reusable "chips you can remove + a text input with live
 // suggestions" picker, shared by the song-view "Edit labels" modal
 // (openEditLabelsModal) and the Song Editor's inline Labels field (see
@@ -6540,13 +6683,7 @@ function bindSettings() {
     applyLanguage();
   });
 
-  const dbSelect = document.getElementById('db-select');
-  dbSelect.value = state.activeDbSource;
-  dbSelect.addEventListener('change', () => {
-    applyDbSource(dbSelect.value);
-    localStorage.setItem('sb-db', dbSelect.value);
-    showToast(t('toastDbSaved'));
-  });
+  document.getElementById('db-nav-row').addEventListener('click', openDbPickerModal);
 }
 
 // `action`, if provided, is { label, onAction } — shows an inline button

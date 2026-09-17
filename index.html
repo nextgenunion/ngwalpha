@@ -364,18 +364,21 @@
        Appearance and a separate Language & Database section. -->
   <section class="settings-section">
     <h3 class="settings-heading" id="t-sectionSongs">Songs</h3>
-    <div class="settings-row">
+    <!-- Opens the database-picker popup (see openDbPickerModal() in
+         app.js) instead of a plain <select> — its subtitle is kept in
+         sync with whichever database is currently active (see
+         updateDbRowSub()), not a static description, so it isn't marked
+         settings-desc-hideable like the rest of this section's rows: that
+         toggle is for hiding decorative help text, and this line is the
+         only place the current database shows once it's not in a
+         dropdown anymore. -->
+    <button type="button" class="settings-row settings-row-nav" id="db-nav-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-dbTitle">Song database</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-dbSub">Choose which songbook source to use</span>
+        <span class="settings-row-sub" id="t-dbSub">Монгол (ДАС)</span>
       </div>
-      <select id="db-select" class="select-input">
-        <option value="official">Монгол (ДАС)</option>
-        <option value="mongolian2">Монгол</option>
-        <option value="english" id="db-option-en">English</option>
-        <option value="sda">English (SDA)</option>
-      </select>
-    </div>
+      <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
     <div class="settings-row">
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-reloadTitle">Refresh song database</span>

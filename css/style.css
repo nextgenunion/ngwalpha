@@ -3355,6 +3355,14 @@ span.trash-row-check {
 
 .modal-hint { font-size: 0.82rem; color: var(--ink-faint); margin: 4px 2px 0; }
 
+/* Database-picker modal (openDbPickerModal() in app.js) — reuses the
+   .seg-toggle segmented control (see its own rules above), which
+   elsewhere sits compact and content-sized at the right edge of a
+   settings row. Here it's the modal's own top navigation instead, so it
+   needs to span the popup's full width with its tabs sharing that width
+   evenly, rather than sizing to its (short) label text. */
+.db-picker-tabs { width: 100%; margin: 2px 0 4px; }
+.db-picker-tabs .seg-toggle-btn { flex: 1; text-align: center; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
 /* Wraps the Add Songs modal's search results (see openAddSongsModal /
    animateWrapHeightTo in app.js) so the popup's height can be animated
