@@ -830,6 +830,26 @@ html[data-theme="dark"] .sort-btn-tap {
   text-align: left;
   box-shadow: var(--shadow-1);
   transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
+  /* Real Songbook databases run 300-1700+ songs, all rendered as plain
+     (non-virtualized) rows/tiles — see renderSongList()/buildSongRow() in
+     app.js. Rewriting that into a virtual-scrolled list would be a much
+     bigger, riskier change (it'd have to be threaded through the diffed
+     add/remove animations, the fast-scroll rail's elementFromPoint
+     sampling in visibleSongRowKeys(), and all three view modes below).
+     content-visibility gets most of the same win far more cheaply: the
+     browser skips style/layout/paint entirely for rows currently
+     scrolled out of view, without changing the DOM or touching any of
+     that JS — a row only becomes "skippable" once it's actually off
+     screen, so anything visibleSongRowKeys() samples is unaffected.
+     contain-intrinsic-size reserves this row's real height (measured
+     from the base 'list' view below) as a placeholder before an
+     off-screen row has ever been laid out, so the scrollbar/scroll
+     position don't jump around as rows scroll past; the `auto` keyword
+     means the browser remembers each row's actual measured size after
+     that and uses it from then on, self-correcting if a row (e.g. one
+     with an alt-title) is taller than this estimate. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
 }
 .song-row:hover { box-shadow: var(--shadow-2); }
 /* Plain :active alone wasn't reliable here — clicking a row navigates
@@ -912,6 +932,7 @@ html[data-theme="dark"] .sort-btn-tap {
   gap: 10px;
   padding: 7px 10px;
   margin-bottom: 4px;
+  contain-intrinsic-size: auto 47px; /* shorter than list view: no subtitle, smaller badge */
 }
 #song-list[data-view="compact"] .song-badge {
   width: 26px;
@@ -936,6 +957,7 @@ html[data-theme="dark"] .sort-btn-tap {
   min-height: 56px;
   justify-content: center;
   padding: 8px 6px;
+  contain-intrinsic-size: auto 56px; /* matches this view's own min-height above */
 }
 /* .song-badge itself is deliberately left untouched here — same circle,
    background/color, and font as the list view (see the base .song-badge

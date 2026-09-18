@@ -4528,7 +4528,16 @@ function renderLyrics(opts = {}) {
 function bindSongEditor() {
   document.getElementById('editor-back-btn').addEventListener('click', () => history.back());
   document.getElementById('editor-save-btn').addEventListener('click', saveSongFromEditor);
-  document.getElementById('editor-lyrics').addEventListener('input', renderEditorPreview);
+  // coalesceToNextFrame (same pattern as the search box in bindSongsPage
+  // and the picker filter in openAddSongsModal) batches this to once per
+  // animation frame instead of running on every single keystroke.
+  // renderEditorPreview -> renderLyrics is not cheap: it re-tokenizes every
+  // lyric line with regex, walks chord/word runs, and rebuilds a handful
+  // of DOM nodes per word from scratch. Left un-batched (as this was), a
+  // longer song made typing in the lyrics box visibly laggy — each
+  // keystroke paid that full rebuild synchronously, even for someone who
+  // just typed several characters in a fast burst.
+  document.getElementById('editor-lyrics').addEventListener('input', coalesceToNextFrame(renderEditorPreview));
   document.getElementById('editor-delete-btn').addEventListener('click', () => {
     const song = findSongByRef('user', state.editorSongId);
     if (song) confirmDeleteUserSong(song, { fromEditor: true });
