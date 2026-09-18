@@ -463,6 +463,32 @@ async function init() {
   // during idle time keeps the person's first keystroke from having to
   // chord-strip/normalise thousands of lyric lines at once.
   safe('scheduleSearchCacheWarmup', scheduleSearchCacheWarmup);
+  safe('scheduleFontWarmup', scheduleFontWarmup);
+}
+
+// IBM Plex Mono (--font-mono) is used only for chords, which only appear
+// once a song is actually open — so without this, the browser doesn't even
+// start fetching that font file until the person's first song open, and
+// that fetch (plus, before this fix, the opaque/uncached font-CSS request
+// fixed in index.html/service-worker.js) is exactly the lag they'd see:
+// fine on every song after the first, laggy again after a fresh app
+// launch. document.fonts.load() here kicks that fetch off at idle time
+// instead, while the person is still on the song list, so by the time they
+// tap a song the font is very likely already in hand. Only the two weights
+// actually requested in index.html's Google Fonts URL (500, 600) are
+// warmed; no visible element or layout is touched.
+function scheduleFontWarmup() {
+  if (!(document.fonts && document.fonts.load)) return;
+  const warm = () => {
+    ['500 1em "IBM Plex Mono"', '600 1em "IBM Plex Mono"'].forEach((spec) => {
+      document.fonts.load(spec).catch(() => {});
+    });
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(warm, { timeout: 1500 });
+  } else {
+    window.setTimeout(warm, 200);
+  }
 }
 
 // Ask the browser not to automatically evict our Cache Storage / IndexedDB

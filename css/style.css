@@ -295,6 +295,15 @@ button { font-family: inherit; }
 button, a {
   -webkit-user-select: none;
   user-select: none;
+  /* user-select:none stops the text itself from being selected, but on
+     iOS Safari a long-press still triggers the native touch-callout
+     (the magnifier/selection-menu gesture) unless this is also set.
+     That callout is what was hijacking the gesture on .sort-btn: its
+     horizontally-scrollable ancestor .sort-row (see "sort row" below)
+     is the nearest scrollable box, so iOS was routing the subsequent
+     drag to it alone instead of the page, making it look like only the
+     sort row could scroll after a long press. */
+  -webkit-touch-callout: none;
 }
 
 /* ---------- page shell ---------- */

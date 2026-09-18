@@ -36,7 +36,15 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<!-- crossorigin makes this a real CORS response instead of an opaque one.
+     Without it, service-worker.js's generic fetch handler can never cache
+     this file (its `response.ok` check is always false on an opaque
+     response) — so every fresh app launch had to hit the network again
+     just to find out where the chord font (IBM Plex Mono) lives, before
+     the font file itself could even start downloading. See the mono-font
+     warmup in js/app.js (scheduleFontWarmup) for the other half of this
+     fix. -->
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
 
 <link rel="stylesheet" href="css/style.css">
 </head>

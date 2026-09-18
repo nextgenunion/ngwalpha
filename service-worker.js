@@ -66,6 +66,15 @@ const CORE_SHELL = [
 // visitor stuck on an old cached version indefinitely, with no way to
 // pick up a fix short of manually clearing site data.
 const BEST_EFFORT_ASSETS = [
+  // The font stylesheet itself (now fetched with crossorigin — see
+  // index.html — so this is a real, cacheable CORS response rather than
+  // an opaque one). Precaching it here means the browser can resolve
+  // where each font file (including IBM Plex Mono, used only for chords
+  // in the song view) lives without a network round trip on a fresh
+  // launch. The actual font files are cached the ordinary way, by the
+  // ./ fetch handler below, once js/app.js's scheduleFontWarmup() (or a
+  // real song open) asks for them.
+  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
   './icons/app-icon.png',
   './icons/app-icon-maskable.png',
   './icons/splash-logo.png',
