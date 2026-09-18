@@ -3760,6 +3760,4 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   }
 
   .sv-header-actions { gap: 10px; }       /* 34px buttons -> 44px centers */
-  .transpose-controls { gap: 18px; }      /* 26px chips -> 44px centers */
-  .font-group { column-gap: 18px; }       /* A− / A+ pairs stay unambiguous */
 }

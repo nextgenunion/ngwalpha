@@ -105,6 +105,24 @@ const BEST_EFFORT_ASSETS = [
   './icons/svg/social-instagram.svg',
   './icons/svg/social-website.svg',
   './icons/svg/mascot-sabbath.svg',
+
+  // Settings page row icons (Appearance/Songs/App/About — see
+  // js/app.js's ICON_FILES and index.html's #page-settings). These were
+  // missing from precache, so they only ever loaded from the network and
+  // silently failed offline via injectIcon()'s catch block.
+  './icons/svg/dark-mode.svg',
+  './icons/svg/palette.svg',
+  './icons/svg/library-music.svg',
+  './icons/svg/refresh.svg',
+  './icons/svg/view-list.svg',
+  './icons/svg/music-note.svg',
+  './icons/svg/visibility-off.svg',
+  './icons/svg/format-bold.svg',
+  './icons/svg/line-spacing.svg',
+  './icons/svg/translate.svg',
+  './icons/svg/install-mobile.svg',
+  './icons/svg/restart-alt.svg',
+  './icons/svg/info-outline.svg',
 ];
 
 async function cacheBestEffort(cache, urls) {
