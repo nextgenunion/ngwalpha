@@ -63,6 +63,9 @@ window.SONGBOOK_LANG.mn2 = {
   listenLink: "ᠰᠣᠨᠤᠰᠬᠤ",
   songLinkLabel: "Холбоос",
   sectionSongs: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ",
+  // TODO: placeholder Cyrillic until the traditional-script UI translation is completed.
+  displaySettingsTitle: "Харагдацын тохиргоо",
+  displaySettingsSub: "Жагсаалт, аккорд, дууны үг болон мөрийн зай",
   dbTitle: "ᠳᠠᠭᠤᠨ ᠤ᠋ ᠰᠠᠩ",
   dbSub: "ᠶᠠᠮᠠᠷ ᠳᠠᠭᠤᠨ ᠤ᠋ ᠰᠠᠩ ᠠ᠋ᠴᠠ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠪᠠᠨ ᠰᠣᠩᠭᠤᠨ᠎ᠠ ᠤᠤ",
   dbOptionEnglish: "Англи",

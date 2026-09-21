@@ -367,11 +367,10 @@
     </div>
   </section>
 
-  <!-- Everything about how songs themselves look and where they come
-       from — the list view, the reading/chord display options, and the
-       song database itself all live together here so "Songs" is the one
-       place to look for any of it, instead of being split across
-       Appearance and a separate Language & Database section. -->
+  <!-- Song-library controls live here. Display/readability controls are
+       grouped behind the dedicated Display settings row below so the main
+       Settings screen stays compact while all song-related options remain
+       under the Songs section. -->
   <section class="settings-section">
     <h3 class="settings-heading" id="t-sectionSongs">Songs</h3>
     <!-- Opens the database-picker popup (see openDbPickerModal() in
@@ -400,67 +399,14 @@
         <button id="reload-songs-btn" class="btn-secondary" type="button"></button>
       </div>
     </div>
-    <div class="settings-row">
+    <button type="button" class="settings-row settings-row-nav" id="song-display-nav-row">
       <svg class="settings-row-icon" data-icon="view-list" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
-        <span class="settings-row-title" id="t-songViewGroup">List view</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-songViewSub">How songs appear in the Songbook list</span>
+        <span class="settings-row-title" id="t-displaySettingsTitle">Display settings</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-displaySettingsSub">List, chords, lyrics, and spacing</span>
       </div>
-      <div class="seg-toggle" role="group" id="song-view-toggle" aria-label="Songbook list view">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-song-view="list" id="t-songViewList" aria-pressed="true">List</button>
-        <button class="seg-toggle-btn" data-song-view="compact" id="t-songViewCompact" aria-pressed="false">Compact</button>
-        <button class="seg-toggle-btn" data-song-view="tiles" id="t-songViewTiles" aria-pressed="false">Tiles</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-chordStyleGroup">Chord style</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-chordStyleSub">How chords are displayed above lyrics</span>
-      </div>
-      <div class="seg-toggle" role="group" id="chord-style-toggle" aria-label="Chord display style">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-chord-style="chip" id="t-chordStyleChip" aria-pressed="true">Chips</button>
-        <button class="seg-toggle-btn" data-chord-style="text" id="t-chordStyleText" aria-pressed="false">Text</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="visibility-off" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-hideChordsTitle">Hide chords</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-hideChordsSub">Show lyrics only, without chords</span>
-      </div>
-      <button id="hide-chords-toggle" class="switch" role="switch" aria-checked="false" aria-label="Hide chords">
-        <span class="switch-knob"></span>
-      </button>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="format-bold" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-lyricsWeightTitle">Lyrics style</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-lyricsWeightSub">Font weight for song lyrics</span>
-      </div>
-      <div class="seg-toggle" role="group" id="lyrics-weight-toggle" aria-label="Lyrics font weight">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-lyrics-weight="normal" id="t-lyricsWeightNormal" aria-pressed="true">Normal</button>
-        <button class="seg-toggle-btn" data-lyrics-weight="semibold" id="t-lyricsWeightSemibold" aria-pressed="false">Semibold</button>
-        <button class="seg-toggle-btn" data-lyrics-weight="bold" id="t-lyricsWeightBold" aria-pressed="false">Bold</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="line-spacing" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-lyricsSpacingTitle">Line spacing</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-lyricsSpacingSub">Vertical spacing between lyric lines</span>
-      </div>
-      <div class="seg-toggle" role="group" id="lyrics-spacing-toggle" aria-label="Lyric line spacing">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-lyrics-spacing="tight" id="t-lyricsSpacingTight" aria-pressed="true">Tight</button>
-        <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="false">Normal</button>
-        <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
-      </div>
-    </div>
+      <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
     <button type="button" class="settings-row settings-row-nav" id="trash-nav-row">
       <svg class="settings-row-icon" data-icon="trash" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
@@ -543,6 +489,88 @@
     <p id="scripture-verse-text"></p>
     <cite id="scripture-verse-ref"></cite>
   </blockquote>
+ </div>
+</main>
+
+
+<!-- ===== SONG DISPLAY SETTINGS PAGE ===== -->
+<!-- Reached from Settings → Songs → Display settings. The controls keep the
+     same IDs and behavior they had on the main Settings page; only their
+     navigation/layout home changed so the parent screen stays uncluttered. -->
+<main id="page-song-display" class="page" data-page="song-display" hidden>
+ <div class="page-inner">
+  <header class="song-view-header pv-header">
+    <button id="song-display-back-btn" class="icon-btn" aria-label="Back to settings">
+      <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
+    <div class="song-view-title">
+      <h2 id="t-displaySettingsTitle2">Display settings</h2>
+    </div>
+  </header>
+
+  <section class="settings-section">
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="view-list" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-songViewGroup">List view</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-songViewSub">How songs appear in the Songbook list</span>
+      </div>
+      <div class="seg-toggle" role="group" id="song-view-toggle" aria-label="Songbook list view">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-song-view="list" id="t-songViewList" aria-pressed="true">List</button>
+        <button class="seg-toggle-btn" data-song-view="compact" id="t-songViewCompact" aria-pressed="false">Compact</button>
+        <button class="seg-toggle-btn" data-song-view="tiles" id="t-songViewTiles" aria-pressed="false">Tiles</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-chordStyleGroup">Chord style</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-chordStyleSub">How chords are displayed above lyrics</span>
+      </div>
+      <div class="seg-toggle" role="group" id="chord-style-toggle" aria-label="Chord display style">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-chord-style="chip" id="t-chordStyleChip" aria-pressed="true">Chips</button>
+        <button class="seg-toggle-btn" data-chord-style="text" id="t-chordStyleText" aria-pressed="false">Text</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="visibility-off" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-hideChordsTitle">Hide chords</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-hideChordsSub">Show lyrics only, without chords</span>
+      </div>
+      <button id="hide-chords-toggle" class="switch" role="switch" aria-checked="false" aria-label="Hide chords">
+        <span class="switch-knob"></span>
+      </button>
+    </div>
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="format-bold" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-lyricsWeightTitle">Lyrics style</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-lyricsWeightSub">Font weight for song lyrics</span>
+      </div>
+      <div class="seg-toggle" role="group" id="lyrics-weight-toggle" aria-label="Lyrics font weight">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-lyrics-weight="normal" id="t-lyricsWeightNormal" aria-pressed="true">Normal</button>
+        <button class="seg-toggle-btn" data-lyrics-weight="semibold" id="t-lyricsWeightSemibold" aria-pressed="false">Semibold</button>
+        <button class="seg-toggle-btn" data-lyrics-weight="bold" id="t-lyricsWeightBold" aria-pressed="false">Bold</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="line-spacing" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-lyricsSpacingTitle">Line spacing</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-lyricsSpacingSub">Vertical spacing between lyric lines</span>
+      </div>
+      <div class="seg-toggle" role="group" id="lyrics-spacing-toggle" aria-label="Lyric line spacing">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-lyrics-spacing="tight" id="t-lyricsSpacingTight" aria-pressed="true">Tight</button>
+        <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="false">Normal</button>
+        <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
+      </div>
+    </div>
+  </section>
  </div>
 </main>
 

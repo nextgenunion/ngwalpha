@@ -53,6 +53,8 @@ window.SONGBOOK_LANG.kr = {
   listenLink: "듣기",
   songLinkLabel: "링크",
   sectionSongs: "찬양",
+  displaySettingsTitle: "표시 설정",
+  displaySettingsSub: "목록, 코드, 가사 스타일 및 줄 간격",
   dbTitle: "찬양집",
   dbSub: "사용할 찬양집을 선택하세요",
   dbOptionEnglish: "영어",

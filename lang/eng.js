@@ -57,6 +57,8 @@ window.SONGBOOK_LANG.en = {
   listenLink: "Listen",
   songLinkLabel: "Link",
   sectionSongs: "Songs",
+  displaySettingsTitle: "Display settings",
+  displaySettingsSub: "List, chords, lyrics, and spacing",
   dbTitle: "Song database",
   dbSub: "Choose which songbook source to use",
   dbOptionEnglish: "English",

@@ -374,7 +374,12 @@ button, a {
   margin: 0 auto;
   padding: 0 var(--page-pad) calc(var(--nav-h) + env(safe-area-inset-bottom) + 40px);
 }
-body.nav-hidden .page-inner {
+/* Pages that intentionally hide the bottom nav reserve only the safe-area
+   padding. This is page-scoped rather than body-scoped because push/pop
+   navigation keeps the previous page visible underneath the incoming one.
+   A body-wide rule would mutate that background page's scrollHeight during
+   the animation and can visibly clamp/jump its scroll position. */
+.page.page-no-bottom-nav .page-inner {
   padding-bottom: calc(env(safe-area-inset-bottom) + 40px);
 }
 

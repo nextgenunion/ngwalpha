@@ -206,7 +206,8 @@ const PAGES = {
   'song-editor':    { elId: 'page-song-editor',    navKey: 'user-songs', rememberScroll: false, hideNav: true },
   'playlists':      { elId: 'page-playlists',      navKey: 'playlists', rememberScroll: true,  onEnter: () => renderPlaylistsList() },
   'playlist-view':  { elId: 'page-playlist-view',  navKey: 'playlists', rememberScroll: false, hideNav: true },
-  'settings':       { elId: 'page-settings',       navKey: 'settings',  rememberScroll: true,  onEnter: () => { resetContactUI(); updateAllSegToggleThumbs({ instant: true }); } },
+  'settings':       { elId: 'page-settings',       navKey: 'settings',  rememberScroll: true,  onEnter: () => resetContactUI() },
+  'song-display':   { elId: 'page-song-display',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => updateAllSegToggleThumbs({ instant: true }) },
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
   'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through
@@ -221,7 +222,7 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'about', 'trash', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'song-display', 'about', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
@@ -2228,7 +2229,7 @@ function applyHideChords() {
   if (toggle) toggle.setAttribute('aria-checked', String(state.hideChords));
 }
 
-// Lyrics style (Settings → Appearance): font weight for lyric text only —
+// Lyrics style (Settings → Songs → Display settings): font weight for lyric text only —
 // see the html[data-lyrics-weight] rules by .lyric-word in style.css.
 // Same attribute-driven segmented-control pattern as applyChordStyle().
 function applyLyricsWeight() {
@@ -2239,7 +2240,7 @@ function applyLyricsWeight() {
   positionSegToggleThumb(document.getElementById('lyrics-weight-toggle'));
 }
 
-// Line spacing (Settings → Appearance): vertical rhythm between lyric
+// Line spacing (Settings → Songs → Display settings): vertical rhythm between lyric
 // lines only — general app UI spacing is untouched. See the
 // html[data-lyrics-spacing] --lyric-line-* overrides by .lyric-line in
 // style.css. Same attribute-driven segmented-control pattern as above.
@@ -2251,7 +2252,7 @@ function applyLyricsSpacing() {
   positionSegToggleThumb(document.getElementById('lyrics-spacing-toggle'));
 }
 
-// Songbook list view (Settings → Appearance): how the Songbook's own list
+// Songbook list view (Settings → Songs → Display settings): how the Songbook's own list
 // (#song-list) lays out its rows — 'list' (default), 'compact' (denser
 // rows, no artist line), or 'tiles' (a numbered grid). Set as a
 // data-view attribute directly on #song-list itself (not on <html>, and
@@ -2594,6 +2595,9 @@ function applyLanguage() {
     't-songViewCompact': 'songViewCompact',
     't-songViewTiles': 'songViewTiles',
     't-sectionSongs': 'sectionSongs',
+    't-displaySettingsTitle': 'displaySettingsTitle',
+    't-displaySettingsTitle2': 'displaySettingsTitle',
+    't-displaySettingsSub': 'displaySettingsSub',
     't-uiLangTitle': 'uiLangTitle',
     't-uiLangSub': 'uiLangSub',
     't-dbTitle': 'dbTitle',
@@ -2764,6 +2768,16 @@ function showPage(name, opts = {}) {
 
   const targetEl = document.getElementById(page.elId);
 
+  // Bottom-nav spacing belongs to the page that is actually being shown,
+  // not to the whole document. During push/pop transitions two pages are
+  // deliberately visible at once; changing a body-wide padding rule here
+  // used to shrink the Settings page underneath a no-nav subpage. If
+  // Settings was scrolled near the bottom (About/Developer options), that
+  // reduced its scrollHeight and the browser clamped scrollTop mid-slide,
+  // producing the visible background-page jump/flick. Keep each page's
+  // geometry stable instead.
+  targetEl.classList.toggle('page-no-bottom-nav', !!page.hideNav);
+
   // Slide transition for song-view/playlist-view: pushed forward (opened)
   // slides in from the right over whatever's underneath; popped (backed
   // out of) slides back out to the right, revealing what was underneath —
@@ -2814,7 +2828,6 @@ function showPage(name, opts = {}) {
   // A page can opt to hide the bottom tab bar so nothing competes with its
   // content (song-view does this — it has its own slim top bar instead).
   document.getElementById('bottom-nav').hidden = !!page.hideNav;
-  document.body.classList.toggle('nav-hidden', !!page.hideNav);
 
   if (resetScroll) {
     // Explicit override: always end up at the top, same page or not.
@@ -6891,6 +6904,12 @@ function bindAboutPage() {
 }
 
 function bindSettings() {
+  document.getElementById('song-display-back-btn').addEventListener('click', () => history.back());
+
+  document.getElementById('song-display-nav-row').addEventListener('click', () => {
+    showPage('song-display', { pushHistory: true, resetScroll: true });
+  });
+
   document.getElementById('about-nav-row').addEventListener('click', () => {
     showPage('about', { pushHistory: true, resetScroll: true });
   });

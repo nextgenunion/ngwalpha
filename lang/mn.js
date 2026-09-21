@@ -53,6 +53,8 @@ window.SONGBOOK_LANG.mn = {
   listenLink: "Сонсох",
   songLinkLabel: "Холбоос",
   sectionSongs: "Дууны ном",
+  displaySettingsTitle: "Харагдацын тохиргоо",
+  displaySettingsSub: "Жагсаалт, аккорд, дууны үг болон мөрийн зай",
   dbTitle: "Дууны сан",
   dbSub: "Ямар дууны сангаас ашиглахаа сонгоно уу",
   dbOptionEnglish: "Англи",
