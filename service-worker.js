@@ -75,6 +75,8 @@ const BEST_EFFORT_ASSETS = [
   // ./ fetch handler below, once js/app.js's scheduleFontWarmup() (or a
   // real song open) asks for them.
   'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap',
+  './icons/app-icon-192.png',
+  './icons/app-icon-512.png',
   './icons/app-icon.png',
   './icons/app-icon-maskable.png',
   './icons/splash-logo.png',

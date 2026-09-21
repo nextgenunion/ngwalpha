@@ -456,23 +456,20 @@ stretched, whatever size image you give it.
 
 ### App icon: `app-icon.png` vs `app-icon-maskable.png`
 
-The home-screen/browser-tab icon is deliberately just **two** files, not one
-per size — every platform that installs this app accepts a single large
-source image per `manifest.json` icon entry and scales it down itself, so
-there's no real benefit to pre-shrunk 192px/512px copies (an earlier version
-of this app shipped four separate files here — `app-icon-192.png`,
-`app-icon-512.png`, and maskable copies of each — but all four were, in
-practice, byte-for-byte the same image; the 192/512 filenames didn't reflect
-actual different sizes). The About page also reuses `app-icon.png` directly
-rather than keeping its own separate copy.
+The install manifest now includes explicit **192×192** and **512×512**
+`purpose: "any"` icons (`icons/app-icon-192.png` and
+`icons/app-icon-512.png`). These are the standard PWA install sizes used by
+Chromium/desktop installability checks. The original large `app-icon.png` is
+kept as an additional full-resolution source and is still reused by the
+About page, browser favicon, and Apple touch-icon link.
 
-The two files that remain are genuinely different **purposes**, not sizes,
-per the [W3C manifest icon spec](https://www.w3.org/TR/appmanifest/#purpose-member):
+The files have these roles, per the
+[W3C manifest icon spec](https://www.w3.org/TR/appmanifest/#purpose-member):
 
-- **`icons/app-icon.png`** — `purpose: "any"`. Shown as-is: browser tab
-  favicon, iOS home-screen icon, Windows/desktop install icon. Safe to use
-  full-bleed artwork that runs to every edge (this is the one with the
-  diagonal "BETA" ribbon in the top-left corner).
+- **`icons/app-icon-192.png`** — explicit 192×192 `purpose: "any"` PWA icon.
+- **`icons/app-icon-512.png`** — explicit 512×512 `purpose: "any"` PWA icon.
+- **`icons/app-icon.png`** — large `purpose: "any"` source/fallback. Safe to
+  use full-bleed artwork that runs to every edge.
 - **`icons/app-icon-maskable.png`** — `purpose: "maskable"`. On Android and
   some desktop launchers, the OS itself crops this into a circle, squircle,
   or rounded square — it does **not** render as a plain square the way `any`
