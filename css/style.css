@@ -77,6 +77,12 @@
   --lyric-line-mb: 4px;
   --lyric-line-lh: 1.15;
   --lyric-chord-mb: 1px;   /* gap between a chord tag and its own word below it */
+  /* Visual-only nudge (in em of the chord's own font size) that slides each
+     chord tag down toward the lyric under it. It uses position:relative +
+     top, so it never touches layout: every line height, gap and margin above
+     stays exactly as it was — the chord just sits closer to its own lyric
+     and a little further from the line above. */
+  --lyric-chord-nudge: 0.16;
   --lyric-line-plain-lh: 1.5;
   --lyric-line-plain-mb: 10px;
   --lyric-line-plain-gap: 10px;
@@ -1974,6 +1980,7 @@ html[data-lyrics-spacing="tight"] {
   --lyric-line-mb: 3px;
   --lyric-line-lh: 1.05;
   --lyric-chord-mb: 0px;
+  --lyric-chord-nudge: 0.05; /* already tight — only a hair, so tall Cyrillic marks (Й, Ё) never touch */
   --lyric-line-plain-lh: 1.3;
   --lyric-line-plain-mb: 6px;
   --lyric-line-plain-gap: 6px;
@@ -1983,6 +1990,7 @@ html[data-lyrics-spacing="loose"] {
   --lyric-line-mb: 8px;
   --lyric-line-lh: 1.3;
   --lyric-chord-mb: 5px;
+  --lyric-chord-nudge: 0.3;
   --lyric-line-plain-lh: 1.7;
   --lyric-line-plain-mb: 16px;
   --lyric-line-plain-gap: 16px;
@@ -2044,6 +2052,17 @@ html[data-hide-verse-numbers="true"] .lyric-section-index {
   padding: 0 5px;
   margin-bottom: var(--lyric-chord-mb);
   align-self: flex-start;
+  /* Slide the chord down toward its lyric without moving anything else
+     (see --lyric-chord-nudge). top, not transform: chord-pop below owns
+     transform and its fill-mode would otherwise override this. */
+  position: relative;
+  top: calc(var(--lyric-chord-nudge) * 1em);
+  /* Chords are display-only: selecting/long-pressing lyrics (to copy them)
+     should only ever highlight the words, never the chord chips. The copy
+     handler in app.js (bindLyricsCopy) also strips them from what lands on
+     the clipboard, so this is the visual half of the same behavior. */
+  -webkit-user-select: none;
+  user-select: none;
   box-shadow: 0 1px 0 rgba(0,0,0,0.08);
   transform: translateY(0);
   /* Settings → Appearance's Chips/Text toggle (below) and the line-spacing
@@ -2054,7 +2073,8 @@ html[data-hide-verse-numbers="true"] .lyric-section-index {
      already drives it on transpose, and mixing a transition into that
      property would fight it. */
   transition: color .22s ease, background-color .22s ease, padding .22s ease,
-    border-radius .22s ease, box-shadow .22s ease, margin-bottom .22s ease;
+    border-radius .22s ease, box-shadow .22s ease, margin-bottom .22s ease,
+    top .22s ease;
 }
 /* "Text" chord style (opt-in via the Chips/Text toggle in font-controls):
    the traditional WorshipLeader/OnSong/ChordPro convention — chords sit
@@ -2070,6 +2090,10 @@ html[data-chord-style="text"] .chord-tag {
   border-radius: 0;
   padding: 0 0 1px;
   box-shadow: none;
+  /* No chip edge here, so the chord's baseline floats a bit higher above
+     the lyric than a chip's bottom edge does — nudge a touch more so the two
+     styles end up looking equally close. */
+  top: calc((var(--lyric-chord-nudge) + 0.08) * 1em);
 }
 /* Reserves the same vertical space a real chord tag would take (so a
    chordless word lines up with a chorded one next to it) — tracks the
@@ -2077,6 +2101,8 @@ html[data-chord-style="text"] .chord-tag {
    --lyric-chord-mb spacing-mode variable, so the two never drift out of
    sync as the chip or the spacing option above changes. */
 .chord-tag-spacer {
+  -webkit-user-select: none;
+  user-select: none;
   height: calc(var(--chord-size) + var(--lyric-chord-mb) + 1px);
   transition: height .22s ease; /* keeps pace with .lyric-line's margin/gap transition above when line spacing changes */
 }

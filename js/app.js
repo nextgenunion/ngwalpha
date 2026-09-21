@@ -430,6 +430,7 @@ async function init() {
   safe('bindSongsPage', bindSongsPage);
   safe('bindScrollIndexInteraction', bindScrollIndexInteraction);
   safe('bindSongView', bindSongView);
+  safe('bindLyricsCopy', bindLyricsCopy);
   safe('bindUserSongsPage', bindUserSongsPage);
   safe('bindSongEditor', bindSongEditor);
   safe('bindPlaylistsPage', bindPlaylistsPage);
@@ -4432,8 +4433,17 @@ function renderLyrics(opts = {}) {
           const textStart = cm.index + cm[0].length;
           const textEnd = i + 1 < chordPositions.length ? chordPositions[i + 1].index : line.length;
           const precedingChar = cm.index > 0 ? line[cm.index - 1] : '';
-          const precededByBreak = cm.index === 0 || /\s/.test(precedingChar);
-          runs.push({ chord: cm[1], text: line.slice(textStart, textEnd), precededByBreak });
+          const runText = line.slice(textStart, textEnd);
+          // A chord written at the end of a word, just before the space
+          // ("Эзэн[C] гэж"), has real whitespace between it and the next
+          // word — that's a word break too. Without the third check the
+          // next word was treated as the rest of the previous one and
+          // rendered glued to it ("Эзэнгэж"). Only counts when actual word
+          // text follows the whitespace; a chord followed by nothing but
+          // spaces (end of line, or straight into another chord) keeps its
+          // old placement at the end of the word.
+          const precededByBreak = cm.index === 0 || /\s/.test(precedingChar) || /^\s+\S/.test(runText);
+          runs.push({ chord: cm[1], text: runText, precededByBreak });
         });
       }
 
@@ -4513,6 +4523,82 @@ function renderLyrics(opts = {}) {
     });
 
     container.appendChild(sectionEl);
+  });
+}
+
+// ---------------------------------------------------------
+// Copy = lyrics only.
+//
+// The rendered lyrics are a grid of flex items (one column per word, chord
+// tag stacked on top of it — see renderLyrics), and the gap between words is
+// CSS, not a space character. So the browser's own "copy" would put chord
+// names in the clipboard and either glue words together or drop each one on
+// its own line. Instead, when a selection sits inside a lyrics container we
+// rebuild the text ourselves from the selected part of the DOM: chords and
+// the "1, 2, 3…" part numbers are dropped, mid-word chord splits are rejoined
+// into one word, words are separated by a space, lines by a newline, and
+// parts (verse/chorus) by a blank line. An explicit label like "Гүүр" stays,
+// since it's written into the song itself. `root` is the DocumentFragment
+// from Range.cloneContents() — a copy, so removing nodes never touches the
+// page.
+// ---------------------------------------------------------
+function lyricsFragmentToPlainText(root) {
+  root.querySelectorAll('.chord-tag, .chord-tag-spacer, .lyric-section-index')
+    .forEach(el => el.remove());
+
+  const out = [];
+  root.querySelectorAll('.lyric-section, .lyric-section-label, .lyric-line').forEach(el => {
+    if (el.classList.contains('lyric-section')) {
+      // Blank line between parts (never doubled, never leading).
+      if (out.length && out[out.length - 1] !== '') out.push('');
+    } else if (el.classList.contains('lyric-section-label')) {
+      const label = (el.textContent || '').trim();
+      if (label) out.push(label);
+    } else {
+      // One .lyric-token = one visual word; its .lyric-word pieces are the
+      // halves of a word a chord landed in the middle of, so they join with
+      // no space. A chord-only piece renders a lone nbsp — strip it, and
+      // skip a line that ends up with no words at all (an instrumental
+      // chord line) rather than copying an empty row.
+      const words = [];
+      el.querySelectorAll('.lyric-token').forEach(tok => {
+        const word = Array.from(tok.querySelectorAll('.lyric-word'))
+          .map(w => w.textContent || '')
+          .join('')
+          .replace(/\u00A0/g, '')
+          .trim();
+        if (word) words.push(word);
+      });
+      if (words.length) out.push(words.join(' '));
+    }
+  });
+  while (out.length && out[out.length - 1] === '') out.pop();
+
+  // Selection fell entirely inside a single word: the cloned fragment is
+  // just a bare text node with none of the structure above.
+  if (!out.length) return (root.textContent || '').replace(/\u00A0/g, ' ').trim();
+  return out.join('\n');
+}
+
+function bindLyricsCopy() {
+  document.addEventListener('copy', (e) => {
+    const sel = window.getSelection && window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !e.clipboardData) return;
+
+    const parts = [];
+    for (let i = 0; i < sel.rangeCount; i++) {
+      const range = sel.getRangeAt(i);
+      const anc = range.commonAncestorContainer;
+      const host = anc.nodeType === 1 ? anc : anc.parentElement;
+      // Anything outside the song view / editor preview (the editor's own
+      // textarea, page titles, …) keeps the browser's normal copy.
+      if (!host || !host.closest('.lyrics-container')) return;
+      parts.push(lyricsFragmentToPlainText(range.cloneContents()));
+    }
+    const text = parts.filter(Boolean).join('\n');
+    if (!text) return;
+    e.clipboardData.setData('text/plain', text);
+    e.preventDefault();
   });
 }
 
