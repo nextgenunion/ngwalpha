@@ -5,17 +5,27 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.2.0-alpha — Trash Bin)
+# Next Gen Worship — Worship Song App (v4.2.26-alpha — Trash Bin)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
 
-This is **Version 3** of the planning doc's roadmap, building on Version 2
-(Playlists, Favorites) and Version 1 (official songs, settings, light/dark
-mode, smart search, chord transpose) by adding **User Songs** — songs
-written or imported directly on-device — and the **Song Editor** used to
-create and edit them. Sheet Music is still ahead — see "Built for what's
-next", below.
+This is the **Version 4.2** line of the planning doc's roadmap, building on
+Version 3's User Songs and Song Editor with backup/import and Trash Bin
+work while retaining Version 2's Playlists/Favorites and Version 1's core
+songbook, settings, theme, search, and transpose features.
+
+## What's new in v4.2.26-alpha
+
+- User Song delete-to-Trash and Trash recovery are now cross-store IndexedDB
+  transactions, preventing a failed move from leaving a song in neither place
+- User Song full-replacement imports now clear and repopulate in one atomic
+  transaction and validate/normalize backup structure before committing
+- Playlist imports now normalize required structure, references, ordering, and
+  Favorites before replacing live state
+- External song links are limited to HTTP(S) before rendering as clickable URLs
+- Removed confirmed dead translation/CSS/state code and an unused music icon;
+  corrected stale source-folder/config comments
 
 ## What's new in v4.2.5-alpha
 

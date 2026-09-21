@@ -8,8 +8,7 @@ window.SONGBOOK_APP_CONFIG = {
   contactEmail: "nextgenunionmn@gmail.com",
 
   // Shown as icon links on the About page. Leave a value as "" to hide
-  // that icon — these are placeholder/dummy URLs for now, swap them for
-  // the real ones whenever they're ready.
+  // that icon. Update these values here whenever an account URL changes.
   social: {
     facebook: "https://www.facebook.com/nextgenerationunion",
     youtube: "https://www.youtube.com/@nextgenerationunion",

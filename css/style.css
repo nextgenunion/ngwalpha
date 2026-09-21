@@ -2938,7 +2938,7 @@ button:disabled { transform: none !important; }
    .sort-btn is deliberately NOT in this list — see .sort-btn-tap near
    .sort-btn's own definition for why it needs a real keyframe animation
    instead of a plain :active rule. */
-.seg-toggle-btn:active, .btn-pill-toggle:active,
+.seg-toggle-btn:active,
 .label-suggestion-chip:active {
   transform: scale(var(--press-scale-pill));
   transition-duration: var(--press-duration-in);
@@ -3133,24 +3133,6 @@ html[data-theme="dark"] .btn-pill-done {
 @media (prefers-reduced-motion: reduce) {
   .btn-pill-done.is-entering, .btn-pill-done.is-exiting { animation: none; }
 }
-.btn-pill-toggle {
-  flex-shrink: 0;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink-soft);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 9px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s, transform var(--press-duration-out) var(--press-ease);
-}
-.btn-pill-toggle[aria-pressed="true"] {
-  background: var(--accent-strong);
-  color: var(--paper);
-  border-color: var(--accent-strong);
-}
-
 /* ---------- playlist-view song rows (view mode vs. edit mode) ---------- */
 .song-row-with-remove { position: relative; display: flex; align-items: center; gap: 10px; }
 /*
@@ -3215,7 +3197,6 @@ html[data-theme="dark"] .btn-pill-done {
 }
 
 /* ---------- kebab dropdown menu ---------- */
-.kebab-menu-wrap { position: relative; }
 .kebab-dropdown {
   position: absolute;
   top: 44px;

@@ -146,9 +146,6 @@ const state = {
   activePlaylistId: null,
   trashSongs: [], // User Songs trash bin — loaded by loadTrash(); see the
                    // "User Songs trash bin" section further down
-  trashQuery: '', // reserved for a future search box on the trash bin page,
-                   // kept separate from query/userSongQuery for the same
-                   // reason those two are kept apart from each other
 
   // ---- Developer options (see initDevOptions()) ----
   // The page itself is only reachable after tapping the About page's app
@@ -1086,55 +1083,104 @@ window.addEventListener('online', () => {
 // together so the UI never needs a separate reload to see its own change.
 // ---------------------------------------------------------
 const UserSongStorage = {
-  async _store(mode) {
-    const db = await openSongDb();
-    return db.transaction(SONGDB_STORES.user, mode).objectStore(SONGDB_STORES.user);
-  },
   async loadAll() {
     const db = await openSongDb();
-    const songs = await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.user, 'readonly');
-      const store = tx.objectStore(SONGDB_STORES.user);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
-    });
-    db.close();
-    return songs;
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(SONGDB_STORES.user, 'readonly');
+        const store = tx.objectStore(SONGDB_STORES.user);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } finally {
+      db.close();
+    }
   },
   async put(song) {
     const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
-      tx.objectStore(SONGDB_STORES.user).put(song, song.id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
+        tx.objectStore(SONGDB_STORES.user).put(song, song.id);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('User Song write aborted'));
+      });
+    } finally {
+      db.close();
+    }
   },
-  async remove(id) {
+  // Full-replace import in one transaction. If clear() or any put() fails,
+  // IndexedDB rolls the entire transaction back, leaving the old library
+  // intact instead of committing a half-imported replacement.
+  async replaceAll(songs) {
     const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
-      tx.objectStore(SONGDB_STORES.user).delete(id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
+        const store = tx.objectStore(SONGDB_STORES.user);
+        try {
+          store.clear();
+          songs.forEach(song => store.put(song, song.id));
+        } catch (err) {
+          try { tx.abort(); } catch (_) {}
+          reject(err);
+          return;
+        }
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('User Songs import aborted'));
+      });
+    } finally {
+      db.close();
+    }
   },
-  // Wipes every song out of the store — used by importUserSongsFromFile()
-  // below to clear out pre-import songs before writing the imported list,
-  // since (unlike PlaylistStorage's single blob) User Songs are one key
-  // per song and a stale leftover key wouldn't just be overwritten.
-  async clear() {
+  // Moving between User Songs and Trash is one cross-store transaction, so
+  // there is never a committed moment where the song exists in neither store.
+  async moveToTrash(song, entry) {
     const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.user, 'readwrite');
-      tx.objectStore(SONGDB_STORES.user).clear();
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([SONGDB_STORES.user, SONGDB_STORES.trash], 'readwrite');
+        try {
+          tx.objectStore(SONGDB_STORES.trash).put(entry, entry.id);
+          tx.objectStore(SONGDB_STORES.user).delete(song.id);
+        } catch (err) {
+          try { tx.abort(); } catch (_) {}
+          reject(err);
+          return;
+        }
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Move to Trash aborted'));
+      });
+    } finally {
+      db.close();
+    }
+  },
+  // Exact inverse of moveToTrash(): restore the song and remove its Trash
+  // copy together, or roll both operations back together on failure.
+  async restoreFromTrash(song, trashId) {
+    const db = await openSongDb();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([SONGDB_STORES.user, SONGDB_STORES.trash], 'readwrite');
+        try {
+          tx.objectStore(SONGDB_STORES.user).put(song, song.id);
+          tx.objectStore(SONGDB_STORES.trash).delete(trashId);
+        } catch (err) {
+          try { tx.abort(); } catch (_) {}
+          reject(err);
+          return;
+        }
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Trash recovery aborted'));
+      });
+    } finally {
+      db.close();
+    }
   },
 };
 
@@ -1152,6 +1198,73 @@ function sanitizeUserSongRecord(song) {
     delete song.__searchCache;
   }
   return song;
+}
+
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Song links are opened in a new browser tab, so imported/user-authored data
+// must not be able to turn href into a javascript:, data:, or other executable
+// scheme. Official song links are HTTP(S) too, so the same allowlist can be
+// applied at render time without a source-specific branch.
+function safeExternalHttpUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    const parsed = new URL(value.trim());
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? parsed.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function normalizeImportedUserSongs(data) {
+  if (!Array.isArray(data)) throw new Error('not a user songs export file');
+
+  const seenIds = new Set();
+  return data.map((raw, index) => {
+    if (!isPlainObject(raw)) throw new Error(`invalid User Song at index ${index}`);
+
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+    if (!id || !title) throw new Error(`User Song ${index + 1} is missing id/title`);
+    if (seenIds.has(id)) throw new Error(`duplicate User Song id: ${id}`);
+    seenIds.add(id);
+
+    // Older/hand-edited backups may omit optional arrays. Normalize those to
+    // the shape current rendering expects instead of rejecting a recoverable
+    // backup. A present lyrics field, however, must still be an array of text.
+    const lyrics = raw.lyrics == null ? [] : raw.lyrics;
+    if (!Array.isArray(lyrics) || lyrics.some(line => typeof line !== 'string')) {
+      throw new Error(`User Song ${index + 1} has invalid lyrics`);
+    }
+
+    const links = Array.isArray(raw.links) ? raw.links.reduce((out, link) => {
+      const candidate = typeof link === 'string' ? link : (isPlainObject(link) ? link.url : '');
+      const url = safeExternalHttpUrl(candidate);
+      if (!url) return out;
+      if (typeof link === 'string') out.push(url);
+      else out.push({ ...link, url, label: typeof link.label === 'string' ? link.label : undefined });
+      return out;
+    }, []) : [];
+
+    const clean = {
+      ...raw,
+      id,
+      title,
+      lyrics: [...lyrics],
+      links,
+      labels: Array.isArray(raw.labels) ? raw.labels.filter(label => typeof label === 'string') : [],
+      sheetMusic: Array.isArray(raw.sheetMusic) ? raw.sheetMusic : [],
+    };
+    if (raw.alternateTitles != null) {
+      const titles = Array.isArray(raw.alternateTitles) ? raw.alternateTitles : [raw.alternateTitles];
+      clean.alternateTitles = titles.filter(value => typeof value === 'string' && value.trim()).map(value => value.trim());
+    }
+    if (raw.artist != null && typeof raw.artist !== 'string') delete clean.artist;
+    if (raw.key != null && typeof raw.key !== 'string') delete clean.key;
+    return sanitizeUserSongRecord(clean);
+  });
 }
 
 // Loaded once at startup (see init()) alongside the selected database/
@@ -1185,35 +1298,40 @@ async function loadUserSongs() {
 // IndexedDB and the in-memory list, keeping them in lockstep.
 async function saveUserSong(song) {
   sanitizeUserSongRecord(song);
+  // Persist first. If IndexedDB rejects the write, the in-memory UI stays
+  // aligned with what will still be present after a reload.
+  await UserSongStorage.put(song);
   const list = state.sources.user.songs;
   const idx = list.findIndex(s => s.id === song.id);
   if (idx === -1) list.push(song);
   else list[idx] = song;
-  await UserSongStorage.put(song);
 }
 
 // Moves a User Song to the trash instead of wiping it outright — see the
 // "User Songs trash bin" section below for TrashStorage/purgeExpiredTrash/
 // restoreTrashedSong, which is where the rest of the trash lifecycle lives.
-// Kept as its own function (rather than folding into trashUserSong) so
-// every existing call site (song-view kebab, editor, confirmDeleteUserSong)
+// Kept as its own function so every existing call site (song-view kebab,
+// editor, confirmDeleteUserSong)
 // keeps working unchanged — "delete" now means "move to trash" everywhere
 // in the app; a separate, explicit action inside the trash bin itself is
 // what actually removes a song for good (see permanentlyDeleteTrashSongs).
 async function deleteUserSong(id) {
   const song = state.sources.user.songs.find(s => s.id === id);
+  if (!song) return;
+  const entry = { ...song, deletedAt: Date.now() };
+
+  // Commit both stores before changing either in-memory mirror. A failed
+  // transaction therefore leaves the visible state and persisted state as
+  // they were, instead of making the song disappear from only one side.
+  await UserSongStorage.moveToTrash(song, entry);
   state.sources.user.songs = state.sources.user.songs.filter(s => s.id !== id);
-  await UserSongStorage.remove(id);
+  state.trashSongs = state.trashSongs.filter(s => s.id !== id);
+  state.trashSongs.push(entry);
+
   // A song can be referenced from playlists/Favorites by {sourceKey:
-  // 'user', songId} — same reasoning as official songs (playlists never
-  // duplicate song data, only ids), so deleting the song here doesn't
-  // touch playlists directly. findSongByRef() simply stops resolving it,
-  // and renderPlaylistView()/renderPlaylistsList() already tolerate a ref
-  // that no longer resolves to a song (see their own null-checks) — same
-  // as if an official song were ever removed from a manifest. The same is
-  // true once a song lands in the trash: it's still gone from every
-  // playlist's point of view until (if ever) it's recovered.
-  if (song) await trashUserSong(song);
+  // 'user', songId}. Playlists intentionally keep those references while a
+  // song is in Trash; findSongByRef() simply stops resolving it until the
+  // song is recovered.
 }
 
 // ---------------------------------------------------------
@@ -1247,26 +1365,6 @@ const TrashStorage = {
     db.close();
     return songs;
   },
-  async put(entry) {
-    const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
-      tx.objectStore(SONGDB_STORES.trash).put(entry, entry.id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
-  },
-  async remove(id) {
-    const db = await openSongDb();
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
-      tx.objectStore(SONGDB_STORES.trash).delete(id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
-  },
   // Deletes several at once — used by the trash bin's multi-select "Delete"
   // action so an N-song bulk action is N IndexedDB deletes in one pass
   // through openSongDb() rather than N separate open/close round-trips.
@@ -1297,30 +1395,19 @@ async function loadTrash() {
   }
 }
 
-// Moves one song into the trash: stamps it with deletedAt and writes it to
-// the trash store. Called from deleteUserSong() above — the one and only
-// place a User Song is ever removed from state.sources.user.songs — so
-// every existing delete entry point (song-view kebab, the editor's delete
-// confirm) already routes through here with no changes needed at those
-// call sites.
-async function trashUserSong(song) {
-  const entry = { ...song, deletedAt: Date.now() };
-  state.trashSongs.push(entry);
-  await TrashStorage.put(entry);
-}
-
-// Restores one trashed song back into User Songs — the inverse of
-// trashUserSong(). deletedAt is simply dropped rather than carried into
-// state.sources.user.songs, since saveUserSong()/UserSongStorage never
-// expect that field and a stale one left over from a previous trash trip
-// would otherwise leak back out through exportUserSongs().
+// Restores one trashed song back into User Songs. The two IndexedDB writes
+// happen atomically (see UserSongStorage.restoreFromTrash), and the in-memory
+// mirrors are only updated after that transaction commits successfully.
 async function restoreTrashedSong(id) {
   const entry = state.trashSongs.find(s => s.id === id);
   if (!entry) return;
-  state.trashSongs = state.trashSongs.filter(s => s.id !== id);
   const { deletedAt, ...song } = entry;
-  await saveUserSong(song);
-  await TrashStorage.remove(id);
+  sanitizeUserSongRecord(song);
+
+  await UserSongStorage.restoreFromTrash(song, id);
+  state.trashSongs = state.trashSongs.filter(s => s.id !== id);
+  state.sources.user.songs = state.sources.user.songs.filter(s => s.id !== song.id);
+  state.sources.user.songs.push(song);
 }
 
 // Restores several trashed songs at once — the trash bin's multi-select
@@ -1341,9 +1428,9 @@ async function restoreTrashedSongs(ids) {
 // confirmPermanentlyDeleteTrashSongs() in the "Trash Bin page" section,
 // which is what every call site actually goes through.
 async function permanentlyDeleteTrashSongs(ids) {
+  await TrashStorage.removeMany(ids);
   const idSet = new Set(ids);
   state.trashSongs = state.trashSongs.filter(s => !idSet.has(s.id));
-  await TrashStorage.removeMany(ids);
 }
 
 // Hard-deletes anything that's been sitting in the trash for more than
@@ -1656,21 +1743,12 @@ function exportUserSongs() {
 async function importUserSongsFromFile(file) {
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
-    if (!Array.isArray(data) || !data.every(s => s && typeof s.id === 'string' && typeof s.title === 'string')) {
-      throw new Error('not a user songs export file');
-    }
-    // Same full-replace behavior as importPlaylistsFromFile — this is a
-    // device-to-device move, not a merge, so the imported file becomes
-    // the new User Songs list. Unlike PlaylistStorage's single blob,
-    // User Songs are stored one key per song (see UserSongStorage above),
-    // so the store is cleared first rather than just overwritten, to
-    // avoid leaving pre-import songs orphaned behind the new list.
-    const cleanData = data.map(song => sanitizeUserSongRecord(song));
-    await UserSongStorage.clear();
-    for (const song of cleanData) {
-      await UserSongStorage.put(song);
-    }
+    const cleanData = normalizeImportedUserSongs(JSON.parse(text));
+
+    // Full replacement is intentional for backup/device transfer, but the
+    // clear + all puts now share one transaction. A failed import therefore
+    // leaves the previous User Songs library untouched.
+    await UserSongStorage.replaceAll(cleanData);
     state.sources.user.songs = cleanData;
     state.sources.user.loaded = true;
     if (state.currentPage === 'user-songs') renderUserSongList();
@@ -4246,13 +4324,18 @@ function openSong(song, opts = {}) {
   }
 
   const linksEl = document.getElementById('sv-links');
-  if (song.links && song.links.length) {
+  const safeLinks = Array.isArray(song.links) ? song.links.map(l => {
+    const rawUrl = typeof l === 'string' ? l : (l && l.url);
+    const url = safeExternalHttpUrl(rawUrl);
+    if (!url) return null;
+    const label = (l && typeof l === 'object' && l.label) ? l.label : t('listenLink');
+    return { url, label };
+  }).filter(Boolean) : [];
+  if (safeLinks.length) {
     linksEl.hidden = false;
-    linksEl.innerHTML = song.links.map(l => {
-      const url = typeof l === 'string' ? l : l.url;
-      const label = (typeof l === 'object' && l.label) ? l.label : t('listenLink');
-      return `<a class="sv-link-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
-    }).join('');
+    linksEl.innerHTML = safeLinks.map(({ url, label }) =>
+      `<a class="sv-link-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+    ).join('');
   } else {
     linksEl.hidden = true;
     linksEl.innerHTML = '';
@@ -4892,16 +4975,88 @@ function genPlaylistId() {
   return 'pl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-async function loadPlaylists() {
-  const saved = await PlaylistStorage.load();
-  if (saved && saved.byId && saved.byId.favorites) {
-    state.playlists = saved;
-  } else {
-    state.playlists = {
-      order: ['favorites'],
-      byId: { favorites: { id: 'favorites', name: '', isFavorites: true, songs: [] } },
+function normalizePlaylistData(data) {
+  if (!isPlainObject(data) || !isPlainObject(data.byId) || !isPlainObject(data.byId.favorites)) {
+    throw new Error('not a playlists export file');
+  }
+
+  const byId = {};
+  for (const [key, raw] of Object.entries(data.byId)) {
+    if (!isPlainObject(raw)) continue;
+    // Avoid special object-property names when rebuilding byId from imported
+    // JSON. Normal app-generated ids are "favorites" or "pl_...".
+    if (key === '__proto__' || key === 'prototype' || key === 'constructor') continue;
+
+    const id = (typeof raw.id === 'string' && raw.id.trim()) ? raw.id.trim() : key;
+    if (!id || id === '__proto__' || id === 'prototype' || id === 'constructor') continue;
+
+    const refs = Array.isArray(raw.songs) ? raw.songs : [];
+    const seenRefs = new Set();
+    const songs = [];
+    refs.forEach(ref => {
+      if (!isPlainObject(ref) || typeof ref.sourceKey !== 'string' || !ref.sourceKey.trim()) return;
+      if (typeof ref.songId !== 'string' && typeof ref.songId !== 'number') return;
+      const sourceKey = ref.sourceKey.trim();
+      const songId = String(ref.songId);
+      if (!songId) return;
+      const refKey = `${sourceKey}:${songId}`;
+      if (seenRefs.has(refKey)) return;
+      seenRefs.add(refKey);
+      songs.push({ sourceKey, songId });
+    });
+
+    const isFavorites = key === 'favorites';
+    if (!isFavorites && id === 'favorites') continue;
+    byId[isFavorites ? 'favorites' : id] = {
+      ...raw,
+      id: isFavorites ? 'favorites' : id,
+      name: isFavorites ? '' : (typeof raw.name === 'string' ? raw.name : ''),
+      isFavorites,
+      songs,
     };
   }
+
+  if (!byId.favorites) {
+    throw new Error('playlists export is missing Favorites');
+  }
+
+  // Keep the exported order when valid, then append any otherwise-valid
+  // playlists that were omitted from it so they cannot become orphaned.
+  const order = ['favorites'];
+  const seenIds = new Set(order);
+  if (Array.isArray(data.order)) {
+    data.order.forEach(rawId => {
+      const id = String(rawId);
+      if (id !== 'favorites' && byId[id] && !seenIds.has(id)) {
+        order.push(id);
+        seenIds.add(id);
+      }
+    });
+  }
+  Object.keys(byId).forEach(id => {
+    if (!seenIds.has(id)) {
+      order.push(id);
+      seenIds.add(id);
+    }
+  });
+
+  return { ...data, order, byId };
+}
+
+async function loadPlaylists() {
+  const saved = await PlaylistStorage.load();
+  if (saved) {
+    try {
+      state.playlists = normalizePlaylistData(saved);
+      return;
+    } catch (err) {
+      console.warn('Songbook: saved playlists were invalid; using a clean Favorites list —', err);
+    }
+  }
+  state.playlists = {
+    order: ['favorites'],
+    byId: { favorites: { id: 'favorites', name: '', isFavorites: true, songs: [] } },
+  };
 }
 
 function persistPlaylists() {
@@ -4928,10 +5083,9 @@ function exportPlaylists() {
 async function importPlaylistsFromFile(file) {
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
-    if (!data || !data.byId || !data.byId.favorites) throw new Error('not a playlists export file');
-    state.playlists = data;
-    persistPlaylists();
+    const cleanData = normalizePlaylistData(JSON.parse(text));
+    state.playlists = cleanData;
+    await PlaylistStorage.save(cleanData);
     if (state.currentPage === 'playlists') renderPlaylistsList();
     if (state.currentPage === 'playlist-view') renderPlaylistView();
     if (state.activeSong) updateFavoriteButtonUI();
