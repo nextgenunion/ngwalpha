@@ -3100,8 +3100,33 @@ function renderUserSongList(opts = {}) {
   document.getElementById('user-songs-empty-state').textContent = t('userSongsEmptyState');
 }
 
-function stripChords(lyricsArr) {
-  return (Array.isArray(lyricsArr) ? lyricsArr : []).join(' \n ').replace(/\[[^\]]+\]/g, '');
+// Parse the app's explicit section-label syntax once so Search and the
+// Song Rendering Engine agree on what is structural metadata. Any text
+// before the first colon is a section label as long as that prefix contains
+// neither another colon nor a [chord] marker. Examples: "Verse 1:",
+// "Гүүр:", "Chorus x2:". The returned content is the lyric text after
+// the colon (with only leading spacing removed).
+function splitLyricSectionLabel(rawLine) {
+  const line = String(rawLine == null ? '' : rawLine).replace(/^\s+/, '');
+  const match = line.match(/^([^\[\]:]+):(.*)$/);
+  if (!match) return null;
+  const label = match[1].trim();
+  if (!label) return null;
+  return {
+    label,
+    content: match[2].replace(/^\s+/, ''),
+  };
+}
+
+// Search indexes sung text, not rendering instructions. Chord tags and
+// explicit section labels are structural metadata, so remove them while
+// keeping any lyric text that follows the label on the same source line.
+function stripSongFormattingForSearch(lyricsArr) {
+  return (Array.isArray(lyricsArr) ? lyricsArr : []).map(rawLine => {
+    const parsed = splitLyricSectionLabel(rawLine);
+    const lyricLine = parsed ? parsed.content : String(rawLine == null ? '' : rawLine);
+    return lyricLine.replace(/\[[^\]]+\]/g, '');
+  }).join(' \n ');
 }
 
 // Normalises only the things that should be invisible to a person while
@@ -3140,7 +3165,7 @@ function getSearchCache(song) {
       .filter(Boolean);
     const artist = normalizeSearchText(song.artist);
     const number = song.number != null ? normalizeSearchText(song.number) : '';
-    const lyrics = normalizeSearchText(stripChords(song.lyrics));
+    const lyrics = normalizeSearchText(stripSongFormattingForSearch(song.lyrics));
     const titleAndAltHaystack = [title, ...altTitles].filter(Boolean).join(' \n ');
     const contentHaystack = [title, number, ...altTitles, lyrics].filter(Boolean).join(' \n ');
     const haystack = [contentHaystack, artist].filter(Boolean).join(' \n ');
@@ -4470,9 +4495,8 @@ function renderLyrics(opts = {}) {
     // the line before chord
     // tokenizing and rendered in place of the number; when absent, the
     // section falls back to the existing "1, 2, 3…" numbering below.
-    const firstLineTrimmed = sectionLines[0].replace(/^\s+/, '');
-    const labelMatch = firstLineTrimmed.match(/^([^\[\]:]+):(.*)$/);
-    const sectionLabel = labelMatch ? labelMatch[1].trim() : null;
+    const firstLineLabel = splitLyricSectionLabel(sectionLines[0]);
+    const sectionLabel = firstLineLabel ? firstLineLabel.label : null;
 
     // A section made up of nothing but [Chord] markers — no actual sung
     // words anywhere in it — isn't a "part" in the verse/chorus sense, so
@@ -4511,19 +4535,19 @@ function renderLyrics(opts = {}) {
       // label render as ordinary lyric text even though the syntax itself
       // was valid. Treat the label as an inline structural marker instead.
       let line = lineIdx === 0 ? rawLine.replace(/^\s+/, '') : rawLine;
-      const lineLabelMatch = line.replace(/^\s+/, '').match(/^([^\[\]:]+):(.*)$/);
+      const lineLabel = splitLyricSectionLabel(line);
 
-      if (lineLabelMatch) {
+      if (lineLabel) {
         // The first line's label was already rendered above in place of the
         // automatic section number. Labels found later need their own badge
         // at exactly this position in the lyrics.
         if (lineIdx > 0) {
           const labelEl = document.createElement('div');
           labelEl.className = 'lyric-section-number lyric-section-label';
-          labelEl.textContent = lineLabelMatch[1].trim();
+          labelEl.textContent = lineLabel.label;
           sectionEl.appendChild(labelEl);
         }
-        line = lineLabelMatch[2].replace(/^\s+/, '');
+        line = lineLabel.content;
 
         // A label commonly lives on a line by itself ("Дахилт:" / "Bridge:").
         // Once the label text has been pulled out there is no lyric left on
