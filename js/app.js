@@ -594,8 +594,19 @@ function dbSourceLabel(sourceKey) {
 // openDbPickerModal(). Called from applyDbSource() (selection changed) and
 // applyLanguage() (the 'english' source's name is language-dependent).
 function updateDbRowSub() {
+  const label = dbSourceLabel(state.activeDbSource);
   const el = document.getElementById('t-dbSub');
-  if (el) el.textContent = dbSourceLabel(state.activeDbSource);
+  if (el) el.textContent = label;
+
+  // Songbook-page shortcut: expose both the action and current database
+  // to assistive tech/tooltips without adding visible text inside the
+  // compact search bar control.
+  const quickBtn = document.getElementById('song-db-btn');
+  if (quickBtn) {
+    const action = t('dbPickerTitle');
+    quickBtn.setAttribute('aria-label', `${action}: ${label}`);
+    quickBtn.title = `${action}: ${label}`;
+  }
 }
 
 // One JSON file per song remains the editable/latest source of truth, listed
@@ -3025,7 +3036,12 @@ function bindSongsPage() {
 
   const searchToolsBtn = document.getElementById('song-search-tools-btn');
   if (searchToolsBtn) searchToolsBtn.addEventListener('click', openSongSearchToolsModal);
+
+  const dbBtn = document.getElementById('song-db-btn');
+  if (dbBtn) dbBtn.addEventListener('click', openDbPickerModal);
+
   updateSongToolbarButtons();
+  updateDbRowSub();
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
      css/style.css) on whichever button was just clicked. This can't be
@@ -4193,6 +4209,7 @@ function openSongViewMenu() {
   wrap.innerHTML = `
     <button type="button" id="sv-kebab-add-playlist"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('addToPlaylistTitle'))}</button>
     <button type="button" id="sv-kebab-labels"><svg data-icon="tag" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>
+    <button type="button" id="sv-kebab-display"><svg data-icon="view-list" viewBox="0 0 24 24"></svg>${escapeHtml(t('displaySettingsTitle'))}</button>
     ${isUserSong ? `
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
@@ -4213,6 +4230,11 @@ function openSongViewMenu() {
     e.stopPropagation();
     closeSongViewMenu();
     openEditLabelsModal(state.activeSourceKey, song.id);
+  });
+  wrap.querySelector('#sv-kebab-display').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeSongViewMenu();
+    showPage('song-display', { pushHistory: true, resetScroll: true });
   });
   const editBtn = wrap.querySelector('#sv-kebab-edit');
   if (editBtn) editBtn.addEventListener('click', (e) => {

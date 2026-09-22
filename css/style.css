@@ -616,7 +616,7 @@ button, a {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
-  margin-right: -7px;
+  margin-right: 0;
   border: 0;
   border-radius: 11px;
   display: inline-flex;
@@ -628,6 +628,10 @@ button, a {
   transition: background-color .15s ease, color .15s ease, transform .18s var(--press-ease);
 }
 .search-tools-btn svg { width: 19px; height: 19px; fill: currentColor; }
+
+.search-db-btn {
+  margin-right: -7px;
+}
 .search-tools-btn:hover { background: var(--surface-2); color: var(--ink); }
 .search-tools-btn:active { transform: scale(.92); }
 .search-tools-btn[aria-pressed="true"] {
@@ -2246,6 +2250,8 @@ html[data-hide-chords="true"] .lyric-line {
   font-weight: 420;
   font-style: normal;
   letter-spacing: 0;
+  font-kerning: normal;
+  font-synthesis: none;
   font-stretch: 100%;
   min-width: 0;
   max-width: 100%;
