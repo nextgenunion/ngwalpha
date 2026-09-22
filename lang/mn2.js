@@ -10,6 +10,7 @@ window.SONGBOOK_LANG.mn2 = {
   filterLabelsTitle: "Шошгоор шүүх",
   filterLabelsEmpty: "Энэ дууны санд одоогоор ашигласан шошго алга байна.",
   filterLabelsClear: "Шүүлтүүр арилгах",
+  searchOptionsTitle: "Хайлтын тохиргоо",
   sortByAlpha: "ᠴᠠᠭᠠᠨ ᠲᠣᠯᠤᠭᠠᠢ ᠪᠠᠷ",
   sortByNumber: "ᠳ᠋ᠤᠭᠠᠷ ᠢ᠋ᠶᠠᠷ",
   sortAsc: "ᠥᠰᢈᠦ",

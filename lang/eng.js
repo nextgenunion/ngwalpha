@@ -13,6 +13,7 @@ window.SONGBOOK_LANG.en = {
   filterLabelsTitle: "Filter by labels",
   filterLabelsEmpty: "No labels are used in this song database yet.",
   filterLabelsClear: "Clear filters",
+  searchOptionsTitle: "Search options",
   sortByAlpha: "Alphabet",
   sortByNumber: "Number",
   sortAsc: "Ascending",

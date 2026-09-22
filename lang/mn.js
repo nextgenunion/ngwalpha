@@ -9,6 +9,7 @@ window.SONGBOOK_LANG.mn = {
   filterLabelsTitle: "Шошгоор шүүх",
   filterLabelsEmpty: "Энэ дууны санд одоогоор ашигласан шошго алга байна.",
   filterLabelsClear: "Шүүлтүүр арилгах",
+  searchOptionsTitle: "Хайлтын тохиргоо",
   sortByAlpha: "Цагаан толгой",
   sortByNumber: "Дугаар",
   sortAsc: "Өсөх",

@@ -9,6 +9,7 @@ window.SONGBOOK_LANG.kr = {
   filterLabelsTitle: "라벨로 필터",
   filterLabelsEmpty: "이 찬양집에는 아직 사용 중인 라벨이 없습니다.",
   filterLabelsClear: "필터 지우기",
+  searchOptionsTitle: "검색 옵션",
   sortByAlpha: "가나다순",
   sortByNumber: "번호순",
   sortAsc: "오름차순",

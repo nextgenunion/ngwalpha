@@ -83,6 +83,7 @@ const BEST_EFFORT_ASSETS = [
 
   './icons/svg/brand-music-note.svg',
   './icons/svg/search.svg',
+  './icons/svg/filter-tune.svg',
   './icons/svg/back-arrow.svg',
   './icons/svg/mail-contact.svg',
   './icons/svg/copy.svg',

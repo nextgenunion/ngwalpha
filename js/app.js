@@ -266,6 +266,7 @@ const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb','Dm','Gm','Cm','Fm','Bbm
 const ICON_FILES = {
   'brand-mark': 'icons/svg/brand-music-note.svg',
   'search': 'icons/svg/search.svg',
+  'filter-tune': 'icons/svg/filter-tune.svg',
   'back-arrow': 'icons/svg/back-arrow.svg',
   'contact-mail': 'icons/svg/mail-contact.svg',
   'copy': 'icons/svg/copy.svg',
@@ -3021,10 +3022,8 @@ function bindSongsPage() {
     renderSongList({ animate: true });
   }));
 
-  const labelFilterBtn = document.getElementById('song-label-filter-btn');
-  if (labelFilterBtn) labelFilterBtn.addEventListener('click', openSongLabelFilterModal);
-  const viewShortcutBtn = document.getElementById('song-view-shortcut-btn');
-  if (viewShortcutBtn) viewShortcutBtn.addEventListener('click', openSongViewShortcutModal);
+  const searchToolsBtn = document.getElementById('song-search-tools-btn');
+  if (searchToolsBtn) searchToolsBtn.addEventListener('click', openSongSearchToolsModal);
   updateSongToolbarButtons();
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
@@ -3907,15 +3906,14 @@ function scheduleScrollIndexFade() {
 // scrollTop to whatever position was touched.
 function bindScrollIndexInteraction() {
   const track = document.getElementById('song-scroll-index');
+  const thumb = document.getElementById('song-scroll-thumb');
   const bubble = document.getElementById('song-scroll-index-bubble');
   const pageEl = document.getElementById('page-songs');
-  if (!track || !pageEl) return;
+  if (!track || !thumb || !pageEl) return;
 
   // Ordinary swipe-scrolling of the list: brings the thumb to full opacity
-  // and keeps it tracking the scroll position in real time, but never
-  // shows the popup bubble — that's reserved for actually grabbing the
-  // thumb (see pointerdown below), matching the reference behavior of a
-  // plain scroll vs. a deliberate scrub.
+  // and keeps it tracking the scroll position in real time, but never shows
+  // the popup bubble — that's reserved for actually grabbing the handle.
   pageEl.addEventListener('scroll', () => {
     if (track.hidden) return;
     updateScrollThumbPosition();
@@ -3923,112 +3921,92 @@ function bindScrollIndexInteraction() {
     scheduleScrollIndexFade();
   }, { passive: true });
 
-  // Tracks the previous drag position/time so applyDrag() can turn "how
-  // fast is this drag moving right now" into a squish impulse (see
-  // nudgeThumbSquish) — reset to null at the start of every new drag (in
-  // pointerdown below) so the first move of a new drag never computes a
-  // bogus speed against a leftover position from a previous one.
   let lastDragY = null;
   let lastDragTime = null;
+  let dragGrabOffsetY = 0;
 
+  function updateDragBubble(clientY, maxScroll) {
+    if (!bubble) return;
+    const label = labelForScrollTop(pageEl.scrollTop, maxScroll);
+    const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
+    const labelEl = document.getElementById('song-scroll-index-bubble-label');
+    const labelText = isSearch ? '' : label;
+    if (labelEl && labelEl.textContent !== labelText) {
+      labelEl.textContent = labelText;
+      bubble.style.width = 'auto';
+      const naturalWidth = bubble.offsetWidth;
+      bubble.style.width = naturalWidth + 'px';
+      bubble.classList.remove('is-ticking');
+      void bubble.offsetWidth;
+      bubble.classList.add('is-ticking');
+    }
+    bubble.classList.toggle('is-search', isSearch);
+    bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
+    const margin = 4;
+    const desiredTop = clientY - bubble.offsetHeight / 2;
+    const maxTop = window.innerHeight - bubble.offsetHeight - margin;
+    const clampedTop = Math.max(margin, Math.min(maxTop, desiredTop));
+    bubble.style.top = `${Math.round(clampedTop)}px`;
+  }
+
+  // True thumb dragging: the grab point stays under the pointer. Unlike the
+  // previous implementation, the pointer's Y is NOT interpreted as an
+  // absolute position on the whole rail, so grabbing the handle never makes
+  // the list jump before the person actually moves it.
   function applyDrag(clientY) {
     const rect = track.getBoundingClientRect();
-    const ratio = rect.height === 0 ? 0 : Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+    const thumbHeight = thumb.offsetHeight;
+    const travel = Math.max(0, rect.height - thumbHeight);
+    const thumbTop = Math.min(travel, Math.max(0, clientY - rect.top - dragGrabOffsetY));
+    const ratio = travel > 0 ? thumbTop / travel : 0;
     const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
     pageEl.scrollTop = ratio * maxScroll;
     updateScrollThumbPosition();
 
-    // The faster the drag is currently moving, the more the thumb
-    // stretches — same spring as the grab squeeze below, just fed
-    // continuously while scrubbing instead of as one initial kick.
     const now = performance.now();
     if (lastDragY !== null) {
       const dt = Math.max(1, now - lastDragTime);
-      const speed = Math.abs(clientY - lastDragY) / dt; // px per ms
+      const speed = Math.abs(clientY - lastDragY) / dt;
       if (speed > 0) nudgeThumbSquish(Math.min(2.6, speed * 3.2));
     }
     lastDragY = clientY;
     lastDragTime = now;
-
-    if (bubble) {
-      const label = labelForScrollTop(pageEl.scrollTop, maxScroll);
-      const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
-      const labelEl = document.getElementById('song-scroll-index-bubble-label');
-      const labelText = isSearch ? '' : label;
-      // Only re-measure/animate width when the label actually changed —
-      // during a fast drag this function can run many times per frame,
-      // and re-running the measure-and-restart dance on every single call
-      // regardless (as this used to) forces a layout thrash each time and
-      // races with itself: by the time a later call reads the "current"
-      // width to animate from, an earlier call's update may not have
-      // committed yet, so the box reads a stale size and appears stuck
-      // until the drag slows down enough for everything to catch up.
-      // Skipping the work entirely when nothing changed removes both the
-      // thrash and the race.
-      if (labelEl && labelEl.textContent !== labelText) {
-        labelEl.textContent = labelText;
-        // Crossing a digit boundary (song 9 -> 10, 99 -> 100) changes how
-        // wide the label naturally needs to be — measure that with the
-        // constraint released for a moment, then commit the new width
-        // immediately (synchronously, not via requestAnimationFrame) so
-        // the CSS transition picks it up from whatever was last actually
-        // painted and animates straight to it, with no deferred step for
-        // a later call to race against.
-        bubble.style.width = 'auto';
-        const naturalWidth = bubble.offsetWidth;
-        bubble.style.width = naturalWidth + 'px';
-        // A small squishy "tick" pop each time the drag crosses into a
-        // new letter/number bucket — remove-reflow-readd so consecutive
-        // bucket changes during a fast drag each get their own pop rather
-        // than one call's animation just continuing where the last left
-        // off (same retrigger pattern used for row enter/exit animations
-        // elsewhere in this file).
-        bubble.classList.remove('is-ticking');
-        void bubble.offsetWidth;
-        bubble.classList.add('is-ticking');
-      }
-      bubble.classList.toggle('is-search', isSearch);
-      bubble.classList.toggle('is-numeric', !isSearch && scrollIndexIsNumeric);
-      // Centered on the touch/cursor position, but clamped to stay fully
-      // within the viewport — near the very top of the track (barely
-      // below the status bar/notch) an uncentered bubble would otherwise
-      // hang half off the top of the screen, and this keeps it fully
-      // visible at any drag position on any device instead.
-      const margin = 4;
-      const desiredTop = clientY - bubble.offsetHeight / 2;
-      const maxTop = window.innerHeight - bubble.offsetHeight - margin;
-      const clampedTop = Math.max(margin, Math.min(maxTop, desiredTop));
-      bubble.style.top = `${Math.round(clampedTop)}px`;
-    }
+    updateDragBubble(clientY, maxScroll);
   }
 
   track.addEventListener('pointerdown', (e) => {
     if (track.hidden) return;
+
+    // Empty rail space is intentionally inert. Give the very thin visual
+    // thumb a little vertical hit slop so it is still easy to grab on touch,
+    // but never treat a click elsewhere on the rail as a jump command.
+    const thumbRect = thumb.getBoundingClientRect();
+    const hitSlopY = 7;
+    if (e.clientY < thumbRect.top - hitSlopY || e.clientY > thumbRect.bottom + hitSlopY) return;
+
     scrollIndexDragging = true;
     lastDragY = null;
     lastDragTime = null;
+    dragGrabOffsetY = Math.min(thumbRect.height, Math.max(0, e.clientY - thumbRect.top));
     if (track.setPointerCapture) track.setPointerCapture(e.pointerId);
     setScrollIndexActive(true);
     track.classList.add('is-dragging');
-    // The initial "grabbed!" squeeze — a quick squash that the spring
-    // rebounds out of on its own (see stepThumbSquish), independent of
-    // any actual movement yet.
     nudgeThumbSquish(-4.2);
+
+    const maxScroll = Math.max(1, pageEl.scrollHeight - pageEl.clientHeight);
     if (bubble) {
       bubble.classList.add('is-visible');
-      // Give the bubble a concrete starting width (rather than leaving it
-      // on its auto/fit-content sizing) so the very first label of this
-      // drag has an actual pixel value to transition width from, instead
-      // of snapping in at whatever size the new label happens to need.
       bubble.style.width = bubble.offsetWidth + 'px';
+      updateDragBubble(e.clientY, maxScroll);
     }
-    applyDrag(e.clientY);
     e.preventDefault();
   });
+
   track.addEventListener('pointermove', (e) => {
     if (!scrollIndexDragging) return;
     applyDrag(e.clientY);
   });
+
   const endDrag = () => {
     if (!scrollIndexDragging) return;
     scrollIndexDragging = false;
@@ -4044,9 +4022,6 @@ function bindScrollIndexInteraction() {
     });
   }
 
-  // A resize (rotation, on-screen keyboard, browser chrome show/hide) can
-  // change the track's own height or the page's scrollable range without
-  // firing a scroll event, so the thumb needs its own recompute here too.
   window.addEventListener('resize', () => updateScrollThumbPosition());
 }
 
@@ -5406,115 +5381,46 @@ function matchesSongLabelFilter(song, sourceKey) {
 }
 
 function updateSongToolbarButtons() {
-  const filterBtn = document.getElementById('song-label-filter-btn');
+  const toolsBtn = document.getElementById('song-search-tools-btn');
   const filterCount = document.getElementById('song-label-filter-count');
-  if (filterBtn) {
-    const count = state.songLabelFilters.length;
-    filterBtn.setAttribute('aria-pressed', String(count > 0));
-    filterBtn.setAttribute('aria-label', t('filterLabelsTitle'));
-    filterBtn.title = t('filterLabelsTitle');
-    if (filterCount) {
-      filterCount.hidden = count === 0;
-      filterCount.textContent = count > 9 ? '9+' : String(count);
-    }
-  }
+  if (!toolsBtn) return;
 
-  const viewBtn = document.getElementById('song-view-shortcut-btn');
-  if (viewBtn) {
-    const key = state.songListView === 'compact' ? 'songViewCompact'
-      : state.songListView === 'tiles' ? 'songViewTiles' : 'songViewList';
-    const label = `${t('songViewGroup')}: ${t(key)}`;
-    viewBtn.setAttribute('aria-label', label);
-    viewBtn.title = label;
+  const count = state.songLabelFilters.length;
+  toolsBtn.setAttribute('aria-pressed', String(count > 0));
+  toolsBtn.setAttribute('aria-label', t('searchOptionsTitle'));
+  toolsBtn.title = t('searchOptionsTitle');
+  if (filterCount) {
+    filterCount.hidden = count === 0;
+    filterCount.textContent = count > 9 ? '9+' : String(count);
   }
 }
 
-function openSongLabelFilterModal() {
-  const sourceKey = state.activeDbSource;
-  const available = labelsInUse(sourceKey)
-    .sort((a, b) => labelDisplayText(a).localeCompare(labelDisplayText(b)));
-
-  // Drop selections that no longer exist in this source (for example after
-  // removing the final use of a personal label) before presenting the list.
-  const availableSet = new Set(available);
-  state.songLabelFilters = state.songLabelFilters.filter(label => availableSet.has(label));
-  updateSongToolbarButtons();
-
+// One search-field action owns both of the quick Songbook controls: view
+// layout and label filtering. Keeping them in one modal mirrors the single
+// tune/filter button inside the search bar and avoids two separate controls
+// competing with the field itself.
+function openSongSearchToolsModal() {
   const wrap = document.createElement('div');
-  if (!available.length) {
-    const empty = document.createElement('p');
-    empty.className = 'modal-hint';
-    empty.textContent = t('filterLabelsEmpty');
-    wrap.appendChild(empty);
-    openModal(t('filterLabelsTitle'), wrap);
-    return;
-  }
 
-  const clearRow = document.createElement('div');
-  clearRow.className = 'modal-actions label-filter-actions';
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.className = 'btn-secondary';
-  clearBtn.textContent = t('filterLabelsClear');
-  clearBtn.disabled = state.songLabelFilters.length === 0;
-  clearRow.appendChild(clearBtn);
-  wrap.appendChild(clearRow);
+  const viewSection = document.createElement('section');
+  viewSection.className = 'song-search-tools-section';
+  const viewHeading = document.createElement('p');
+  viewHeading.className = 'song-search-tools-heading';
+  viewHeading.textContent = t('songViewGroup');
+  viewSection.appendChild(viewHeading);
 
-  const list = document.createElement('ul');
-  list.className = 'checklist';
-  wrap.appendChild(list);
+  const viewList = document.createElement('ul');
+  viewList.className = 'checklist';
+  viewSection.appendChild(viewList);
+  wrap.appendChild(viewSection);
 
-  const renderItems = () => {
-    list.innerHTML = '';
-    available.forEach(label => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'checklist-item';
-      item.setAttribute('aria-pressed', String(state.songLabelFilters.includes(label)));
-      item.innerHTML = `
-        <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
-        <span>${escapeHtml(labelDisplayText(label))}</span>
-      `;
-      item.addEventListener('click', () => {
-        const selected = state.songLabelFilters.includes(label);
-        state.songLabelFilters = selected
-          ? state.songLabelFilters.filter(value => value !== label)
-          : [...state.songLabelFilters, label];
-        item.setAttribute('aria-pressed', String(!selected));
-        clearBtn.disabled = state.songLabelFilters.length === 0;
-        updateSongToolbarButtons();
-        renderSongList({ animate: true });
-      });
-      list.appendChild(item);
-    });
-    initIcons(list);
-  };
-
-  clearBtn.addEventListener('click', () => {
-    if (!state.songLabelFilters.length) return;
-    state.songLabelFilters = [];
-    clearBtn.disabled = true;
-    renderItems();
-    updateSongToolbarButtons();
-    renderSongList({ animate: true });
-  });
-
-  renderItems();
-  openModal(t('filterLabelsTitle'), wrap);
-}
-
-function openSongViewShortcutModal() {
-  const wrap = document.createElement('div');
-  const list = document.createElement('ul');
-  list.className = 'checklist';
-  wrap.appendChild(list);
-
-  const options = [
+  const viewItems = new Map();
+  const viewOptions = [
     ['list', 'songViewList'],
     ['compact', 'songViewCompact'],
     ['tiles', 'songViewTiles'],
   ];
-  options.forEach(([value, labelKey]) => {
+  viewOptions.forEach(([value, labelKey]) => {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'checklist-item';
@@ -5524,16 +5430,96 @@ function openSongViewShortcutModal() {
       <span>${escapeHtml(t(labelKey))}</span>
     `;
     item.addEventListener('click', () => {
-      if (state.songListView !== value) {
-        state.songListView = value;
-        localStorage.setItem('sb-song-view', state.songListView);
-        applySongListView();
-      }
-      closeModal();
+      if (state.songListView === value) return;
+      state.songListView = value;
+      localStorage.setItem('sb-song-view', state.songListView);
+      applySongListView();
+      viewItems.forEach((button, option) => {
+        button.setAttribute('aria-pressed', String(option === state.songListView));
+      });
     });
-    list.appendChild(item);
+    viewItems.set(value, item);
+    viewList.appendChild(item);
   });
-  openModal(t('songViewGroup'), wrap);
+
+  const labelSection = document.createElement('section');
+  labelSection.className = 'song-search-tools-section';
+  const labelHeading = document.createElement('p');
+  labelHeading.className = 'song-search-tools-heading';
+  labelHeading.textContent = t('filterLabelsTitle');
+  labelSection.appendChild(labelHeading);
+  wrap.appendChild(labelSection);
+
+  const sourceKey = state.activeDbSource;
+  const available = labelsInUse(sourceKey)
+    .sort((a, b) => labelDisplayText(a).localeCompare(labelDisplayText(b)));
+
+  // A label that vanished from the selected database should not remain as a
+  // hidden active filter after opening the tools sheet.
+  const availableSet = new Set(available);
+  state.songLabelFilters = state.songLabelFilters.filter(label => availableSet.has(label));
+  updateSongToolbarButtons();
+
+  if (!available.length) {
+    const empty = document.createElement('p');
+    empty.className = 'modal-hint';
+    empty.textContent = t('filterLabelsEmpty');
+    labelSection.appendChild(empty);
+  } else {
+    const clearRow = document.createElement('div');
+    clearRow.className = 'modal-actions label-filter-actions';
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn-secondary';
+    clearBtn.textContent = t('filterLabelsClear');
+    clearBtn.disabled = state.songLabelFilters.length === 0;
+    clearRow.appendChild(clearBtn);
+    labelSection.appendChild(clearRow);
+
+    const list = document.createElement('ul');
+    list.className = 'checklist';
+    labelSection.appendChild(list);
+
+    const renderLabels = () => {
+      list.innerHTML = '';
+      available.forEach(label => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'checklist-item';
+        item.setAttribute('aria-pressed', String(state.songLabelFilters.includes(label)));
+        item.innerHTML = `
+          <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
+          <span>${escapeHtml(labelDisplayText(label))}</span>
+        `;
+        item.addEventListener('click', () => {
+          const selected = state.songLabelFilters.includes(label);
+          state.songLabelFilters = selected
+            ? state.songLabelFilters.filter(value => value !== label)
+            : [...state.songLabelFilters, label];
+          item.setAttribute('aria-pressed', String(!selected));
+          clearBtn.disabled = state.songLabelFilters.length === 0;
+          updateSongToolbarButtons();
+          renderSongList({ animate: true });
+        });
+        list.appendChild(item);
+      });
+      initIcons(list);
+    };
+
+    clearBtn.addEventListener('click', () => {
+      if (!state.songLabelFilters.length) return;
+      state.songLabelFilters = [];
+      clearBtn.disabled = true;
+      renderLabels();
+      updateSongToolbarButtons();
+      renderSongList({ animate: true });
+    });
+
+    renderLabels();
+  }
+
+  initIcons(wrap);
+  openModal(t('searchOptionsTitle'), wrap);
 }
 
 // Every label currently in use within one source (the active official
