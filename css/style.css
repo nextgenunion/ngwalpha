@@ -777,12 +777,15 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 14px;
-  overflow-x: auto;
   margin-top: 12px;
   padding-bottom: 2px;
-  scrollbar-width: none;
+  /* This row used to be its own horizontal scroller. With flex-wrap already
+     enabled that nested scroller is unnecessary, and it steals drag gestures
+     from the Songs page. Keep the controls in the normal page flow so a swipe
+     that starts on a sort chip scrolls the Songs page, not this row. */
+  overflow: visible;
+  touch-action: pan-y;
 }
-.sort-row::-webkit-scrollbar { display: none; }
 .sort-group {
   display: flex;
   gap: 8px;
@@ -1788,12 +1791,12 @@ html[data-theme="dark"] .sv-header-immersive::before {
 }
 
 .chip-btn {
-  width: 30px; height: 30px;
+  width: 36px; height: 36px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -1811,17 +1814,12 @@ html[data-theme="dark"] .sv-header-immersive::before {
 @media (prefers-reduced-motion: reduce) {
   .chip-btn { transition: none; }
 }
-/* Narrow phones: the same 30px circle that reads fine on a wide desktop
-   row gets proportionally heavier once it's sitting inside a
-   compressed .font-group next to a small label. Sized down here (26px,
-   --chip-lip-xs instead of --chip-lip) specifically for phones rather
-   than changing the base size everyone sees, so desktop/tablet keep
-   the fuller touch target and the phone row stops looking oversized
-   next to its own label text. */
+/* Keep the song-view action chips the same larger size on phones too.
+   Previously this media query shrank them below the desktop size, which
+   made transpose and text-size controls feel disproportionately small on
+   touch screens. Only the shallower mobile press-lip changes here. */
 @media (max-width: 480px) {
   .chip-btn {
-    width: 26px; height: 26px;
-    font-size: 0.85rem;
     box-shadow: 0 var(--chip-lip-xs) 0 var(--chip-lip-shadow);
   }
   .chip-btn:active { transform: translateY(var(--chip-lip-xs)); }
@@ -1841,10 +1839,10 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .chip-btn-text {
   width: auto;
   height: auto;
-  min-height: 30px;
-  padding: 5px 10px;
+  min-height: 36px;
+  padding: 6px 10px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   white-space: normal;
   text-align: center;
@@ -1852,7 +1850,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
   max-width: 88px;
 }
 @media (max-width: 480px) {
-  .chip-btn-text { min-height: 26px; padding: 4px 9px; font-size: 0.72rem; }
+  .chip-btn-text { min-height: 36px; padding: 6px 10px; font-size: 0.78rem; }
 }
 
 .font-controls {
