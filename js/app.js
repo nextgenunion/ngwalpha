@@ -4500,11 +4500,36 @@ function renderLyrics(opts = {}) {
 
     sectionLines.forEach((rawLine, lineIdx) => {
       // Leading whitespace on the first line is only a structural indent
-      // marker (see isIndented above), not literal spacing to render. The
-      // section label (if any) was already pulled out above and is
-      // likewise stripped here so it isn't rendered twice.
+      // marker (see isIndented above), not literal spacing to render.
+      //
+      // Explicit part labels are also recognised later inside a blank-line
+      // section, not only on its first line. Some of the real song data
+      // writes e.g. "Гүүр:Т[C]эрээр..." immediately after the preceding
+      // verse with no empty line. Requiring a blank line there made the
+      // label render as ordinary lyric text even though the syntax itself
+      // was valid. Treat the label as an inline structural marker instead.
       let line = lineIdx === 0 ? rawLine.replace(/^\s+/, '') : rawLine;
-      if (lineIdx === 0 && labelMatch) line = labelMatch[2].replace(/^\s+/, '');
+      const lineLabelMatch = line.replace(/^\s+/, '').match(/^([^\d\[\]:]+):(.*)$/);
+
+      if (lineLabelMatch) {
+        // The first line's label was already rendered above in place of the
+        // automatic section number. Labels found later need their own badge
+        // at exactly this position in the lyrics.
+        if (lineIdx > 0) {
+          const labelEl = document.createElement('div');
+          labelEl.className = 'lyric-section-number lyric-section-label';
+          labelEl.textContent = lineLabelMatch[1].trim();
+          sectionEl.appendChild(labelEl);
+        }
+        line = lineLabelMatch[2].replace(/^\s+/, '');
+
+        // A label commonly lives on a line by itself ("Дахилт:" / "Bridge:").
+        // Once the label text has been pulled out there is no lyric left on
+        // that source line. Do NOT create an empty .lyric-line for it: the
+        // plain-line CSS gives such a line normal body height + margin,
+        // which was the large blank gap visible in the editor preview.
+        if (line.trim() === '') return;
+      }
 
       const lineEl = document.createElement('div');
       lineEl.className = 'lyric-line';
