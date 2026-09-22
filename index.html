@@ -292,45 +292,44 @@
       <input type="text" id="editor-title" class="modal-text-input" maxlength="120" autocomplete="off">
     </label>
 
-    <label class="editor-field">
-      <span class="editor-field-label" id="t-editorArtistLabel">Artist / band</span>
-      <input type="text" id="editor-artist" class="modal-text-input" maxlength="120" autocomplete="off">
-    </label>
-
     <div class="editor-field-row">
+      <label class="editor-field">
+        <span class="editor-field-label" id="t-editorArtistLabel">Artist / band</span>
+        <input type="text" id="editor-artist" class="modal-text-input" maxlength="120" autocomplete="off">
+      </label>
       <label class="editor-field">
         <span class="editor-field-label" id="t-editorKeyLabel">Key</span>
         <input type="text" id="editor-key" class="modal-text-input" maxlength="8" autocomplete="off">
       </label>
-      <label class="editor-field">
-        <span class="editor-field-label" id="t-editorLinkLabel">Link (optional)</span>
-        <input type="url" id="editor-link" class="modal-text-input" autocomplete="off">
-      </label>
     </div>
 
-    <!-- Populated by buildLabelEditor() in js/app.js (see openSongEditor)
-         — held as a local draft and only committed to personal label
-         storage when Save succeeds (saveSongFromEditor), same as every
-         other field here. Not a <label>/<input> pair like the fields
-         above since it hosts a whole chips-plus-suggestions widget
-         rather than a single form control. -->
+    <div class="editor-field">
+      <div class="editor-field-heading">
+        <span class="editor-field-label" id="t-editorLyricsLabel">Lyrics &amp; chords</span>
+        <button type="button" id="editor-format-help-btn" class="editor-info-btn" aria-label="Formatting help">
+          <svg data-icon="info-outline" viewBox="0 0 24 24" aria-hidden="true"></svg>
+        </button>
+      </div>
+      <span class="editor-field-hint" id="t-editorLyricsHint">Tap the info button for simple formatting examples.</span>
+      <textarea id="editor-lyrics" class="editor-lyrics-textarea" aria-labelledby="t-editorLyricsLabel" aria-describedby="t-editorLyricsHint" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    </div>
+
+    <div class="editor-preview-section">
+      <span class="editor-field-label" id="t-editorPreviewLabel">Preview</span>
+      <div id="editor-preview" class="lyrics-container editor-preview"></div>
+    </div>
+
+    <!-- Labels and link intentionally live after Preview: they're song
+         metadata rather than part of the lyric-formatting workflow. -->
     <div class="editor-field">
       <span class="editor-field-label" id="t-editorLabelsLabel">Labels</span>
       <div id="editor-labels-editor"></div>
     </div>
 
     <label class="editor-field">
-      <span class="editor-field-label" id="t-editorLyricsLabel">Lyrics &amp; chords</span>
-      <span class="editor-field-hint" id="t-editorLyricsHint">
-        Write a chord in brackets right before the syllable it lands on, e.g. [Am]Oh Holy [G]Amazing God we pray. Leave a blank line between verses/choruses.
-      </span>
-      <textarea id="editor-lyrics" class="editor-lyrics-textarea" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      <span class="editor-field-label" id="t-editorLinkLabel">Link (optional)</span>
+      <input type="url" id="editor-link" class="modal-text-input" autocomplete="off">
     </label>
-
-    <div class="editor-preview-section">
-      <span class="editor-field-label" id="t-editorPreviewLabel">Preview</span>
-      <div id="editor-preview" class="lyrics-container editor-preview"></div>
-    </div>
 
     <button type="button" id="editor-delete-btn" class="btn-secondary editor-delete-btn" hidden></button>
   </div>

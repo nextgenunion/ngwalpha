@@ -2659,6 +2659,7 @@ function applyLanguage() {
   document.getElementById('user-song-search-input').placeholder = t('searchPlaceholder');
   document.getElementById('editor-key').placeholder = t('editorKeyPlaceholder');
   document.getElementById('editor-link').placeholder = t('editorLinkPlaceholder');
+  document.getElementById('editor-format-help-btn').setAttribute('aria-label', t('editorFormatHelpAria'));
   document.getElementById('back-btn').setAttribute('aria-label', t('backAria'));
   document.getElementById('transpose-reset').textContent = t('transposeReset');
   document.getElementById('editor-save-btn').textContent = t('saveBtn');
@@ -4709,6 +4710,7 @@ function bindLyricsCopy() {
 function bindSongEditor() {
   document.getElementById('editor-back-btn').addEventListener('click', () => history.back());
   document.getElementById('editor-save-btn').addEventListener('click', saveSongFromEditor);
+  document.getElementById('editor-format-help-btn').addEventListener('click', openEditorFormattingHelp);
   // coalesceToNextFrame (same pattern as the search box in bindSongsPage
   // and the picker filter in openAddSongsModal) batches this to once per
   // animation frame instead of running on every single keystroke.
@@ -4798,6 +4800,71 @@ function renderEditorPreview() {
     containerId: 'editor-preview',
     song: { lyrics },
     transpose: 0, // preview always shows the song's own written key — transposing is a song-view-only control
+  });
+}
+
+function openEditorFormattingHelp() {
+  const wrap = document.createElement('div');
+  wrap.className = 'editor-format-help';
+
+  const intro = document.createElement('p');
+  intro.className = 'editor-format-help-intro';
+  intro.textContent = t('editorFormatHelpIntro');
+  wrap.appendChild(intro);
+
+  const rules = document.createElement('div');
+  rules.className = 'editor-format-rules';
+  [
+    ['editorFormatHelpChordTitle', 'editorFormatHelpChordBody'],
+    ['editorFormatHelpSectionsTitle', 'editorFormatHelpSectionsBody'],
+    ['editorFormatHelpLabelTitle', 'editorFormatHelpLabelBody'],
+  ].forEach(([titleKey, bodyKey], index) => {
+    const row = document.createElement('div');
+    row.className = 'editor-format-rule';
+
+    const step = document.createElement('span');
+    step.className = 'editor-format-step';
+    step.textContent = String(index + 1);
+
+    const copy = document.createElement('div');
+    copy.className = 'editor-format-rule-copy';
+    const title = document.createElement('strong');
+    title.textContent = t(titleKey);
+    const body = document.createElement('p');
+    body.textContent = t(bodyKey);
+    copy.append(title, body);
+
+    row.append(step, copy);
+    rules.appendChild(row);
+  });
+  wrap.appendChild(rules);
+
+  const source = t('editorFormatHelpExampleSource');
+  const example = document.createElement('div');
+  example.className = 'editor-format-example';
+
+  const typeLabel = document.createElement('span');
+  typeLabel.className = 'editor-format-example-label';
+  typeLabel.textContent = t('editorFormatHelpTypeLabel');
+  const sourceBox = document.createElement('pre');
+  sourceBox.className = 'editor-format-source';
+  sourceBox.textContent = source;
+
+  const previewLabel = document.createElement('span');
+  previewLabel.className = 'editor-format-example-label editor-format-preview-label';
+  previewLabel.textContent = t('editorFormatHelpPreviewLabel');
+  const preview = document.createElement('div');
+  preview.id = 'editor-format-help-preview';
+  preview.className = 'lyrics-container editor-format-preview';
+
+  example.append(typeLabel, sourceBox, previewLabel, preview);
+  wrap.appendChild(example);
+
+  openModal(t('editorFormatHelpTitle'), wrap);
+  renderLyrics({
+    containerId: 'editor-format-help-preview',
+    song: { lyrics: source.split('\n') },
+    transpose: 0,
   });
 }
 

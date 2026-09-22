@@ -3761,6 +3761,138 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   margin-top: 4px;
   line-height: 1.4;
 }
+.editor-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.editor-info-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--accent-strong);
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform var(--press-duration-out) var(--press-ease), background .15s, border-color .15s;
+}
+.editor-info-btn:hover {
+  background: var(--accent-tint);
+  border-color: color-mix(in srgb, var(--accent-strong) 30%, var(--line));
+}
+.editor-info-btn:active { transform: scale(.94); }
+.editor-info-btn svg { width: 17px; height: 17px; fill: currentColor; }
+@media (pointer: coarse) {
+  .editor-info-btn::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+    background: transparent;
+  }
+}
+
+/* Formatting-help modal opened by the info button beside Lyrics & chords.
+   It shows the raw notation next to a real renderLyrics() preview so the
+   explanation is visual without maintaining a second fake renderer. */
+.editor-format-help {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.editor-format-help-intro {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.editor-format-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.editor-format-rule {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.editor-format-step {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.editor-format-rule-copy strong {
+  display: block;
+  font-size: .88rem;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.editor-format-rule-copy p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.editor-format-example {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.editor-format-example-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.editor-format-source {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.editor-format-preview-label { margin-top: 12px; }
+.editor-format-preview {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--paper-dim);
+  box-shadow: none;
+}
+html[data-theme="dark"] .editor-format-preview { background: var(--surface); }
+/* The help example is instructional, so keep its chord markers visible
+   even when the user's normal song-view preference currently hides chords. */
+html[data-hide-chords="true"] .editor-format-preview .chord-tag { display: inline; }
+html[data-hide-chords="true"] .editor-format-preview .chord-tag-spacer { display: block; }
 /* .editor-field already stacks label above input; .modal-text-input's own
    margin-top gives the label→field gap, reused as-is here. */
 
