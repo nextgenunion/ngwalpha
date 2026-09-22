@@ -4463,13 +4463,15 @@ function renderLyrics(opts = {}) {
 
     // A section's first line can open with an explicit label like "Гүүр:"
     // (Bridge:) or "Дахилт:" (Chorus:) instead of relying on the plain
-    // sequence number — the label is whatever text (letters/spaces only,
-    // no digits or [chord] markers) sits before the FIRST colon on that
-    // line. When present it's stripped from the line before chord
+    // sequence number — the label is the text before the FIRST colon on
+    // that line. Digits are valid too (for example "Verse 1:"). The only
+    // structural restriction is that the label itself cannot contain a
+    // [chord] marker or another colon. When present it's stripped from
+    // the line before chord
     // tokenizing and rendered in place of the number; when absent, the
     // section falls back to the existing "1, 2, 3…" numbering below.
     const firstLineTrimmed = sectionLines[0].replace(/^\s+/, '');
-    const labelMatch = firstLineTrimmed.match(/^([^\d\[\]:]+):(.*)$/);
+    const labelMatch = firstLineTrimmed.match(/^([^\[\]:]+):(.*)$/);
     const sectionLabel = labelMatch ? labelMatch[1].trim() : null;
 
     // A section made up of nothing but [Chord] markers — no actual sung
@@ -4509,7 +4511,7 @@ function renderLyrics(opts = {}) {
       // label render as ordinary lyric text even though the syntax itself
       // was valid. Treat the label as an inline structural marker instead.
       let line = lineIdx === 0 ? rawLine.replace(/^\s+/, '') : rawLine;
-      const lineLabelMatch = line.replace(/^\s+/, '').match(/^([^\d\[\]:]+):(.*)$/);
+      const lineLabelMatch = line.replace(/^\s+/, '').match(/^([^\[\]:]+):(.*)$/);
 
       if (lineLabelMatch) {
         // The first line's label was already rendered above in place of the
