@@ -135,7 +135,7 @@ const state = {
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
   hideChords: false,  // see applyHideChords()
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
-  lyricsSpacing: 'tight', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
+  lyricsSpacing: 'normal', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
   songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
   landscapeMode: false, // see applyLandscapeMode() — trims header/nav chrome to reclaim vertical space; only takes visual effect on a short, wide (phone-in-landscape) viewport, see the gated media query in style.css
   // Developer options → Display → "Hide verse numbers" — see
@@ -4443,6 +4443,71 @@ function transposeSingle(token, steps) {
 // instead, through this exact same chord/lyric engine rather than a
 // second, separate implementation that could drift out of sync with how
 // a saved song actually renders.
+
+// -------------------------------------------------------------------------
+// Inline lyric markdown
+// -------------------------------------------------------------------------
+// Song data stays plain text. Before chord/word tokenization we replace only
+// *matched* markdown delimiters with private-use toggle sentinels. This means
+// formatting can span words and [Chord] markers without becoming DOM/HTML,
+// while unmatched stars remain visible exactly as entered.
+//
+//   *text*     => italic
+//   **text**   => bold (650)
+//   ***text*** => bold + italic
+//
+// Stars inside [chord] markers are protected and never treated as markdown.
+const LYRIC_MD_ITALIC = '\uE100';
+const LYRIC_MD_BOLD = '\uE101';
+const LYRIC_MD_BOLD_ITALIC = '\uE102';
+
+function encodeLyricMarkdown(line) {
+  const chordStarPlaceholder = '\uE10F';
+  // Protect any literal * occurring inside chord brackets before matching
+  // markdown. Chord text is restored after the delimiter pass.
+  let protectedLine = line.replace(/\[[^\]]*\]/g, chord =>
+    chord.replace(/\*/g, chordStarPlaceholder)
+  );
+
+  // Longest delimiter first prevents *** from being consumed as ** + *.
+  // [^*] keeps the grammar deliberately small/predictable for song data;
+  // malformed or nested markers simply stay literal instead of disappearing.
+  protectedLine = protectedLine
+    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, `${LYRIC_MD_BOLD_ITALIC}$1${LYRIC_MD_BOLD_ITALIC}`)
+    .replace(/\*\*([^*\n]+?)\*\*/g, `${LYRIC_MD_BOLD}$1${LYRIC_MD_BOLD}`)
+    .replace(/\*([^*\n]+?)\*/g, `${LYRIC_MD_ITALIC}$1${LYRIC_MD_ITALIC}`);
+
+  return protectedLine.replaceAll(chordStarPlaceholder, '*');
+}
+
+function appendFormattedLyricText(parent, text, state) {
+  if (!text) return;
+  let buffer = '';
+
+  const flush = () => {
+    if (!buffer) return;
+    const span = document.createElement('span');
+    if (state.boldItalic) span.className = 'lyric-md-bold-italic';
+    else if (state.bold) span.className = 'lyric-md-bold';
+    else if (state.italic) span.className = 'lyric-md-italic';
+    span.textContent = buffer;
+    parent.appendChild(span);
+    buffer = '';
+  };
+
+  for (const ch of text) {
+    if (ch === LYRIC_MD_ITALIC || ch === LYRIC_MD_BOLD || ch === LYRIC_MD_BOLD_ITALIC) {
+      flush();
+      if (ch === LYRIC_MD_ITALIC) state.italic = !state.italic;
+      else if (ch === LYRIC_MD_BOLD) state.bold = !state.bold;
+      else state.boldItalic = !state.boldItalic;
+    } else {
+      buffer += ch;
+    }
+  }
+  flush();
+}
+
 function renderLyrics(opts = {}) {
   const {
     animateChords = false,
@@ -4568,6 +4633,8 @@ function renderLyrics(opts = {}) {
       // (e.g. "алдар[Em]шаач", "A[E]а" in this songbook's own data) — that split must NOT be
       // treated as a word break, or the two halves get rendered as separate words with a gap
       // torn into the middle of one, which is the "chords splitting text" bug.
+      line = encodeLyricMarkdown(line);
+      const markdownState = { italic: false, bold: false, boldItalic: false };
       const chordPositions = [...line.matchAll(/\[([^\]]+)\]/g)];
       const runs = [];
       if (chordPositions.length === 0) {
@@ -4659,7 +4726,8 @@ function renderLyrics(opts = {}) {
           }
           const textEl = document.createElement('span');
           textEl.className = 'lyric-word';
-          textEl.textContent = piece.text || '\u00A0';
+          if (piece.text) appendFormattedLyricText(textEl, piece.text, markdownState);
+          else textEl.textContent = '\u00A0';
           pieceEl.appendChild(textEl);
           wrap.appendChild(pieceEl);
         });

@@ -54,12 +54,10 @@
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  /* Lyric text specifically (not UI chrome) uses Noto Sans rather than
-     Inter: Inter is tuned for small-size UI legibility, while Noto Sans
-     is built for continuous multi-script paragraph reading (including
-     Cyrillic from the ground up, not bolted on) — closer to what a full
-     screen of Mongolian Cyrillic lyric text actually is. See .lyric-word
-     below for the weight choice (500, not the 400 default). */
+  /* Lyric text specifically uses the variable Noto Sans family. The Google
+     Fonts request in index.html loads both roman and italic axes at the full
+     100..900 weight range, so the song renderer can use the deliberately
+     tuned 420 / 500 / 650 lyric weights without snapping to static masters. */
   --font-lyrics: 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
@@ -67,16 +65,14 @@
   --chord-size: 0.82rem;
 
   /* Lyric line vertical spacing (Settings → Appearance → Line spacing).
-     "Normal" here reproduces the original hardcoded values .lyric-line /
-     .lyric-line.is-plain used before this became configurable — see the
-     html[data-lyrics-spacing="tight"|"loose"] overrides near .lyric-line
-     below for the other two options. Kept as their own variable group
-     (rather than reusing --lyrics-size etc.) since these are unitless/px
-     spacing values, not font sizes. */
-  --lyric-line-gap: 4px;
-  --lyric-line-mb: 4px;
-  --lyric-line-lh: 1.15;
-  --lyric-chord-mb: 1px;   /* gap between a chord tag and its own word below it */
+     "Normal" is the production reading default: plain lyric lines use a
+     1.50 line-height, while chorded lines keep a denser chord-chart rhythm
+     so the chord row stays visually attached to its lyric. Tight and Loose
+     override this variable group below without changing general UI spacing. */
+  --lyric-line-gap: 6px;
+  --lyric-line-mb: 6px;
+  --lyric-line-lh: 1.22;
+  --lyric-chord-mb: 2px;   /* gap between a chord tag and its own word below it */
   /* Visual-only nudge (in em of the chord's own font size) that slides each
      chord tag down toward the lyric under it. It uses position:relative +
      top, so it never touches layout: every line height, gap and margin above
@@ -2075,24 +2071,24 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
    together since they belong to each other, without ever touching (the
    chord tag's own line-box provides the floor). */
 html[data-lyrics-spacing="tight"] {
-  --lyric-line-gap: 3px;
-  --lyric-line-mb: 3px;
-  --lyric-line-lh: 1.05;
+  --lyric-line-gap: 4px;
+  --lyric-line-mb: 4px;
+  --lyric-line-lh: 1.12;
   --lyric-chord-mb: 0px;
   --lyric-chord-nudge: 0.05; /* already tight — only a hair, so tall Cyrillic marks (Й, Ё) never touch */
-  --lyric-line-plain-lh: 1.3;
-  --lyric-line-plain-mb: 6px;
-  --lyric-line-plain-gap: 6px;
+  --lyric-line-plain-lh: 1.4;
+  --lyric-line-plain-mb: 7px;
+  --lyric-line-plain-gap: 7px;
 }
 html[data-lyrics-spacing="loose"] {
-  --lyric-line-gap: 8px;
-  --lyric-line-mb: 8px;
-  --lyric-line-lh: 1.3;
+  --lyric-line-gap: 9px;
+  --lyric-line-mb: 9px;
+  --lyric-line-lh: 1.32;
   --lyric-chord-mb: 5px;
   --lyric-chord-nudge: 0.3;
-  --lyric-line-plain-lh: 1.7;
-  --lyric-line-plain-mb: 16px;
-  --lyric-line-plain-gap: 16px;
+  --lyric-line-plain-lh: 1.65;
+  --lyric-line-plain-mb: 15px;
+  --lyric-line-plain-gap: 15px;
 }
 
 .lyric-section-number {
@@ -2247,22 +2243,34 @@ html[data-hide-chords="true"] .lyric-line {
   font-size: var(--lyrics-size);
   color: var(--ink);
   font-family: var(--font-lyrics);
-  font-weight: 400;
+  font-weight: 420;
+  font-style: normal;
+  letter-spacing: 0;
+  font-stretch: 100%;
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
   /* Settings → Appearance's lyrics-style toggle below only flips an
      attribute — it never rebuilds these elements — so without a
-     transition the weight change snaps instantly. Numeric font-weight
-     transitions are well supported in current browsers; where they
-     aren't, this just falls back to an instant change, same as before. */
+     transition the weight change snaps instantly. Variable Noto Sans can
+     interpolate the exact 420 / 500 / 650 values used here. */
   transition: font-weight .22s ease;
 }
 /* Lyrics style (Settings → Appearance → Lyrics style): font weight for
-   lyric text only — chords, chrome, and everything else are untouched.
-   "Normal" is the 400 above and needs no override. */
-html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 600; }
-html[data-lyrics-weight="bold"] .lyric-word { font-weight: 700; }
+   lyric text only — chords, chrome, and everything else are untouched. */
+html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 500; }
+html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
+
+/* Lightweight inline lyric markdown. The renderer strips only matched
+   delimiters and emits these spans inside .lyric-word:
+     *text*   -> italic
+     **text** -> bold
+     ***text*** -> bold + italic
+   Bold markdown deliberately resolves to the app's 650 bold master even
+   when the global lyric-weight setting is Normal or Semibold. */
+.lyric-md-italic { font-style: italic; }
+.lyric-md-bold { font-weight: 650; }
+.lyric-md-bold-italic { font-weight: 650; font-style: italic; }
 
 .sv-audio { margin-top: 20px; }
 .audio-item { margin-top: 8px; }
