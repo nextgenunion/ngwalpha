@@ -6,6 +6,9 @@ window.SONGBOOK_LANG.mn = {
 
   appTitle: "Дууны ном",
   searchPlaceholder: "Гарчиг, дугаар, эсвэл үгээр хайх…",
+  filterLabelsTitle: "Шошгоор шүүх",
+  filterLabelsEmpty: "Энэ дууны санд одоогоор ашигласан шошго алга байна.",
+  filterLabelsClear: "Шүүлтүүр арилгах",
   sortByAlpha: "Цагаан толгой",
   sortByNumber: "Дугаар",
   sortAsc: "Өсөх",

@@ -603,6 +603,51 @@ button, a {
 }
 
 /* ---------- search ---------- */
+/* Main Songbook search + two quick controls. The search field keeps all
+   remaining width; the label filter and list-view shortcut stay as compact
+   circular buttons on its right, so neither requires a trip into Settings. */
+.song-search-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.song-search-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.song-toolbar-btn {
+  position: relative;
+  width: 42px;
+  height: 42px;
+}
+.song-toolbar-btn[aria-pressed="true"] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+}
+.song-toolbar-btn[aria-pressed="true"] svg { fill: var(--accent-strong); }
+.song-toolbar-count {
+  position: absolute;
+  right: -3px;
+  top: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-strong);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+.song-toolbar-count[hidden] { display: none; }
+
 .search-bar {
   position: relative;
   display: flex;
@@ -992,6 +1037,27 @@ html[data-theme="dark"] .sort-btn-tap {
   -webkit-line-clamp: 3;
 }
 #song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-sub {
+  display: none;
+}
+/* A numbered database normally uses the number badge as the tile's whole
+   content. Once sorting switches to Alphabet, that visual no longer explains
+   the order, so show the title instead. Number sorting remains unchanged. */
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-badge {
+  display: none;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-text {
+  display: flex;
+  align-items: center;
+  flex: none;
+  width: 100%;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-title {
+  font-size: 0.72rem;
+  text-align: center;
+  width: 100%;
+  -webkit-line-clamp: 3;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-sub {
   display: none;
 }
 
@@ -3425,6 +3491,7 @@ span.trash-row-check {
 }
 
 .modal-hint { font-size: 0.82rem; color: var(--ink-faint); margin: 4px 2px 0; }
+.label-filter-actions { margin-top: 2px; margin-bottom: 4px; }
 
 /* Database-picker modal (openDbPickerModal() in app.js) — reuses the
    .seg-toggle segmented control (see its own rules above), which

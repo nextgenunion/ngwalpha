@@ -69,9 +69,18 @@
     </div>
   </header>
 
-  <div class="search-bar">
-    <svg class="search-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
-    <input id="search-input" type="search" inputmode="search" autocomplete="off">
+  <div class="song-search-toolbar">
+    <div class="search-bar song-search-main">
+      <svg class="search-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <input id="search-input" type="search" inputmode="search" autocomplete="off">
+    </div>
+    <button id="song-label-filter-btn" class="icon-btn song-toolbar-btn" type="button" aria-pressed="false">
+      <svg data-icon="tag" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <span id="song-label-filter-count" class="song-toolbar-count" hidden></span>
+    </button>
+    <button id="song-view-shortcut-btn" class="icon-btn song-toolbar-btn" type="button">
+      <svg data-icon="view-list" viewBox="0 0 24 24" aria-hidden="true"></svg>
+    </button>
   </div>
 
   <!-- Text-free progress line for the selected database's background

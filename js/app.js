@@ -100,6 +100,11 @@ const state = {
   sortBy: 'num',       // 'alpha' | 'num'
   sortOrder: 'asc',     // 'asc' | 'desc'
   query: '',
+  // Main Songbook-only label filters. Multiple selected labels use OR
+  // semantics (a song matching any selected label is shown); search text
+  // still combines with this filter normally. Session-only by design so a
+  // forgotten filter never makes a later app launch look mysteriously empty.
+  songLabelFilters: [],
   userSongQuery: '', // User Songs page's own search box — kept separate
                       // from `query` (the Songs page's) so switching tabs
                       // doesn't clobber whichever search the person was
@@ -2264,6 +2269,7 @@ function applyLyricsSpacing() {
 function applySongListView() {
   const listEl = document.getElementById('song-list');
   if (listEl) listEl.setAttribute('data-view', state.songListView);
+  updateSongToolbarButtons();
   document.querySelectorAll('#song-view-toggle [data-song-view]').forEach(btn => {
     btn.setAttribute('aria-pressed', String(btn.dataset.songView === state.songListView));
   });
@@ -2353,8 +2359,10 @@ function applyDbSource(sourceKey) {
   updateDbRowSub();
   resetSongSyncProgress(sourceKey);
   state.query = '';
+  state.songLabelFilters = [];
   const searchInput = document.getElementById('search-input');
   if (searchInput) searchInput.value = '';
+  updateSongToolbarButtons();
 
   const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
   const numBtn = document.querySelector('.sort-btn[data-sort-by="num"]');
@@ -2697,6 +2705,7 @@ function applyLanguage() {
   renderCredits();
 
   refreshInstallLabels();
+  updateSongToolbarButtons();
   renderSongList();
   if (state.currentPage === 'user-songs') renderUserSongList();
   if (state.activeSong) updateTransposeUI();
@@ -3011,6 +3020,12 @@ function bindSongsPage() {
     state.query = input.value.trim().toLowerCase();
     renderSongList({ animate: true });
   }));
+
+  const labelFilterBtn = document.getElementById('song-label-filter-btn');
+  if (labelFilterBtn) labelFilterBtn.addEventListener('click', openSongLabelFilterModal);
+  const viewShortcutBtn = document.getElementById('song-view-shortcut-btn');
+  if (viewShortcutBtn) viewShortcutBtn.addEventListener('click', openSongViewShortcutModal);
+  updateSongToolbarButtons();
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
      css/style.css) on whichever button was just clicked. This can't be
@@ -3403,6 +3418,10 @@ function renderSongList(opts = {}) {
   if (listEl) {
     listEl.dataset.renderSourceKey = sourceKey;
     listEl.dataset.renderQuery = query || '';
+    if (listElId === 'song-list') {
+      listEl.dataset.renderLabelFilter = state.songLabelFilters.slice().sort().join('\u001f');
+      listEl.dataset.sortBy = state.sortBy;
+    }
   }
 
   if (source && DB_SOURCES[sourceKey] && !source.loaded) {
@@ -3426,7 +3445,10 @@ function renderSongList(opts = {}) {
   }
 
   const filtered = sortSongs(
-    source.songs.filter(s => matchesQuery(s, query, sourceKey)),
+    source.songs.filter(s =>
+      matchesQuery(s, query, sourceKey) &&
+      (listElId !== 'song-list' || matchesSongLabelFilter(s, sourceKey))
+    ),
     query, sourceKey
   );
 
@@ -3458,7 +3480,7 @@ function renderSongList(opts = {}) {
     // the Songbook list — User Songs and playlist song-pickers reuse this
     // same function against their own listElId with no rail in their
     // markup, so this is a no-op for those.
-    if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q);
+    if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q || (state.songLabelFilters.length ? '__label_filter__' : ''));
     return;
   }
 
@@ -3546,7 +3568,7 @@ function renderSongList(opts = {}) {
     });
   }
 
-  if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q);
+  if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q || (state.songLabelFilters.length ? '__label_filter__' : ''));
 }
 
 // Returning to Songs should not rebuild thousands of rows just because the
@@ -3569,7 +3591,9 @@ function onSongsPageEnter() {
 
   const renderMatchesCurrentState = listEl
     && listEl.dataset.renderSourceKey === state.activeDbSource
-    && listEl.dataset.renderQuery === (state.query || '');
+    && listEl.dataset.renderQuery === (state.query || '')
+    && listEl.dataset.renderLabelFilter === state.songLabelFilters.slice().sort().join('\u001f')
+    && listEl.dataset.sortBy === state.sortBy;
 
   if (!renderMatchesCurrentState) {
     renderSongList();
@@ -5316,6 +5340,15 @@ function effectiveLabels(sourceKey, songId, song) {
   return Array.from(new Set([...builtIn, ...personal]));
 }
 
+// Label edits can happen while the Songbook page is hidden behind a song
+// view. Mark its DOM snapshot stale so returning to the list re-evaluates an
+// active label filter instead of reusing rows whose label membership changed.
+function markSongListLabelsStale(sourceKey) {
+  if (sourceKey !== state.activeDbSource) return;
+  const listEl = document.getElementById('song-list');
+  if (listEl) listEl.dataset.renderLabelFilter = '__stale__';
+}
+
 // Adds/removes one label at a time, applied immediately — used by the
 // song-view "Edit labels" modal (openEditLabelsModal), matching how
 // "Add to playlist" also commits each tap straight through rather than
@@ -5328,6 +5361,7 @@ function addPersonalLabel(sourceKey, songId, label) {
   if (current.some(l => l.toLowerCase() === value.toLowerCase())) return;
   state.personalLabels.bySongRef[key] = [...current, value];
   persistPersonalLabels();
+  markSongListLabelsStale(sourceKey);
 }
 function removePersonalLabel(sourceKey, songId, label) {
   const key = songRefKey(sourceKey, songId);
@@ -5337,6 +5371,7 @@ function removePersonalLabel(sourceKey, songId, label) {
   if (next.length) state.personalLabels.bySongRef[key] = next;
   else delete state.personalLabels.bySongRef[key];
   persistPersonalLabels();
+  markSongListLabelsStale(sourceKey);
 }
 // Replaces a song's whole personal-label set in one go — used by the Song
 // Editor (see openSongEditor/saveSongFromEditor), which holds label edits
@@ -5347,6 +5382,7 @@ function setPersonalLabels(sourceKey, songId, labels) {
   if (labels && labels.length) state.personalLabels.bySongRef[key] = [...labels];
   else delete state.personalLabels.bySongRef[key];
   persistPersonalLabels();
+  markSongListLabelsStale(sourceKey);
 }
 
 // Every label personally assigned to ANY song, official or user — feeds
@@ -5357,6 +5393,147 @@ function allPersonalLabelValues() {
   const set = new Set();
   Object.values(state.personalLabels.bySongRef).forEach(arr => arr.forEach(l => set.add(l)));
   return set;
+}
+
+// Main Songbook label filter. A song passes when no filter is active or
+// when it carries at least one selected label (OR semantics). Search text is
+// evaluated separately in renderSongList(), so using both naturally narrows
+// to songs that satisfy the search AND one of the chosen labels.
+function matchesSongLabelFilter(song, sourceKey) {
+  if (!state.songLabelFilters.length) return true;
+  const labels = effectiveLabels(sourceKey, song.id, song);
+  return state.songLabelFilters.some(selected => labels.includes(selected));
+}
+
+function updateSongToolbarButtons() {
+  const filterBtn = document.getElementById('song-label-filter-btn');
+  const filterCount = document.getElementById('song-label-filter-count');
+  if (filterBtn) {
+    const count = state.songLabelFilters.length;
+    filterBtn.setAttribute('aria-pressed', String(count > 0));
+    filterBtn.setAttribute('aria-label', t('filterLabelsTitle'));
+    filterBtn.title = t('filterLabelsTitle');
+    if (filterCount) {
+      filterCount.hidden = count === 0;
+      filterCount.textContent = count > 9 ? '9+' : String(count);
+    }
+  }
+
+  const viewBtn = document.getElementById('song-view-shortcut-btn');
+  if (viewBtn) {
+    const key = state.songListView === 'compact' ? 'songViewCompact'
+      : state.songListView === 'tiles' ? 'songViewTiles' : 'songViewList';
+    const label = `${t('songViewGroup')}: ${t(key)}`;
+    viewBtn.setAttribute('aria-label', label);
+    viewBtn.title = label;
+  }
+}
+
+function openSongLabelFilterModal() {
+  const sourceKey = state.activeDbSource;
+  const available = labelsInUse(sourceKey)
+    .sort((a, b) => labelDisplayText(a).localeCompare(labelDisplayText(b)));
+
+  // Drop selections that no longer exist in this source (for example after
+  // removing the final use of a personal label) before presenting the list.
+  const availableSet = new Set(available);
+  state.songLabelFilters = state.songLabelFilters.filter(label => availableSet.has(label));
+  updateSongToolbarButtons();
+
+  const wrap = document.createElement('div');
+  if (!available.length) {
+    const empty = document.createElement('p');
+    empty.className = 'modal-hint';
+    empty.textContent = t('filterLabelsEmpty');
+    wrap.appendChild(empty);
+    openModal(t('filterLabelsTitle'), wrap);
+    return;
+  }
+
+  const clearRow = document.createElement('div');
+  clearRow.className = 'modal-actions label-filter-actions';
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'btn-secondary';
+  clearBtn.textContent = t('filterLabelsClear');
+  clearBtn.disabled = state.songLabelFilters.length === 0;
+  clearRow.appendChild(clearBtn);
+  wrap.appendChild(clearRow);
+
+  const list = document.createElement('ul');
+  list.className = 'checklist';
+  wrap.appendChild(list);
+
+  const renderItems = () => {
+    list.innerHTML = '';
+    available.forEach(label => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'checklist-item';
+      item.setAttribute('aria-pressed', String(state.songLabelFilters.includes(label)));
+      item.innerHTML = `
+        <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
+        <span>${escapeHtml(labelDisplayText(label))}</span>
+      `;
+      item.addEventListener('click', () => {
+        const selected = state.songLabelFilters.includes(label);
+        state.songLabelFilters = selected
+          ? state.songLabelFilters.filter(value => value !== label)
+          : [...state.songLabelFilters, label];
+        item.setAttribute('aria-pressed', String(!selected));
+        clearBtn.disabled = state.songLabelFilters.length === 0;
+        updateSongToolbarButtons();
+        renderSongList({ animate: true });
+      });
+      list.appendChild(item);
+    });
+    initIcons(list);
+  };
+
+  clearBtn.addEventListener('click', () => {
+    if (!state.songLabelFilters.length) return;
+    state.songLabelFilters = [];
+    clearBtn.disabled = true;
+    renderItems();
+    updateSongToolbarButtons();
+    renderSongList({ animate: true });
+  });
+
+  renderItems();
+  openModal(t('filterLabelsTitle'), wrap);
+}
+
+function openSongViewShortcutModal() {
+  const wrap = document.createElement('div');
+  const list = document.createElement('ul');
+  list.className = 'checklist';
+  wrap.appendChild(list);
+
+  const options = [
+    ['list', 'songViewList'],
+    ['compact', 'songViewCompact'],
+    ['tiles', 'songViewTiles'],
+  ];
+  options.forEach(([value, labelKey]) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'checklist-item';
+    item.setAttribute('aria-pressed', String(state.songListView === value));
+    item.innerHTML = `
+      <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
+      <span>${escapeHtml(t(labelKey))}</span>
+    `;
+    item.addEventListener('click', () => {
+      if (state.songListView !== value) {
+        state.songListView = value;
+        localStorage.setItem('sb-song-view', state.songListView);
+        applySongListView();
+      }
+      closeModal();
+    });
+    list.appendChild(item);
+  });
+  openModal(t('songViewGroup'), wrap);
 }
 
 // Every label currently in use within one source (the active official

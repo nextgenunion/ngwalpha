@@ -10,6 +10,9 @@ window.SONGBOOK_LANG.en = {
 
   appTitle: "Songbook",
   searchPlaceholder: "Search title, number, or a lyric…",
+  filterLabelsTitle: "Filter by labels",
+  filterLabelsEmpty: "No labels are used in this song database yet.",
+  filterLabelsClear: "Clear filters",
   sortByAlpha: "Alphabet",
   sortByNumber: "Number",
   sortAsc: "Ascending",

@@ -6,6 +6,10 @@ window.SONGBOOK_LANG.mn2 = {
 
   appTitle: "ᠳᠠᠭᠤᠨ ᠤ᠋ ᠨᠣᠮ",
   searchPlaceholder: "ᠭᠠᠷᠴᠠᠭ᠂ ᠳ᠋ᠤᠭᠠᠷ᠂ ᠡᠰᠡᠪᠡᠯ ᠦᢉᠡ ᠪᠡᠷ ᠬᠠᠶᠢᠬᠤ…",
+  // TODO: placeholder Cyrillic until the traditional-script UI translation is completed.
+  filterLabelsTitle: "Шошгоор шүүх",
+  filterLabelsEmpty: "Энэ дууны санд одоогоор ашигласан шошго алга байна.",
+  filterLabelsClear: "Шүүлтүүр арилгах",
   sortByAlpha: "ᠴᠠᠭᠠᠨ ᠲᠣᠯᠤᠭᠠᠢ ᠪᠠᠷ",
   sortByNumber: "ᠳ᠋ᠤᠭᠠᠷ ᠢ᠋ᠶᠠᠷ",
   sortAsc: "ᠥᠰᢈᠦ",
