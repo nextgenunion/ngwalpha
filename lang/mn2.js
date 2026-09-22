@@ -51,6 +51,9 @@ window.SONGBOOK_LANG.mn2 = {
   lyricsSpacingTight: "Нягт",
   lyricsSpacingNormal: "Энгийн",
   lyricsSpacingLoose: "Уужим",
+  // TODO: placeholder Cyrillic until the traditional-script UI translation is completed.
+  lyricsWordSpacingTitle: "Үг хоорондын зай",
+  lyricsWordSpacingSub: "Дууны үгсийн хоорондох хэвтээ зай",
   settingsTitle: "ᠲᠣᢈᠢᠷᠠᠭ᠎ᠠ",
   sectionAppearance: "ᠬᠠᠷᠠᠭᠳᠠᠴᠠ",
   darkModeTitle: "ᠬᠠᠷᠠᠩᠬᠤᠢ ᠭᠣᠷᠢᠮ",

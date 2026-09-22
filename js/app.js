@@ -135,7 +135,8 @@ const state = {
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
   hideChords: false,  // see applyHideChords()
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
-  lyricsSpacing: 'normal', // 'tight' | 'normal' | 'loose' — see applyLyricsSpacing()
+  lyricsSpacing: 'tight', // vertical: 'tight' | 'normal' | 'loose' — see applyLyricsSpacing(); default is the compact/tight option
+  lyricsWordSpacing: 'normal', // horizontal: 'tight' | 'normal' | 'loose' — see applyLyricsWordSpacing()
   songListView: 'list', // 'list' | 'compact' | 'tiles' — see applySongListView(); only affects the Songbook's own list (#song-list)
   landscapeMode: false, // see applyLandscapeMode() — trims header/nav chrome to reclaim vertical space; only takes visual effect on a short, wide (phone-in-landscape) viewport, see the gated media query in style.css
   // Developer options → Display → "Hide verse numbers" — see
@@ -144,7 +145,7 @@ const state = {
   // section opening with an explicit label like "Bridge:"/"Гүүр:" renders
   // as .lyric-section-label instead and is NOT affected by this — see the
   // comment above sectionLabel in renderLyrics() for that split.
-  hideVerseNumbers: false,
+  hideVerseNumbers: true,
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -594,19 +595,8 @@ function dbSourceLabel(sourceKey) {
 // openDbPickerModal(). Called from applyDbSource() (selection changed) and
 // applyLanguage() (the 'english' source's name is language-dependent).
 function updateDbRowSub() {
-  const label = dbSourceLabel(state.activeDbSource);
   const el = document.getElementById('t-dbSub');
-  if (el) el.textContent = label;
-
-  // Songbook-page shortcut: expose both the action and current database
-  // to assistive tech/tooltips without adding visible text inside the
-  // compact search bar control.
-  const quickBtn = document.getElementById('song-db-btn');
-  if (quickBtn) {
-    const action = t('dbPickerTitle');
-    quickBtn.setAttribute('aria-label', `${action}: ${label}`);
-    quickBtn.title = `${action}: ${label}`;
-  }
+  if (el) el.textContent = dbSourceLabel(state.activeDbSource);
 }
 
 // One JSON file per song remains the editable/latest source of truth, listed
@@ -2119,6 +2109,12 @@ function loadPrefs() {
   }
   applyLyricsSpacing();
 
+  const savedLyricsWordSpacing = localStorage.getItem('sb-lyrics-word-spacing');
+  if (savedLyricsWordSpacing === 'tight' || savedLyricsWordSpacing === 'normal' || savedLyricsWordSpacing === 'loose') {
+    state.lyricsWordSpacing = savedLyricsWordSpacing;
+  }
+  applyLyricsWordSpacing();
+
   const savedSongListView = localStorage.getItem('sb-song-view');
   if (savedSongListView === 'list' || savedSongListView === 'compact' || savedSongListView === 'tiles') {
     state.songListView = savedSongListView;
@@ -2128,7 +2124,9 @@ function loadPrefs() {
   state.landscapeMode = localStorage.getItem('sb-landscape-mode') === 'true';
   applyLandscapeMode();
 
-  state.hideVerseNumbers = localStorage.getItem('sb-hide-verse-numbers') === 'true';
+  const savedHideVerseNumbers = localStorage.getItem('sb-hide-verse-numbers');
+  if (savedHideVerseNumbers === 'true') state.hideVerseNumbers = true;
+  else if (savedHideVerseNumbers === 'false') state.hideVerseNumbers = false;
   applyHideVerseNumbers();
 
   // Restore which song database was active (see applyDbSource()). Since
@@ -2267,6 +2265,17 @@ function applyLyricsSpacing() {
     btn.setAttribute('aria-pressed', String(btn.dataset.lyricsSpacing === state.lyricsSpacing));
   });
   positionSegToggleThumb(document.getElementById('lyrics-spacing-toggle'));
+}
+
+// Word spacing is intentionally independent from vertical line spacing.
+// It only changes the horizontal column gap between rendered lyric-word
+// tokens, including wrapped rows and the hide-chords reading layout.
+function applyLyricsWordSpacing() {
+  document.documentElement.setAttribute('data-lyrics-word-spacing', state.lyricsWordSpacing);
+  document.querySelectorAll('#lyrics-word-spacing-toggle [data-lyrics-word-spacing]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.lyricsWordSpacing === state.lyricsWordSpacing));
+  });
+  positionSegToggleThumb(document.getElementById('lyrics-word-spacing-toggle'));
 }
 
 // Songbook list view (Settings → Songs → Display settings): how the Songbook's own list
@@ -2603,6 +2612,11 @@ function applyLanguage() {
     't-lyricsSpacingTight': 'lyricsSpacingTight',
     't-lyricsSpacingNormal': 'lyricsSpacingNormal',
     't-lyricsSpacingLoose': 'lyricsSpacingLoose',
+    't-lyricsWordSpacingTitle': 'lyricsWordSpacingTitle',
+    't-lyricsWordSpacingSub': 'lyricsWordSpacingSub',
+    't-lyricsWordSpacingTight': 'lyricsSpacingTight',
+    't-lyricsWordSpacingNormal': 'lyricsSpacingNormal',
+    't-lyricsWordSpacingLoose': 'lyricsSpacingLoose',
     't-settingsTitle': 'settingsTitle',
     't-sectionAppearance': 'sectionAppearance',
     't-darkModeTitle': 'darkModeTitle',
@@ -3036,12 +3050,7 @@ function bindSongsPage() {
 
   const searchToolsBtn = document.getElementById('song-search-tools-btn');
   if (searchToolsBtn) searchToolsBtn.addEventListener('click', openSongSearchToolsModal);
-
-  const dbBtn = document.getElementById('song-db-btn');
-  if (dbBtn) dbBtn.addEventListener('click', openDbPickerModal);
-
   updateSongToolbarButtons();
-  updateDbRowSub();
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
      css/style.css) on whichever button was just clicked. This can't be
@@ -3157,9 +3166,18 @@ function normalizeSearchText(value) {
     .trim();
 }
 
-function searchWords(q) {
+function compileSearchQuery(q) {
   const query = normalizeSearchText(q);
-  return query ? query.split(' ').filter(Boolean) : [];
+  return {
+    query,
+    words: query ? query.split(' ').filter(Boolean) : [],
+  };
+}
+
+// Kept as a tiny compatibility helper for code/debugging that only needs
+// the token list. Hot search paths use compileSearchQuery() once per query.
+function searchWords(q) {
+  return compileSearchQuery(q).words;
 }
 
 // Search performance: the expensive, immutable parts of each song are
@@ -3226,31 +3244,15 @@ function getSearchLabelData(sourceKey, song) {
   };
 }
 
-function matchesQuery(song, q, sourceKey = state.activeDbSource) {
-  const query = normalizeSearchText(q);
-  if (!query) return true;
+// Evaluate matching and relevance together. This is deliberately a pure
+// consolidation of the previous matchesQuery() + relevanceRank() rules:
+// query priority and broad cross-field matching stay exactly the same, but
+// the query, song cache, and live label data are each prepared only once.
+function evaluateSongSearch(song, compiled, sourceKey = state.activeDbSource) {
+  const query = compiled.query;
+  if (!query) return { matches: true, rank: 15 };
 
-  const words = searchWords(query);
-  const { haystack } = getSearchCache(song);
-  const labelHaystack = getSearchLabelData(sourceKey, song).haystack;
-
-  // Preserve the current forgiving search behaviour: every query word must
-  // exist somewhere, in any order. Labels now participate too, but because
-  // ranking is handled separately they do not crowd out stronger title or
-  // lyric matches.
-  return words.every(word => haystack.includes(word) || labelHaystack.includes(word));
-}
-
-// Lower rank = more relevant. This order is intentionally user-facing:
-// identify the song first (exact title/number), then title partial matches
-// (a song actually called/titled this beats one that merely quotes the
-// query somewhere in its lyrics), then lyric/content discovery, and
-// finally low-priority metadata (labels and artist).
-function relevanceRank(song, q, sourceKey = state.activeDbSource) {
-  const query = normalizeSearchText(q);
-  if (!query) return 15;
-
-  const words = searchWords(query);
+  const words = compiled.words;
   const {
     title,
     altTitles,
@@ -3259,38 +3261,48 @@ function relevanceRank(song, q, sourceKey = state.activeDbSource) {
     lyrics,
     titleAndAltHaystack,
     contentHaystack,
+    haystack,
   } = getSearchCache(song);
   const { labels, haystack: labelHaystack } = getSearchLabelData(sourceKey, song);
 
-  if (title === query) return 0;                                      // exact main title
-  if (altTitles.some(a => a === query)) return 1;                     // exact alternate title
-  if (number && number === query) return 2;                           // exact song number
-  // Title/alt-title matches (start-of-string or contiguous-substring) rank
-  // above an exact lyric phrase on purpose: someone typing what looks like
-  // a title wants the song actually called that before a song that merely
-  // quotes the same phrase somewhere in its lyrics. The lyric-phrase check
-  // still sits above the looser word-scatter checks below it, and above
-  // title matches that are themselves only word-scattered (not contiguous)
-  // — see relevanceRank's module comment.
-  if (title.startsWith(query)) return 3;                              // main title starts with query
-  if (altTitles.some(a => a.startsWith(query))) return 4;             // alternate title starts with query
-  if (title.includes(query)) return 5;                                // main title contains query
-  if (altTitles.some(a => a.includes(query))) return 6;               // alternate title contains query
-  if (lyrics.includes(query)) return 7;                               // exact/contiguous lyric phrase
-  if (words.every(word => titleAndAltHaystack.includes(word))) return 8; // all words in title/alt-title area
-  if (words.every(word => lyrics.includes(word))) return 9;           // all words somewhere in lyrics
-  if (words.every(word => contentHaystack.includes(word))) return 10; // words spread across number/title/alt/lyrics
-  if (labels.some(label => label === query)) return 11;               // exact label (kept intentionally low)
-  if (labels.some(label => label.startsWith(query))) return 12;       // label starts with query
-  if (labelHaystack.includes(query) ||
-      (words.length && words.every(word => labelHaystack.includes(word)))) return 13; // partial/all-word label
-  if (artist.includes(query) ||
-      (words.length && words.every(word => artist.includes(word)))) return 14; // artist match
+  // Preserve forgiving AND-across-any-field matching exactly as before.
+  if (!words.every(word => haystack.includes(word) || labelHaystack.includes(word))) {
+    return { matches: false, rank: 15 };
+  }
 
-  // A result can still legitimately reach here when its words are split
-  // across content + label/artist fields. matchesQuery() allows that useful
-  // broad discovery behaviour, but these mixed-metadata matches belong last.
-  return 15;
+  // Lower rank = more relevant. Do not reorder these checks: this is the
+  // user-facing search priority and is covered by regression tests.
+  if (title === query) return { matches: true, rank: 0 };
+  if (altTitles.some(a => a === query)) return { matches: true, rank: 1 };
+  if (number && number === query) return { matches: true, rank: 2 };
+  if (title.startsWith(query)) return { matches: true, rank: 3 };
+  if (altTitles.some(a => a.startsWith(query))) return { matches: true, rank: 4 };
+  if (title.includes(query)) return { matches: true, rank: 5 };
+  if (altTitles.some(a => a.includes(query))) return { matches: true, rank: 6 };
+  if (lyrics.includes(query)) return { matches: true, rank: 7 };
+  if (words.every(word => titleAndAltHaystack.includes(word))) return { matches: true, rank: 8 };
+  if (words.every(word => lyrics.includes(word))) return { matches: true, rank: 9 };
+  if (words.every(word => contentHaystack.includes(word))) return { matches: true, rank: 10 };
+  if (labels.some(label => label === query)) return { matches: true, rank: 11 };
+  if (labels.some(label => label.startsWith(query))) return { matches: true, rank: 12 };
+  if (labelHaystack.includes(query) ||
+      (words.length && words.every(word => labelHaystack.includes(word)))) return { matches: true, rank: 13 };
+  if (artist.includes(query) ||
+      (words.length && words.every(word => artist.includes(word)))) return { matches: true, rank: 14 };
+
+  // Words can be split across content + labels/artist, which intentionally
+  // remains a valid lowest-priority discovery result.
+  return { matches: true, rank: 15 };
+}
+
+// Compatibility wrappers. Main list/search paths below use the compiled,
+// single-pass filterAndSortSongs() path instead of calling these per song.
+function matchesQuery(song, q, sourceKey = state.activeDbSource) {
+  return evaluateSongSearch(song, compileSearchQuery(q), sourceKey).matches;
+}
+
+function relevanceRank(song, q, sourceKey = state.activeDbSource) {
+  return evaluateSongSearch(song, compileSearchQuery(q), sourceKey).rank;
 }
 
 // Opportunistically prepare immutable search data only for a database that
@@ -3352,7 +3364,7 @@ function titleScriptRank(title) {
 // English, before the person has had a chance to notice/change the sort
 // buttons themselves (which applyDbSource() also updates — see there for
 // the other half of this).
-function sortSongs(list, q, sourceKey = state.activeDbSource) {
+function sortSongs(list, q, sourceKey = state.activeDbSource, precomputedRanks = null) {
   const arr = [...list];
   const dir = state.sortOrder === 'desc' ? -1 : 1;
   const query = normalizeSearchText(q);
@@ -3360,10 +3372,10 @@ function sortSongs(list, q, sourceKey = state.activeDbSource) {
   // own hasNumbers — see the comment there.
   const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
 
-  // Array.sort() may compare the same song many times. Relevance now checks
-  // several fields (including live labels), so compute each song's rank at
-  // most once per sort/render rather than once per comparator invocation.
-  const rankCache = query ? new Map() : null;
+  // Callers using the optimized filterAndSortSongs() path hand us ranks
+  // computed during the one search pass. Other callers retain the previous
+  // lazy per-sort cache as a safe compatibility fallback.
+  const rankCache = query ? (precomputedRanks || new Map()) : null;
   const rankFor = (song) => {
     if (!rankCache.has(song)) rankCache.set(song, relevanceRank(song, query, sourceKey));
     return rankCache.get(song);
@@ -3389,6 +3401,26 @@ function sortSongs(list, q, sourceKey = state.activeDbSource) {
   });
 
   return arr;
+}
+
+// Compile the query once, then evaluate each song once for BOTH matching and
+// rank. Previously the main list filtered with matchesQuery() and then the
+// sort pass called relevanceRank(), repeating query normalization, cache
+// lookups and live-label preparation for every matching song.
+function filterAndSortSongs(list, q, sourceKey = state.activeDbSource, extraFilter = null) {
+  const compiled = compileSearchQuery(q);
+  const matches = [];
+  const ranks = compiled.query ? new Map() : null;
+
+  for (const song of list) {
+    const result = evaluateSongSearch(song, compiled, sourceKey);
+    if (!result.matches) continue;
+    if (extraFilter && !extraFilter(song)) continue;
+    matches.push(song);
+    if (ranks) ranks.set(song, result.rank);
+  }
+
+  return sortSongs(matches, compiled.query, sourceKey, ranks);
 }
 
 function highlight(text, q) {
@@ -3485,12 +3517,11 @@ function renderSongList(opts = {}) {
     return;
   }
 
-  const filtered = sortSongs(
-    source.songs.filter(s =>
-      matchesQuery(s, query, sourceKey) &&
-      (listElId !== 'song-list' || matchesSongLabelFilter(s, sourceKey))
-    ),
-    query, sourceKey
+  const filtered = filterAndSortSongs(
+    source.songs,
+    query,
+    sourceKey,
+    listElId === 'song-list' ? (song => matchesSongLabelFilter(song, sourceKey)) : null
   );
 
   countEl.textContent = filtered.length === source.songs.length
@@ -4209,7 +4240,6 @@ function openSongViewMenu() {
   wrap.innerHTML = `
     <button type="button" id="sv-kebab-add-playlist"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('addToPlaylistTitle'))}</button>
     <button type="button" id="sv-kebab-labels"><svg data-icon="tag" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>
-    <button type="button" id="sv-kebab-display"><svg data-icon="view-list" viewBox="0 0 24 24"></svg>${escapeHtml(t('displaySettingsTitle'))}</button>
     ${isUserSong ? `
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
@@ -4230,11 +4260,6 @@ function openSongViewMenu() {
     e.stopPropagation();
     closeSongViewMenu();
     openEditLabelsModal(state.activeSourceKey, song.id);
-  });
-  wrap.querySelector('#sv-kebab-display').addEventListener('click', (e) => {
-    e.stopPropagation();
-    closeSongViewMenu();
-    showPage('song-display', { pushHistory: true, resetScroll: true });
   });
   const editBtn = wrap.querySelector('#sv-kebab-edit');
   if (editBtn) editBtn.addEventListener('click', (e) => {
@@ -4465,71 +4490,6 @@ function transposeSingle(token, steps) {
 // instead, through this exact same chord/lyric engine rather than a
 // second, separate implementation that could drift out of sync with how
 // a saved song actually renders.
-
-// -------------------------------------------------------------------------
-// Inline lyric markdown
-// -------------------------------------------------------------------------
-// Song data stays plain text. Before chord/word tokenization we replace only
-// *matched* markdown delimiters with private-use toggle sentinels. This means
-// formatting can span words and [Chord] markers without becoming DOM/HTML,
-// while unmatched stars remain visible exactly as entered.
-//
-//   *text*     => italic
-//   **text**   => bold (650)
-//   ***text*** => bold + italic
-//
-// Stars inside [chord] markers are protected and never treated as markdown.
-const LYRIC_MD_ITALIC = '\uE100';
-const LYRIC_MD_BOLD = '\uE101';
-const LYRIC_MD_BOLD_ITALIC = '\uE102';
-
-function encodeLyricMarkdown(line) {
-  const chordStarPlaceholder = '\uE10F';
-  // Protect any literal * occurring inside chord brackets before matching
-  // markdown. Chord text is restored after the delimiter pass.
-  let protectedLine = line.replace(/\[[^\]]*\]/g, chord =>
-    chord.replace(/\*/g, chordStarPlaceholder)
-  );
-
-  // Longest delimiter first prevents *** from being consumed as ** + *.
-  // [^*] keeps the grammar deliberately small/predictable for song data;
-  // malformed or nested markers simply stay literal instead of disappearing.
-  protectedLine = protectedLine
-    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, `${LYRIC_MD_BOLD_ITALIC}$1${LYRIC_MD_BOLD_ITALIC}`)
-    .replace(/\*\*([^*\n]+?)\*\*/g, `${LYRIC_MD_BOLD}$1${LYRIC_MD_BOLD}`)
-    .replace(/\*([^*\n]+?)\*/g, `${LYRIC_MD_ITALIC}$1${LYRIC_MD_ITALIC}`);
-
-  return protectedLine.replaceAll(chordStarPlaceholder, '*');
-}
-
-function appendFormattedLyricText(parent, text, state) {
-  if (!text) return;
-  let buffer = '';
-
-  const flush = () => {
-    if (!buffer) return;
-    const span = document.createElement('span');
-    if (state.boldItalic) span.className = 'lyric-md-bold-italic';
-    else if (state.bold) span.className = 'lyric-md-bold';
-    else if (state.italic) span.className = 'lyric-md-italic';
-    span.textContent = buffer;
-    parent.appendChild(span);
-    buffer = '';
-  };
-
-  for (const ch of text) {
-    if (ch === LYRIC_MD_ITALIC || ch === LYRIC_MD_BOLD || ch === LYRIC_MD_BOLD_ITALIC) {
-      flush();
-      if (ch === LYRIC_MD_ITALIC) state.italic = !state.italic;
-      else if (ch === LYRIC_MD_BOLD) state.bold = !state.bold;
-      else state.boldItalic = !state.boldItalic;
-    } else {
-      buffer += ch;
-    }
-  }
-  flush();
-}
-
 function renderLyrics(opts = {}) {
   const {
     animateChords = false,
@@ -4655,8 +4615,6 @@ function renderLyrics(opts = {}) {
       // (e.g. "алдар[Em]шаач", "A[E]а" in this songbook's own data) — that split must NOT be
       // treated as a word break, or the two halves get rendered as separate words with a gap
       // torn into the middle of one, which is the "chords splitting text" bug.
-      line = encodeLyricMarkdown(line);
-      const markdownState = { italic: false, bold: false, boldItalic: false };
       const chordPositions = [...line.matchAll(/\[([^\]]+)\]/g)];
       const runs = [];
       if (chordPositions.length === 0) {
@@ -4748,8 +4706,7 @@ function renderLyrics(opts = {}) {
           }
           const textEl = document.createElement('span');
           textEl.className = 'lyric-word';
-          if (piece.text) appendFormattedLyricText(textEl, piece.text, markdownState);
-          else textEl.textContent = '\u00A0';
+          textEl.textContent = piece.text || '\u00A0';
           pieceEl.appendChild(textEl);
           wrap.appendChild(pieceEl);
         });
@@ -7149,7 +7106,7 @@ function openAddSongsModal(playlistId) {
   const renderItems = () => {
     const q = input.value.trim().toLowerCase();
     const sourceKey = state.activeDbSource;
-    const songs = sortSongs(state.sources[sourceKey].songs.filter(s => matchesQuery(s, q, sourceKey)), q, sourceKey);
+    const songs = filterAndSortSongs(state.sources[sourceKey].songs, q, sourceKey);
     const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
 
     if (firstRender || prefersReducedMotion()) {
@@ -7389,6 +7346,16 @@ function bindSettings() {
       state.lyricsSpacing = spacing;
       applyLyricsSpacing();
       localStorage.setItem('sb-lyrics-spacing', state.lyricsSpacing);
+    });
+  });
+
+  document.querySelectorAll('#lyrics-word-spacing-toggle [data-lyrics-word-spacing]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const spacing = btn.dataset.lyricsWordSpacing;
+      if (spacing === state.lyricsWordSpacing) return;
+      state.lyricsWordSpacing = spacing;
+      applyLyricsWordSpacing();
+      localStorage.setItem('sb-lyrics-word-spacing', state.lyricsWordSpacing);
     });
   });
 

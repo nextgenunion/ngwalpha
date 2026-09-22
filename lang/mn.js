@@ -43,6 +43,8 @@ window.SONGBOOK_LANG.mn = {
   lyricsSpacingTight: "Нягт",
   lyricsSpacingNormal: "Дунд",
   lyricsSpacingLoose: "Зайтай",
+  lyricsWordSpacingTitle: "Үг хоорондын зай",
+  lyricsWordSpacingSub: "Дууны үгсийн хоорондох хэвтээ зай",
   settingsTitle: "Тохиргоо",
   sectionAppearance: "Харагдах байдал",
   darkModeTitle: "Харанхуй горим",

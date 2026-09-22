@@ -43,6 +43,8 @@ window.SONGBOOK_LANG.kr = {
   lyricsSpacingTight: "좁게",
   lyricsSpacingNormal: "보통",
   lyricsSpacingLoose: "넓게",
+  lyricsWordSpacingTitle: "단어 간격",
+  lyricsWordSpacingSub: "가사 단어 사이의 가로 간격",
   settingsTitle: "설정",
   sectionAppearance: "화면",
   darkModeTitle: "다크 모드",

@@ -47,6 +47,8 @@ window.SONGBOOK_LANG.en = {
   lyricsSpacingTight: "Tight",
   lyricsSpacingNormal: "Normal",
   lyricsSpacingLoose: "Loose",
+  lyricsWordSpacingTitle: "Word spacing",
+  lyricsWordSpacingSub: "Horizontal spacing between lyric words",
   settingsTitle: "Settings",
   sectionAppearance: "Appearance",
   darkModeTitle: "Dark mode",

@@ -6,7 +6,7 @@
    permission from Next Gen Union. See LICENSE for full terms.
 
    Palette: neutral ink/paper + selectable pastel accent (chord tokens)
-   Type: Fraunces (display/titles) · Inter (UI/lyrics) · IBM Plex Mono (chords)
+   Type: Fraunces (display/titles) · Inter (UI) · Noto Sans Variable (lyrics) · IBM Plex Mono (chords)
    ========================================================= */
 
 /* Registering these as typed <color> custom properties (rather than plain
@@ -54,10 +54,12 @@
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  /* Lyric text specifically uses the variable Noto Sans family. The Google
-     Fonts request in index.html loads both roman and italic axes at the full
-     100..900 weight range, so the song renderer can use the deliberately
-     tuned 420 / 500 / 650 lyric weights without snapping to static masters. */
+  /* Lyric text specifically (not UI chrome) uses Noto Sans rather than
+     Inter: Inter is tuned for small-size UI legibility, while Noto Sans
+     is built for continuous multi-script paragraph reading (including
+     Cyrillic from the ground up, not bolted on) — closer to what a full
+     screen of Mongolian Cyrillic lyric text actually is. See .lyric-word
+     below for the variable weight choice (430 for Normal). */
   --font-lyrics: 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
@@ -65,14 +67,17 @@
   --chord-size: 0.82rem;
 
   /* Lyric line vertical spacing (Settings → Appearance → Line spacing).
-     "Normal" is the production reading default: plain lyric lines use a
-     1.50 line-height, while chorded lines keep a denser chord-chart rhythm
-     so the chord row stays visually attached to its lyric. Tight and Loose
-     override this variable group below without changing general UI spacing. */
-  --lyric-line-gap: 6px;
-  --lyric-line-mb: 6px;
-  --lyric-line-lh: 1.22;
-  --lyric-chord-mb: 2px;   /* gap between a chord tag and its own word below it */
+     "Normal" here reproduces the original hardcoded values .lyric-line /
+     .lyric-line.is-plain used before this became configurable — see the
+     html[data-lyrics-spacing="tight"|"loose"] overrides near .lyric-line
+     below for the other two options. Kept as their own variable group
+     (rather than reusing --lyrics-size etc.) since these are unitless/px
+     spacing values, not font sizes. */
+  --lyric-line-gap: 4px;
+  --lyric-word-gap: 0.3em; /* horizontal gap between lyric word tokens */
+  --lyric-line-mb: 4px;
+  --lyric-line-lh: 1.15;
+  --lyric-chord-mb: 1px;   /* gap between a chord tag and its own word below it */
   /* Visual-only nudge (in em of the chord's own font size) that slides each
      chord tag down toward the lyric under it. It uses position:relative +
      top, so it never touches layout: every line height, gap and margin above
@@ -82,6 +87,7 @@
   --lyric-line-plain-lh: 1.5;
   --lyric-line-plain-mb: 10px;
   --lyric-line-plain-gap: 10px;
+  --lyric-section-gap: 12px; /* blank-line / verse-section separation; follows the vertical spacing preset */
 
   --nav-h: 68px;
   --radius-s: 8px;
@@ -616,7 +622,7 @@ button, a {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
-  margin-right: 0;
+  margin-right: -7px;
   border: 0;
   border-radius: 11px;
   display: inline-flex;
@@ -628,10 +634,6 @@ button, a {
   transition: background-color .15s ease, color .15s ease, transform .18s var(--press-ease);
 }
 .search-tools-btn svg { width: 19px; height: 19px; fill: currentColor; }
-
-.search-db-btn {
-  margin-right: -7px;
-}
 .search-tools-btn:hover { background: var(--surface-2); color: var(--ink); }
 .search-tools-btn:active { transform: scale(.92); }
 .search-tools-btn[aria-pressed="true"] {
@@ -699,7 +701,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   background: transparent;
   outline: none;
   padding: 13px 10px;
-  font-size: 1rem;
+  font-size: 0.96rem;
   color: var(--ink);
   font-family: var(--font-body);
   -webkit-appearance: none;
@@ -858,7 +860,7 @@ html[data-theme="dark"] .sort-btn-tap {
 }
 
 .results-count {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--ink-faint);
   margin: 14px 2px 6px;
 }
@@ -965,7 +967,7 @@ html[data-theme="dark"] .sort-btn-tap {
   background: var(--accent-tint);
   color: var(--accent-strong);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
 }
 
@@ -1304,7 +1306,7 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   color: var(--paper);
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 700;
   box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper) 35%, transparent);
   pointer-events: none;
@@ -1687,7 +1689,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .song-view-title { flex: 1; min-width: 0; padding-top: 2px; }
 .sv-number {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--accent-strong);
   font-weight: 600;
 }
@@ -1767,8 +1769,8 @@ html[data-theme="dark"] .sv-header-immersive::before {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-m);
-  padding: 10px 14px;
-  margin-top: 14px;
+  padding: 8px 12px;
+  margin-top: 12px;
 }
 /* min-width sized for the longest realistic key text this can ever show
    (root + optional accidental + optional "m" — "A#m", "Ebm", etc., ~4
@@ -1778,9 +1780,9 @@ html[data-theme="dark"] .sv-header-immersive::before {
    into a key with a sharp/flat/minor suffix visibly shifted the whole
    button group sideways. Reserving the space up front means the controls
    stay in the same spot no matter which key is showing. */
-.transpose-label { font-size: 0.88rem; color: var(--ink-soft); min-width: 92px; }
+.transpose-label { font-size: 0.86rem; color: var(--ink-soft); min-width: 88px; }
 .transpose-label strong { color: var(--ink); font-family: var(--font-mono); }
-.transpose-controls { display: flex; align-items: center; gap: 8px; }
+.transpose-controls { display: flex; align-items: center; gap: 7px; }
 .transpose-offset {
   min-width: 22px;
   text-align: center;
@@ -1791,12 +1793,12 @@ html[data-theme="dark"] .sv-header-immersive::before {
 }
 
 .chip-btn {
-  width: 36px; height: 36px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 700;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -1839,10 +1841,10 @@ html[data-theme="dark"] .sv-header-immersive::before {
 .chip-btn-text {
   width: auto;
   height: auto;
-  min-height: 36px;
-  padding: 6px 10px;
+  min-height: 34px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   white-space: normal;
   text-align: center;
@@ -1850,7 +1852,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
   max-width: 88px;
 }
 @media (max-width: 480px) {
-  .chip-btn-text { min-height: 36px; padding: 6px 10px; font-size: 0.78rem; }
+  .chip-btn-text { min-height: 34px; padding: 5px 9px; font-size: 0.76rem; }
 }
 
 .font-controls {
@@ -1871,7 +1873,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-m);
-  padding: 8px 10px;
+  padding: 7px 10px;
 }
 .font-group-label { font-size: 0.78rem; color: var(--ink-faint); margin-right: auto; }
 /* Narrow phones: 150px min-width already forces groups onto their own
@@ -1879,7 +1881,7 @@ html[data-theme="dark"] .sv-header-immersive::before {
    slightly so a group doesn't feel cramped at the phone's own narrower
    --page-pad width. */
 @media (max-width: 480px) {
-  .font-group { min-width: 0; padding: 8px; }
+  .font-group { min-width: 0; padding: 7px 8px; }
   .font-group-label { font-size: 0.74rem; }
 }
 
@@ -2011,7 +2013,7 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
   .lyrics-container { padding-left: 12px; padding-right: 12px; }
 }
 
-.lyric-section { margin-top: 24px; }
+.lyric-section { margin-top: var(--lyric-section-gap); }
 .lyric-section:first-child { margin-top: 0; }
 /* Indent is a visual cue (this section repeats/echoes the one above it),
    not a layout requirement — kept modest so it doesn't eat into the
@@ -2036,7 +2038,7 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
      non-wrapped lines sitting right next to them — the "inconsistent
      vertical spacing" bug. Keep the two values yoked together (see
      .is-plain below, which needs a bigger row-gap for the same reason). */
-  gap: var(--lyric-line-gap) 0.3em;
+  gap: var(--lyric-line-gap) var(--lyric-word-gap);
   margin-bottom: var(--lyric-line-mb);
   line-height: var(--lyric-line-lh);
   /* Settings → Appearance's line-spacing toggle only swaps the
@@ -2058,8 +2060,14 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
   align-items: baseline;
   line-height: var(--lyric-line-plain-lh);
   margin-bottom: var(--lyric-line-plain-mb);
-  gap: var(--lyric-line-plain-gap) 0.3em;
+  gap: var(--lyric-line-plain-gap) var(--lyric-word-gap);
 }
+
+/* Word spacing options (Settings → Display settings → Word spacing).
+   This controls ONLY the horizontal gap between lyric-word tokens. Normal
+   intentionally matches the app's previous fixed 0.3em spacing exactly. */
+html[data-lyrics-word-spacing="tight"] { --lyric-word-gap: 0.15em; }
+html[data-lyrics-word-spacing="loose"] { --lyric-word-gap: 0.5em; }
 
 /* Line spacing options (Settings → Appearance → Line spacing). Only the
    lyric line rhythm above changes — general app UI spacing is untouched.
@@ -2075,24 +2083,26 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
    together since they belong to each other, without ever touching (the
    chord tag's own line-box provides the floor). */
 html[data-lyrics-spacing="tight"] {
-  --lyric-line-gap: 4px;
-  --lyric-line-mb: 4px;
-  --lyric-line-lh: 1.12;
+  --lyric-line-gap: 3px;
+  --lyric-line-mb: 3px;
+  --lyric-line-lh: 1.08;
   --lyric-chord-mb: 0px;
-  --lyric-chord-nudge: 0.05; /* already tight — only a hair, so tall Cyrillic marks (Й, Ё) never touch */
-  --lyric-line-plain-lh: 1.4;
+  --lyric-chord-nudge: 0.04; /* close to the older compact rhythm, with only a tiny bit more breathing room */
+  --lyric-line-plain-lh: 1.34;
   --lyric-line-plain-mb: 7px;
   --lyric-line-plain-gap: 7px;
+  --lyric-section-gap: 8px;
 }
 html[data-lyrics-spacing="loose"] {
-  --lyric-line-gap: 9px;
-  --lyric-line-mb: 9px;
-  --lyric-line-lh: 1.32;
+  --lyric-line-gap: 8px;
+  --lyric-line-mb: 8px;
+  --lyric-line-lh: 1.3;
   --lyric-chord-mb: 5px;
   --lyric-chord-nudge: 0.3;
-  --lyric-line-plain-lh: 1.65;
-  --lyric-line-plain-mb: 15px;
-  --lyric-line-plain-gap: 15px;
+  --lyric-line-plain-lh: 1.7;
+  --lyric-line-plain-mb: 16px;
+  --lyric-line-plain-gap: 16px;
+  --lyric-section-gap: 20px;
 }
 
 .lyric-section-number {
@@ -2226,7 +2236,7 @@ html[data-hide-chords="true"] .lyric-line {
   align-items: baseline;
   line-height: var(--lyric-line-plain-lh);
   margin-bottom: var(--lyric-line-plain-mb);
-  gap: var(--lyric-line-plain-gap) 0.3em;
+  gap: var(--lyric-line-plain-gap) var(--lyric-word-gap);
 }
 
 /* Subtle "pop" when chords change (transpose up/down/reset). Applied only
@@ -2247,36 +2257,22 @@ html[data-hide-chords="true"] .lyric-line {
   font-size: var(--lyrics-size);
   color: var(--ink);
   font-family: var(--font-lyrics);
-  font-weight: 420;
-  font-style: normal;
-  letter-spacing: 0;
-  font-kerning: normal;
-  font-synthesis: none;
-  font-stretch: 100%;
+  font-weight: 430;
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
   /* Settings → Appearance's lyrics-style toggle below only flips an
      attribute — it never rebuilds these elements — so without a
-     transition the weight change snaps instantly. Variable Noto Sans can
-     interpolate the exact 420 / 500 / 650 values used here. */
+     transition the weight change snaps instantly. Numeric font-weight
+     transitions are well supported in current browsers; where they
+     aren't, this just falls back to an instant change, same as before. */
   transition: font-weight .22s ease;
 }
-/* Lyrics style (Settings → Appearance → Lyrics style): font weight for
-   lyric text only — chords, chrome, and everything else are untouched. */
+/* Lyrics style (Settings → Appearance → Lyrics style): exact weights are
+   available because Noto Sans is loaded as a variable font. Chords, chrome,
+   and everything else are untouched. "Normal" is the 430 above. */
 html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 500; }
 html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
-
-/* Lightweight inline lyric markdown. The renderer strips only matched
-   delimiters and emits these spans inside .lyric-word:
-     *text*   -> italic
-     **text** -> bold
-     ***text*** -> bold + italic
-   Bold markdown deliberately resolves to the app's 650 bold master even
-   when the global lyric-weight setting is Normal or Semibold. */
-.lyric-md-italic { font-style: italic; }
-.lyric-md-bold { font-weight: 650; }
-.lyric-md-bold-italic { font-weight: 650; font-style: italic; }
 
 .sv-audio { margin-top: 20px; }
 .audio-item { margin-top: 8px; }
@@ -2357,6 +2353,7 @@ html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
   flex: 0 0 20px;
   color: var(--ink-soft);
 }
+.settings-row-icon-horizontal { transform: rotate(90deg); }
 /* flex: 1 1 auto makes the title/sub block claim all leftover row width
    itself, instead of sizing to its own text and leaving .settings-row's
    space-between to scatter the remainder as uneven gaps around the icon
@@ -3518,7 +3515,7 @@ span.trash-row-check {
   color: var(--ink);
   border-radius: var(--radius-s);
   padding: 12px 14px;
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-family: var(--font-body);
   outline: none;
   margin-top: 10px;
@@ -3660,7 +3657,7 @@ span.trash-row-check {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--accent-strong);
   background: var(--accent-tint);
@@ -3706,7 +3703,7 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   margin-top: 10px;
 }
 .label-suggestion-chip {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--ink-soft);
   background: var(--surface);
@@ -3770,7 +3767,7 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   color: var(--ink-soft);
 }
 .editor-field-hint {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--ink-faint);
   margin-top: 4px;
   line-height: 1.4;

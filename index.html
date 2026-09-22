@@ -44,7 +44,7 @@
      the font file itself could even start downloading. See the mono-font
      warmup in js/app.js (scheduleFontWarmup) for the other half of this
      fix. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -77,12 +77,6 @@
     <button id="song-search-tools-btn" class="search-tools-btn" type="button" aria-haspopup="dialog">
       <svg data-icon="filter-tune" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <span id="song-label-filter-count" class="search-tools-count" hidden></span>
-    </button>
-    <!-- Quick database switcher. Kept as the right-most search control so
-         changing songbooks is available directly from the Songbook page
-         without taking away the existing filter/view-options button. -->
-    <button id="song-db-btn" class="search-tools-btn search-db-btn" type="button" aria-haspopup="dialog">
-      <svg data-icon="library-music" viewBox="0 0 24 24" aria-hidden="true"></svg>
     </button>
   </div>
 
@@ -569,6 +563,19 @@
       </div>
     </div>
     <div class="settings-row">
+      <svg class="settings-row-icon settings-row-icon-horizontal" data-icon="line-spacing" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-lyricsWordSpacingTitle">Word spacing</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-lyricsWordSpacingSub">Horizontal spacing between lyric words</span>
+      </div>
+      <div class="seg-toggle" role="group" id="lyrics-word-spacing-toggle" aria-label="Lyric word spacing">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-lyrics-word-spacing="tight" id="t-lyricsWordSpacingTight" aria-pressed="false">Tight</button>
+        <button class="seg-toggle-btn" data-lyrics-word-spacing="normal" id="t-lyricsWordSpacingNormal" aria-pressed="true">Normal</button>
+        <button class="seg-toggle-btn" data-lyrics-word-spacing="loose" id="t-lyricsWordSpacingLoose" aria-pressed="false">Loose</button>
+      </div>
+    </div>
+    <div class="settings-row">
       <svg class="settings-row-icon" data-icon="line-spacing" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-lyricsSpacingTitle">Line spacing</span>
@@ -576,8 +583,8 @@
       </div>
       <div class="seg-toggle" role="group" id="lyrics-spacing-toggle" aria-label="Lyric line spacing">
         <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-lyrics-spacing="tight" id="t-lyricsSpacingTight" aria-pressed="true">Tight</button>
-        <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="false">Normal</button>
+        <button class="seg-toggle-btn" data-lyrics-spacing="tight" id="t-lyricsSpacingTight" aria-pressed="false">Tight</button>
+        <button class="seg-toggle-btn" data-lyrics-spacing="normal" id="t-lyricsSpacingNormal" aria-pressed="true">Normal</button>
         <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
       </div>
     </div>
