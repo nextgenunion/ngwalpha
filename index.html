@@ -44,7 +44,7 @@
      the font file itself could even start downloading. See the mono-font
      warmup in js/app.js (scheduleFontWarmup) for the other half of this
      fix. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -77,6 +77,9 @@
     <button id="song-search-tools-btn" class="search-tools-btn" type="button" aria-haspopup="dialog">
       <svg data-icon="filter-tune" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <span id="song-label-filter-count" class="search-tools-count" hidden></span>
+    </button>
+    <button id="song-db-btn" class="search-tools-btn search-db-btn" type="button" aria-haspopup="dialog">
+      <svg data-icon="library-music" viewBox="0 0 24 24" aria-hidden="true"></svg>
     </button>
   </div>
 

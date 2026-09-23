@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.2.26-alpha — Trash Bin)
+# Next Gen Worship — Worship Song App (v4.2.44-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,28 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v4.2.44-alpha feature merge
+
+- Restores the Songbook database picker inside the search field and the song
+  view's Display settings shortcut from the v4.2.39 feature build.
+- Restores inline `*italic*`, `**bold**`, and `***bold italic***` lyric
+  rendering, including through chord markers and in the editor preview.
+- Loads roman and italic variable Noto Sans with the same font stylesheet
+  URL in the page and offline cache. The v4.2.43 fixes below remain present.
+
+## v4.2.43-alpha fixes
+
+- User Song backups now include the separate personal-label layer. The new
+  export is a versioned JSON object with `songs` and `personalLabels`; import
+  still accepts older plain-array song backups, which could not contain
+  personal labels. Import replaces the current User Songs and their personal
+  labels, while keeping labels assigned to official songs.
+- Editing an imported User Song preserves its alternate titles.
+- Modal close cleanup has a timeout fallback if the browser skips the CSS
+  transition event; reopening promptly cancels the pending close.
+- Offline font precaching requests the same variable Noto Sans stylesheet as
+  the page itself.
 
 ## What's new in v4.2.26-alpha
 
@@ -820,9 +842,5 @@ unnecessary complexity early"): the Song Editor has no dedicated chord-entry
 UI (chip picker, fretboard, etc.) — it's a plain textarea using the same
 `[Am]` notation the song data itself uses, since that's also exactly what
 someone would need to already know to read "Editing the song list," below.
-There's also no import/export or sharing of User Songs yet, and no way to
-attach `labels` or `sheetMusic` to one from the editor — both fields are
-already present on every saved User Song's data (matching the official
-song data model), so a future labels UI or Sheet Music feature can start
-writing to them without restructuring songs saved today.
-
+The editor still has no Sheet Music attachment control. User Songs do support
+manual import/export and editable labels; see the current backup format above.

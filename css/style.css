@@ -622,7 +622,7 @@ button, a {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
-  margin-right: -7px;
+  margin-right: 0;
   border: 0;
   border-radius: 11px;
   display: inline-flex;
@@ -634,6 +634,7 @@ button, a {
   transition: background-color .15s ease, color .15s ease, transform .18s var(--press-ease);
 }
 .search-tools-btn svg { width: 19px; height: 19px; fill: currentColor; }
+.search-db-btn { margin-right: -7px; }
 .search-tools-btn:hover { background: var(--surface-2); color: var(--ink); }
 .search-tools-btn:active { transform: scale(.92); }
 .search-tools-btn[aria-pressed="true"] {
@@ -2273,6 +2274,9 @@ html[data-hide-chords="true"] .lyric-line {
    and everything else are untouched. "Normal" is the 430 above. */
 html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 500; }
 html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
+.lyric-md-italic { font-style: italic; }
+.lyric-md-bold { font-weight: 650; }
+.lyric-md-bold-italic { font-weight: 650; font-style: italic; }
 
 .sv-audio { margin-top: 20px; }
 .audio-item { margin-top: 8px; }

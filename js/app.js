@@ -601,7 +601,14 @@ function dbSourceLabel(sourceKey) {
 // applyLanguage() (the 'english' source's name is language-dependent).
 function updateDbRowSub() {
   const el = document.getElementById('t-dbSub');
-  if (el) el.textContent = dbSourceLabel(state.activeDbSource);
+  const label = dbSourceLabel(state.activeDbSource);
+  if (el) el.textContent = label;
+  const quickBtn = document.getElementById('song-db-btn');
+  if (quickBtn) {
+    const action = t('dbPickerTitle');
+    quickBtn.setAttribute('aria-label', `${action}: ${label}`);
+    quickBtn.title = `${action}: ${label}`;
+  }
 }
 
 // One JSON file per song remains the editable/latest source of truth, listed
@@ -1775,7 +1782,15 @@ function confirmPermanentlyDeleteTrashSongs(ids) {
 // browser on the same phone (or as a manual backup) without a server.
 function exportUserSongs() {
   const exportSongs = state.sources.user.songs.map(song => sanitizeUserSongRecord({ ...song }));
-  const blob = new Blob([JSON.stringify(exportSongs, null, 2)], { type: 'application/json' });
+  const personalLabels = {};
+  exportSongs.forEach(song => {
+    const labels = state.personalLabels.bySongRef[songRefKey('user', song.id)];
+    if (Array.isArray(labels) && labels.length) personalLabels[song.id] = [...labels];
+  });
+  // Versioned wrapper keeps the separate, editable personal-label layer in
+  // the same backup without changing the meaning of each song's own labels.
+  const backup = { format: 'ngworship-user-songs', version: 2, songs: exportSongs, personalLabels };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1790,7 +1805,22 @@ function exportUserSongs() {
 async function importUserSongsFromFile(file) {
   try {
     const text = await file.text();
-    const cleanData = normalizeImportedUserSongs(JSON.parse(text));
+    const backup = JSON.parse(text);
+    const wrapped = isPlainObject(backup) && backup.format === 'ngworship-user-songs' && backup.version === 2;
+    if (!Array.isArray(backup) && !wrapped) throw new Error('unsupported User Songs backup');
+    const cleanData = normalizeImportedUserSongs(wrapped ? backup.songs : backup);
+    const importedLabels = {};
+    if (wrapped) {
+      if (!isPlainObject(backup.personalLabels)) throw new Error('invalid personal labels in backup');
+      cleanData.forEach(song => {
+        const labels = backup.personalLabels[song.id];
+        if (labels == null) return;
+        if (!Array.isArray(labels) || labels.some(label => typeof label !== 'string')) {
+          throw new Error(`invalid personal labels for ${song.id}`);
+        }
+        importedLabels[songRefKey('user', song.id)] = [...labels];
+      });
+    }
 
     // Full replacement is intentional for backup/device transfer, but the
     // clear + all puts now share one transaction. A failed import therefore
@@ -1798,6 +1828,16 @@ async function importUserSongsFromFile(file) {
     await UserSongStorage.replaceAll(cleanData);
     state.sources.user.songs = cleanData;
     state.sources.user.loaded = true;
+    // Remove stale User Song overrides on the receiving browser, then
+    // restore the separate layer from a v2 backup. Legacy array backups
+    // did not contain this layer, so they cannot restore personal labels.
+    const bySongRef = { ...state.personalLabels.bySongRef };
+    Object.keys(bySongRef).forEach(key => {
+      if (key.startsWith('user:')) delete bySongRef[key];
+    });
+    Object.assign(bySongRef, importedLabels);
+    state.personalLabels = { ...state.personalLabels, bySongRef };
+    await LabelStorage.save(state.personalLabels);
     if (state.currentPage === 'user-songs') renderUserSongList();
     if (state.currentPage === 'playlists') renderPlaylistsList();
     if (state.currentPage === 'playlist-view') renderPlaylistView();
@@ -3089,6 +3129,8 @@ function bindSongsPage() {
 
   const searchToolsBtn = document.getElementById('song-search-tools-btn');
   if (searchToolsBtn) searchToolsBtn.addEventListener('click', openSongSearchToolsModal);
+  const dbBtn = document.getElementById('song-db-btn');
+  if (dbBtn) dbBtn.addEventListener('click', openDbPickerModal);
   updateSongToolbarButtons();
 
   /* Plays the sort-btn-tap keyframe animation (see .sort-btn-tap in
@@ -4279,6 +4321,7 @@ function openSongViewMenu() {
   wrap.innerHTML = `
     <button type="button" id="sv-kebab-add-playlist"><svg data-icon="plus" viewBox="0 0 24 24"></svg>${escapeHtml(t('addToPlaylistTitle'))}</button>
     <button type="button" id="sv-kebab-labels"><svg data-icon="tag" viewBox="0 0 24 24"></svg>${escapeHtml(t('editLabelsBtn'))}</button>
+    <button type="button" id="sv-kebab-display"><svg data-icon="view-list" viewBox="0 0 24 24"></svg>${escapeHtml(t('displaySettingsTitle'))}</button>
     ${isUserSong ? `
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
@@ -4299,6 +4342,11 @@ function openSongViewMenu() {
     e.stopPropagation();
     closeSongViewMenu();
     openEditLabelsModal(state.activeSourceKey, song.id);
+  });
+  wrap.querySelector('#sv-kebab-display').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeSongViewMenu();
+    showPage('song-display', { pushHistory: true, resetScroll: true });
   });
   const editBtn = wrap.querySelector('#sv-kebab-edit');
   if (editBtn) editBtn.addEventListener('click', (e) => {
@@ -4529,6 +4577,48 @@ function transposeSingle(token, steps) {
 // instead, through this exact same chord/lyric engine rather than a
 // second, separate implementation that could drift out of sync with how
 // a saved song actually renders.
+// Matched inline markers are converted to text-only toggles before chords
+// and words are split, so formatting may span a chord or several words.
+const LYRIC_MD_ITALIC = '\uE100';
+const LYRIC_MD_BOLD = '\uE101';
+const LYRIC_MD_BOLD_ITALIC = '\uE102';
+
+function encodeLyricMarkdown(line) {
+  const chordStarPlaceholder = '\uE10F';
+  let protectedLine = line.replace(/\[[^\]]*\]/g, chord =>
+    chord.replace(/\*/g, chordStarPlaceholder)
+  );
+  protectedLine = protectedLine
+    .replace(/\*\*\*([^*\n]+?)\*\*\*/g, `${LYRIC_MD_BOLD_ITALIC}$1${LYRIC_MD_BOLD_ITALIC}`)
+    .replace(/\*\*([^*\n]+?)\*\*/g, `${LYRIC_MD_BOLD}$1${LYRIC_MD_BOLD}`)
+    .replace(/\*([^*\n]+?)\*/g, `${LYRIC_MD_ITALIC}$1${LYRIC_MD_ITALIC}`);
+  return protectedLine.replaceAll(chordStarPlaceholder, '*');
+}
+
+function appendFormattedLyricText(parent, text, markdownState) {
+  if (!text) return;
+  let buffer = '';
+  const flush = () => {
+    if (!buffer) return;
+    const span = document.createElement('span');
+    if (markdownState.boldItalic) span.className = 'lyric-md-bold-italic';
+    else if (markdownState.bold) span.className = 'lyric-md-bold';
+    else if (markdownState.italic) span.className = 'lyric-md-italic';
+    span.textContent = buffer;
+    parent.appendChild(span);
+    buffer = '';
+  };
+  for (const ch of text) {
+    if (ch === LYRIC_MD_ITALIC || ch === LYRIC_MD_BOLD || ch === LYRIC_MD_BOLD_ITALIC) {
+      flush();
+      if (ch === LYRIC_MD_ITALIC) markdownState.italic = !markdownState.italic;
+      else if (ch === LYRIC_MD_BOLD) markdownState.bold = !markdownState.bold;
+      else markdownState.boldItalic = !markdownState.boldItalic;
+    } else buffer += ch;
+  }
+  flush();
+}
+
 function renderLyrics(opts = {}) {
   const {
     animateChords = false,
@@ -4654,6 +4744,8 @@ function renderLyrics(opts = {}) {
       // (e.g. "алдар[Em]шаач", "A[E]а" in this songbook's own data) — that split must NOT be
       // treated as a word break, or the two halves get rendered as separate words with a gap
       // torn into the middle of one, which is the "chords splitting text" bug.
+      line = encodeLyricMarkdown(line);
+      const markdownState = { italic: false, bold: false, boldItalic: false };
       const chordPositions = [...line.matchAll(/\[([^\]]+)\]/g)];
       const runs = [];
       if (chordPositions.length === 0) {
@@ -4745,7 +4837,8 @@ function renderLyrics(opts = {}) {
           }
           const textEl = document.createElement('span');
           textEl.className = 'lyric-word';
-          textEl.textContent = piece.text || '\u00A0';
+          if (piece.text) appendFormattedLyricText(textEl, piece.text, markdownState);
+          else textEl.textContent = '\u00A0';
           pieceEl.appendChild(textEl);
           wrap.appendChild(pieceEl);
         });
@@ -5036,6 +5129,9 @@ function saveSongFromEditor() {
     // schema change to songs saved today.
     labels: existing ? existing.labels || [] : [],
     sheetMusic: existing ? existing.sheetMusic || [] : [],
+    // The editor does not expose alternate titles. Keep imported aliases
+    // when a person edits the visible title, lyrics, or chords.
+    ...(existing && existing.alternateTitles ? { alternateTitles: existing.alternateTitles } : {}),
   };
 
   saveUserSong(song).then(() => {
@@ -6546,6 +6642,10 @@ function openModal(title, bodyEl) {
     overlay.removeEventListener('transitionend', overlay._closeCleanup);
     overlay._closeCleanup = null;
   }
+  if (overlay._closeTimer) {
+    clearTimeout(overlay._closeTimer);
+    overlay._closeTimer = null;
+  }
   overlay.classList.remove('modal-overlay-closing');
   overlay.hidden = false;
 
@@ -6575,7 +6675,7 @@ function openModal(title, bodyEl) {
 
 function closeModal() {
   const overlay = document.getElementById('modal-overlay');
-  if (overlay.hidden) return;
+  if (overlay.hidden || overlay._closeCleanup) return;
 
   if (prefersReducedMotion()) {
     overlay.hidden = true;
@@ -6590,8 +6690,11 @@ function closeModal() {
   overlay.style.opacity = '0';
   const cleanup = (e) => {
     if (e && e.propertyName !== 'opacity') return;
+    if (overlay._closeCleanup !== cleanup) return;
     overlay.removeEventListener('transitionend', cleanup);
     overlay._closeCleanup = null;
+    if (overlay._closeTimer) clearTimeout(overlay._closeTimer);
+    overlay._closeTimer = null;
     overlay.hidden = true;
     overlay.classList.remove('modal-overlay-closing');
     overlay.style.opacity = '';
@@ -6599,6 +6702,9 @@ function closeModal() {
   };
   overlay._closeCleanup = cleanup;
   overlay.addEventListener('transitionend', cleanup);
+  // A transitionend event is not guaranteed when the browser suppresses
+  // animations or the element loses its rendering surface mid-transition.
+  overlay._closeTimer = setTimeout(() => cleanup(), 320);
 }
 
 function bindModalShell() {
