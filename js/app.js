@@ -3753,6 +3753,9 @@ function onSongsPageEnter() {
     return;
   }
 
+  // Favorites may have changed in song view, a playlist, or an import while
+  // this list was hidden and its existing rows were retained.
+  refreshSongbookFavoriteMarkers();
   refreshSongScrollIndexMeasurements();
 }
 
@@ -4198,6 +4201,8 @@ function getSongListSubtitle(song) {
 function buildSongRow(song, hasNumbers, q, sourceKey) {
   const li = document.createElement('li');
   li.dataset.rowKey = `${sourceKey}:${song.id}`;
+  li.dataset.sourceKey = sourceKey;
+  li.dataset.songId = song.id;
   const row = document.createElement('button');
   row.className = 'song-row';
   row.addEventListener('click', () => tapSongRowThenOpen(row, () => openSong(song, { sourceKey })));
@@ -4205,6 +4210,8 @@ function buildSongRow(song, hasNumbers, q, sourceKey) {
   updateSongRowContent(li, song, hasNumbers, q);
   return li;
 }
+
+const FAVORITE_BADGE_HEARTS = '<svg class="song-badge-hearts" viewBox="0 0 22 16" aria-hidden="true"><path d="M5 8C1 5 1 2.5 3.3 2.5 4.2 2.5 4.7 3 5 3.5 5.3 3 5.8 2.5 6.7 2.5 9 2.5 9 5 5 8Z"/><path d="M17 7C14 4.7 14 2.5 16 2.5 16.5 2.5 17 3 17 3 17 3 17.5 2.5 18 2.5 20 2.5 20 4.7 17 7Z"/><path d="M11 14C5.7 10.2 5.7 6.3 8.4 6.3 9.6 6.3 10.4 7 11 7.9 11.6 7 12.4 6.3 13.6 6.3 16.3 6.3 16.3 10.2 11 14Z"/></svg>';
 
 function updateSongRowContent(li, song, hasNumbers, q) {
   const row = li.firstElementChild;
@@ -4214,13 +4221,32 @@ function updateSongRowContent(li, song, hasNumbers, q) {
   // where nothing selects on this class.
   row.classList.toggle('has-badge', hasNumbers);
   const subtitle = getSongListSubtitle(song);
+  // New rows have no parent until after this call. Only #song-list displays it.
+  const favoriteBadge = hasNumbers && isSongInPlaylist('favorites', li.dataset.sourceKey, song.id)
+    ? FAVORITE_BADGE_HEARTS
+    : '';
   row.innerHTML = `
-    ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
+    ${hasNumbers ? `<span class="song-badge">${escapeHtml(String(song.number))}${favoriteBadge}</span>` : ''}
     <span class="song-row-text">
       <span class="song-row-title">${highlight(song.title, q)}</span>
       ${subtitle ? `<span class="song-row-sub">${highlight(subtitle, q)}</span>` : ''}
     </span>
   `;
+}
+
+function refreshSongbookFavoriteMarkers() {
+  const list = document.getElementById('song-list');
+  if (!list) return;
+  const favorites = new Set((getPlaylist('favorites')?.songs || [])
+    .map(ref => songRefKey(ref.sourceKey, ref.songId)));
+  list.querySelectorAll('li[data-row-key] .song-badge').forEach(badge => {
+    const li = badge.closest('li');
+    const wanted = favorites.has(songRefKey(li.dataset.sourceKey, li.dataset.songId));
+    const existing = badge.querySelector('.song-badge-hearts');
+    if (wanted && !existing) {
+      badge.insertAdjacentHTML('beforeend', FAVORITE_BADGE_HEARTS);
+    } else if (!wanted && existing) existing.remove();
+  });
 }
 
 // Whole-block opacity/translate dip-and-recover. Ordinary search/sort
@@ -4445,11 +4471,8 @@ function openSong(song, opts = {}) {
   const altEl = document.getElementById('sv-alt-title');
   const altTitles = (song.alternateTitles || []).filter(Boolean);
   if (altTitles.length) {
-    // Now rendered at the bottom of the song (see index.html), detached
-    // from the title it's naming — so it gets a translated label prefix
-    // (t('altTitlesPrefix')) here that it didn't need when it sat right
-    // under the title itself.
-    altEl.textContent = `${t('altTitlesPrefix')} ${altTitles.join(' • ')}`;
+    // Show the alternate titles without a label prefix.
+    altEl.textContent = altTitles.join(' • ');
     altEl.hidden = false;
   } else {
     altEl.textContent = '';
@@ -5681,7 +5704,7 @@ function songRefKey(sourceKey, songId) {
 // below) — so a song tagged from the picker under one interface language
 // still matches when filtering under a different one.
 const LABEL_PRESETS = [
-  'christmas', 'easter', 'communion', 'baptism', 'wedding', 'funeral',
+  'christmas', 'easter', 'communion', 'baptism', 'wedding',
   'praise', 'worship', 'kids', 'choir', 'opening', 'closing',
 ];
 const LABEL_PRESET_TRANSLATION_KEYS = {
@@ -8128,6 +8151,7 @@ const ACCENT_PALETTE = {
   aqua:       { light: ['#44CAFD', '#0E86B8', '#E1F6FE'], dark: ['#6FDBFF', '#BEEFFF', '#113247'] },
   cinnamon:   { light: ['#A9762F', '#8C6526', '#F1E4C8'], dark: ['#D9A94B', '#E7BE6C', '#2C2618'] },
   red:        { light: ['#E8919E', '#B5586B', '#FBEBEE'], dark: ['#F0A3AF', '#FBD6DC', '#3A252A'] },
+  peach:      { light: ['#E5A982', '#995B39', '#FBEDE3'], dark: ['#F0BE9C', '#F7D9C3', '#38271F'] },
 };
 
 function hexToHsl(hex) {
