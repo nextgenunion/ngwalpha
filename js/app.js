@@ -4211,7 +4211,7 @@ function buildSongRow(song, hasNumbers, q, sourceKey) {
   return li;
 }
 
-const FAVORITE_BADGE_HEARTS = '<svg class="song-badge-hearts" viewBox="0 0 22 16" aria-hidden="true"><path d="M5 8C1 5 1 2.5 3.3 2.5 4.2 2.5 4.7 3 5 3.5 5.3 3 5.8 2.5 6.7 2.5 9 2.5 9 5 5 8Z"/><path d="M17 7C14 4.7 14 2.5 16 2.5 16.5 2.5 17 3 17 3 17 3 17.5 2.5 18 2.5 20 2.5 20 4.7 17 7Z"/><path d="M11 14C5.7 10.2 5.7 6.3 8.4 6.3 9.6 6.3 10.4 7 11 7.9 11.6 7 12.4 6.3 13.6 6.3 16.3 6.3 16.3 10.2 11 14Z"/></svg>';
+const FAVORITE_BADGE_HEART = '<svg class="song-badge-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg>';
 
 function updateSongRowContent(li, song, hasNumbers, q) {
   const row = li.firstElementChild;
@@ -4223,7 +4223,7 @@ function updateSongRowContent(li, song, hasNumbers, q) {
   const subtitle = getSongListSubtitle(song);
   // New rows have no parent until after this call. Only #song-list displays it.
   const favoriteBadge = hasNumbers && isSongInPlaylist('favorites', li.dataset.sourceKey, song.id)
-    ? FAVORITE_BADGE_HEARTS
+    ? FAVORITE_BADGE_HEART
     : '';
   row.innerHTML = `
     ${hasNumbers ? `<span class="song-badge">${escapeHtml(String(song.number))}${favoriteBadge}</span>` : ''}
@@ -4242,9 +4242,9 @@ function refreshSongbookFavoriteMarkers() {
   list.querySelectorAll('li[data-row-key] .song-badge').forEach(badge => {
     const li = badge.closest('li');
     const wanted = favorites.has(songRefKey(li.dataset.sourceKey, li.dataset.songId));
-    const existing = badge.querySelector('.song-badge-hearts');
+    const existing = badge.querySelector('.song-badge-heart');
     if (wanted && !existing) {
-      badge.insertAdjacentHTML('beforeend', FAVORITE_BADGE_HEARTS);
+      badge.insertAdjacentHTML('beforeend', FAVORITE_BADGE_HEART);
     } else if (!wanted && existing) existing.remove();
   });
 }

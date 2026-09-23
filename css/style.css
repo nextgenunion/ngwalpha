@@ -974,20 +974,18 @@ html[data-theme="dark"] .sort-btn-tap {
   font-size: 0.76rem;
   font-weight: 600;
 }
-/* A small, quiet three-heart flourish at the badge edge. The number stays
-   centered and readable, including in compact view. */
-#song-list .song-badge-hearts {
+/* A solid heart at the badge edge, clear of the centered number. */
+#song-list .song-badge-heart {
   position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 18px;
-  height: 13px;
-  fill: #BB7286;
-  opacity: .72;
+  top: -4px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  fill: #B5586B;
   pointer-events: none;
 }
-html[data-theme="dark"] #song-list .song-badge-hearts { fill: #E1A3B1; opacity: .78; }
-#song-list[data-view="compact"] .song-badge-hearts { width: 15px; height: 11px; top: -4px; right: -4px; }
+html[data-theme="dark"] #song-list .song-badge-heart { fill: #F0A3AF; }
+#song-list[data-view="compact"] .song-badge-heart { width: 12px; height: 12px; top: -4px; right: -5px; }
 
 .song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .song-row-title {
