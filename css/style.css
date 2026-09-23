@@ -3405,6 +3405,13 @@ html[data-theme="dark"] .btn-pill-done {
    without invalid/inaccessible markup. */
 .trash-row {
   cursor: default;
+  /* .song-row normally uses content-visibility:auto for very large song
+     lists. That implies paint containment, which clipped this row's
+     absolutely-positioned kebab dropdown at the card boundary. Trash lists
+     are tiny, so opt out here and let the menu paint outside the row. */
+  content-visibility: visible;
+  contain: none;
+  overflow: visible;
 }
 span.trash-row-check {
   display: none; /* shown only in select mode via .is-selecting */
@@ -3417,6 +3424,11 @@ span.trash-row-check {
   border-color: var(--accent-strong);
   background: var(--accent-tint);
 }
+#trash-list li.is-selected .trash-row-check {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+#trash-list li.is-selected .trash-row-check svg { opacity: 1; }
 /* Smaller than the default 38px .icon-btn (see that rule) — this one sits
    inline inside a list row rather than in a page header, so it keeps the
    same lip-press styling at a size that doesn't dominate the row. */

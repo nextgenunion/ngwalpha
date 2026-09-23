@@ -463,7 +463,12 @@ async function init() {
   // its Settings badge/count, if either ever reads trashSongs) can show it
   // — every app open gets a fresh, already-clean trash list rather than
   // the sweep happening lazily whenever the person next opens the page.
-  safe('purgeExpiredTrash', () => purgeExpiredTrash());
+  // Repair old v4.2.41 playlist references before the 30-day purge. If an
+  // old Trash entry has just expired, this still gets one last chance to
+  // remove its stale Favorites/playlist references before the Trash record
+  // itself is permanently swept away.
+  await repairTrashedUserSongPlaylistRefs();
+  await purgeExpiredTrash();
   safe('applyLanguage (post-load)', applyLanguage); // re-run so the results count reflects the loaded songs
   // Search stays lazy-correct either way, but warming immutable song text
   // during idle time keeps the person's first keystroke from having to
@@ -1193,7 +1198,22 @@ const UserSongStorage = {
 };
 
 function genUserSongId() {
-  return 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // IDs are the permanent identity playlists/Favorites use. Keep them
+  // independent of the song title and explicitly avoid both live User Songs
+  // and Trash so deleting/recreating a same-named song can never inherit an
+  // old playlist reference through an id collision.
+  const used = new Set([
+    ...state.sources.user.songs.map(song => String(song.id)),
+    ...state.trashSongs.map(song => String(song.id)),
+  ]);
+  let id = '';
+  do {
+    const randomPart = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+      ? globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+      : Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    id = 'u_' + randomPart;
+  } while (used.has(id));
+  return id;
 }
 
 // Older builds stored a derived __searchCache directly on song objects.
@@ -1326,20 +1346,22 @@ async function saveUserSong(song) {
 async function deleteUserSong(id) {
   const song = state.sources.user.songs.find(s => s.id === id);
   if (!song) return;
-  const entry = { ...song, deletedAt: Date.now() };
 
-  // Commit both stores before changing either in-memory mirror. A failed
+  // A deleted User Song must immediately stop counting as a playlist song.
+  // Remember its memberships inside the Trash entry first so Recover can put
+  // it back exactly where it belonged, then remove the live references after
+  // the User Song -> Trash transaction succeeds.
+  const trashPlaylistIds = getUserSongPlaylistMemberships(id);
+  const entry = { ...song, deletedAt: Date.now(), trashPlaylistIds };
+
+  // Commit both song stores before changing either in-memory mirror. A failed
   // transaction therefore leaves the visible state and persisted state as
   // they were, instead of making the song disappear from only one side.
   await UserSongStorage.moveToTrash(song, entry);
   state.sources.user.songs = state.sources.user.songs.filter(s => s.id !== id);
   state.trashSongs = state.trashSongs.filter(s => s.id !== id);
   state.trashSongs.push(entry);
-
-  // A song can be referenced from playlists/Favorites by {sourceKey:
-  // 'user', songId}. Playlists intentionally keep those references while a
-  // song is in Trash; findSongByRef() simply stops resolving it until the
-  // song is recovered.
+  removeUserSongFromAllPlaylists(id);
 }
 
 // ---------------------------------------------------------
@@ -1372,6 +1394,22 @@ const TrashStorage = {
     });
     db.close();
     return songs;
+  },
+  // Updates Trash entries in one transaction. Used by the v4.2.42 repair
+  // pass to attach the playlist memberships that older builds left behind
+  // as dangling live references while the song was in Trash.
+  async putMany(entries) {
+    if (!entries.length) return;
+    const db = await openSongDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(SONGDB_STORES.trash, 'readwrite');
+      const store = tx.objectStore(SONGDB_STORES.trash);
+      entries.forEach(entry => store.put(entry, entry.id));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Trash update aborted'));
+    });
+    db.close();
   },
   // Deletes several at once — used by the trash bin's multi-select "Delete"
   // action so an N-song bulk action is N IndexedDB deletes in one pass
@@ -1409,13 +1447,14 @@ async function loadTrash() {
 async function restoreTrashedSong(id) {
   const entry = state.trashSongs.find(s => s.id === id);
   if (!entry) return;
-  const { deletedAt, ...song } = entry;
+  const { deletedAt, trashPlaylistIds = [], ...song } = entry;
   sanitizeUserSongRecord(song);
 
   await UserSongStorage.restoreFromTrash(song, id);
   state.trashSongs = state.trashSongs.filter(s => s.id !== id);
   state.sources.user.songs = state.sources.user.songs.filter(s => s.id !== song.id);
   state.sources.user.songs.push(song);
+  restoreUserSongPlaylistMemberships(song.id, trashPlaylistIds);
 }
 
 // Restores several trashed songs at once — the trash bin's multi-select
@@ -2385,7 +2424,7 @@ function applyDbSource(sourceKey) {
   if (searchInput) searchInput.value = '';
   updateSongToolbarButtons();
 
-  const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+  const hasNumbers = sourceHasSongNumbers(sourceKey);
   const numBtn = document.querySelector('.sort-btn[data-sort-by="num"]');
   const alphaBtn = document.querySelector('.sort-btn[data-sort-by="alpha"]');
   if (numBtn) numBtn.hidden = !hasNumbers;
@@ -3370,7 +3409,7 @@ function sortSongs(list, q, sourceKey = state.activeDbSource, precomputedRanks =
   const query = normalizeSearchText(q);
   // Same "user songs aren't in DB_SOURCES" reasoning as renderSongList's
   // own hasNumbers — see the comment there.
-  const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+  const hasNumbers = sourceHasSongNumbers(sourceKey);
 
   // Callers using the optimized filterAndSortSongs() path hand us ranks
   // computed during the one search pass. Other callers retain the previous
@@ -3538,7 +3577,7 @@ function renderSongList(opts = {}) {
   // false rather than falling through to DB_SOURCES' "unknown key means
   // true" default, which would try to show a number none of these songs
   // actually have.
-  const hasNumbers = sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+  const hasNumbers = sourceHasSongNumbers(sourceKey);
 
   const q = query;
 
@@ -5287,6 +5326,106 @@ function findSongByRef(sourceKey, songId) {
   return source.songs.find(s => s.id === songId) || null;
 }
 
+function sourceHasSongNumbers(sourceKey) {
+  // User Songs never have songbook numbers. DB_SOURCES only contains the
+  // packaged databases, so falling back to {} used to make `user` look like
+  // a numbered source and rendered a literal "undefined" badge in playlists.
+  return sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+}
+
+function getUserSongPlaylistMemberships(songId) {
+  const ids = [];
+  Object.values(state.playlists.byId || {}).forEach(pl => {
+    if (!pl || !Array.isArray(pl.songs)) return;
+    if (pl.songs.some(ref => ref.sourceKey === 'user' && ref.songId === songId)) ids.push(pl.id);
+  });
+  return ids;
+}
+
+function removeUserSongFromAllPlaylists(songId) {
+  let changed = false;
+  Object.values(state.playlists.byId || {}).forEach(pl => {
+    if (!pl || !Array.isArray(pl.songs)) return;
+    const next = pl.songs.filter(ref => !(ref.sourceKey === 'user' && ref.songId === songId));
+    if (next.length !== pl.songs.length) {
+      pl.songs = next;
+      changed = true;
+    }
+  });
+  if (changed) persistPlaylists();
+  return changed;
+}
+
+function restoreUserSongPlaylistMemberships(songId, playlistIds) {
+  if (!Array.isArray(playlistIds) || !playlistIds.length) return false;
+  let changed = false;
+  playlistIds.forEach(playlistId => {
+    const pl = getPlaylist(playlistId);
+    if (!pl || isSongInPlaylist(playlistId, 'user', songId)) return;
+    pl.songs.push({ sourceKey: 'user', songId });
+    changed = true;
+  });
+  if (changed) persistPlaylists();
+  return changed;
+}
+
+// v4.2.41 intentionally kept playlist references while a User Song sat in
+// Trash. v4.2.42 changes that contract: deleted songs no longer count or
+// appear as members, while Recover restores the previous memberships. This
+// one-time-safe repair migrates already-deleted songs by recording those
+// old memberships on each Trash entry before removing the dangling refs.
+async function repairTrashedUserSongPlaylistRefs() {
+  const trashById = new Map(state.trashSongs.map(entry => [entry.id, entry]));
+  if (!trashById.size) return;
+
+  const changedEntries = new Map();
+  let playlistsChanged = false;
+
+  Object.values(state.playlists.byId || {}).forEach(pl => {
+    if (!pl || !Array.isArray(pl.songs)) return;
+    const kept = [];
+    pl.songs.forEach(ref => {
+      if (ref.sourceKey !== 'user' || !trashById.has(ref.songId)) {
+        kept.push(ref);
+        return;
+      }
+
+      const entry = trashById.get(ref.songId);
+      const membership = Array.isArray(entry.trashPlaylistIds) ? [...entry.trashPlaylistIds] : [];
+      if (!membership.includes(pl.id)) membership.push(pl.id);
+      entry.trashPlaylistIds = membership;
+      changedEntries.set(entry.id, entry);
+      playlistsChanged = true;
+      // Deliberately do not keep this live playlist ref: a song in Trash is
+      // no longer a member until it is recovered.
+    });
+    if (kept.length !== pl.songs.length) pl.songs = kept;
+  });
+
+  if (changedEntries.size) {
+    try {
+      await TrashStorage.putMany(Array.from(changedEntries.values()));
+    } catch (err) {
+      // The count/membership bug is worse than losing the optional restore
+      // convenience, so still clean the live playlist refs this session.
+      console.warn('Songbook: failed to persist Trash playlist-membership repair —', err);
+    }
+  }
+  if (playlistsChanged) persistPlaylists();
+}
+
+function playlistSongCount(pl) {
+  if (!pl || !Array.isArray(pl.songs)) return 0;
+  const trashedIds = new Set(state.trashSongs.map(song => song.id));
+  return pl.songs.reduce((count, ref) => {
+    // Defensive display-layer guard for installs upgrading from an older
+    // build before its repair write has completed. Official/lazy sources
+    // still count normally even if their database is not loaded yet.
+    if (ref.sourceKey === 'user' && trashedIds.has(ref.songId)) return count;
+    return count + 1;
+  }, 0);
+}
+
 function isSongInPlaylist(playlistId, sourceKey, songId) {
   const pl = getPlaylist(playlistId);
   if (!pl) return false;
@@ -5723,7 +5862,7 @@ function buildPlaylistRow(id, pl) {
     <span class="playlist-icon"><svg viewBox="0 0 24 24" data-icon="${pl.isFavorites ? 'heart-filled' : 'nav-playlist'}"></svg></span>
     <span class="playlist-row-text">
       <span class="playlist-row-title">${escapeHtml(playlistDisplayName(pl))}</span>
-      <span class="playlist-row-sub">${t('playlistSongCount', pl.songs.length)}</span>
+      <span class="playlist-row-sub">${t('playlistSongCount', playlistSongCount(pl))}</span>
     </span>
   `;
   row.addEventListener('click', () => openPlaylist(id));
@@ -5739,7 +5878,7 @@ function buildPlaylistRow(id, pl) {
 function updatePlaylistRowContent(li, pl) {
   const row = li.firstElementChild;
   row.querySelector('.playlist-row-title').textContent = playlistDisplayName(pl);
-  row.querySelector('.playlist-row-sub').textContent = t('playlistSongCount', pl.songs.length);
+  row.querySelector('.playlist-row-sub').textContent = t('playlistSongCount', playlistSongCount(pl));
 }
 
 // animate: true fades newly-created/newly-removed playlists in/out
@@ -6144,7 +6283,7 @@ function renderPlaylistView(opts = {}) {
   const emptyEl = document.getElementById('playlist-view-empty-state');
   if (!pl) return;
 
-  document.getElementById('pv-count').textContent = t('playlistSongCount', pl.songs.length);
+  document.getElementById('pv-count').textContent = t('playlistSongCount', playlistSongCount(pl));
   emptyEl.textContent = pl.isFavorites ? t('playlistViewEmptyStateFavorites') : t('playlistViewEmptyState');
   emptyEl.classList.toggle('empty-state--favorites', pl.isFavorites);
 
@@ -6188,7 +6327,7 @@ function renderPlaylistView(opts = {}) {
     row.className = 'song-row';
     // Some sources' songs have no number (see DB_SOURCES' hasNumbers) —
     // drop the badge entirely for those rather than show "undefined".
-    const hasNumbers = (DB_SOURCES[ref.sourceKey] || {}).hasNumbers !== false;
+    const hasNumbers = sourceHasSongNumbers(ref.sourceKey);
     const subtitle = getSongListSubtitle(song);
     row.innerHTML = `
       ${hasNumbers ? `<span class="song-badge">${song.number}</span>` : ''}
@@ -7096,7 +7235,7 @@ function openAddSongsModal(playlistId) {
       item.setAttribute('aria-pressed', String(nowIn));
       if (state.activeSong && state.activeSong.id === song.id) updateFavoriteButtonUI();
       renderPlaylistView({ animate: true });
-      document.getElementById('pv-count').textContent = t('playlistSongCount', getPlaylist(playlistId).songs.length);
+      document.getElementById('pv-count').textContent = t('playlistSongCount', playlistSongCount(getPlaylist(playlistId)));
     });
     li.appendChild(item);
     return li;
@@ -7107,7 +7246,7 @@ function openAddSongsModal(playlistId) {
     const q = input.value.trim().toLowerCase();
     const sourceKey = state.activeDbSource;
     const songs = filterAndSortSongs(state.sources[sourceKey].songs, q, sourceKey);
-    const hasNumbers = (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+    const hasNumbers = sourceHasSongNumbers(sourceKey);
 
     if (firstRender || prefersReducedMotion()) {
       // Plain build for the very first render (opening the modal shouldn't
