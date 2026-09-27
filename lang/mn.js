@@ -43,6 +43,8 @@ window.SONGBOOK_LANG.mn = {
   lyricsSpacingTight: "Нягт",
   lyricsSpacingNormal: "Дунд",
   lyricsSpacingLoose: "Зайтай",
+  textSizeTitle: "Бичвэрийн хэмжээ",
+  textSizeSub: "Дууны үг, аккордын бичвэрийн хэмжээ — дууны хуудсан дахьтай ижил удирдлага",
   lyricsWordSpacingTitle: "Үг хоорондын зай",
   lyricsWordSpacingSub: "Дууны үгсийн хоорондох хэвтээ зай",
   settingsTitle: "Тохиргоо",
@@ -256,4 +258,15 @@ window.SONGBOOK_LANG.mn = {
   devHideDescSub: "Тохиргооны зарим мөрийн доорх тайлбар бичвэрийг нуух",
   devVividGlassTitle: "Дууны хуудасны шилэн эффектийг тод болгох",
   devVividGlassSub: "Дууны хуудасны толгой хэсгийн цайвар шилэн дэвсгэрийг илүү өнгөлөг болгоно. Зөвхөн цайвар горимд нөлөөлнө — бараан горимд өөрчлөлт ороохгүй.",
+
+  // Дууны мэдээлэл — зөвхөн Хөгжүүлэгчийн тохиргоо нээгдсэн үед, дууны "⋮"
+  // цэснээс (see openSongInfoModal() in app.js).
+  infoBtn: "Дууны мэдээлэл",
+  infoModalTitle: "Дууны мэдээлэл",
+  infoSourceLabel: "Эх сурвалж",
+  infoFileLabel: "Файл",
+  infoIdLabel: "Дууны ID",
+  infoNumberLabel: "Дугаар",
+  infoUserSongSource: "Хэрэглэгчийн дуунууд (төхөөрөмж дээр)",
+  infoUserSongFile: "Энэ төхөөрөмжийн Хэрэглэгчийн дуунуудад хадгалагдсан — эх файл байхгүй",
 };

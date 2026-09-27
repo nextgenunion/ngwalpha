@@ -43,6 +43,8 @@ window.SONGBOOK_LANG.kr = {
   lyricsSpacingTight: "좁게",
   lyricsSpacingNormal: "보통",
   lyricsSpacingLoose: "넓게",
+  textSizeTitle: "글자 크기",
+  textSizeSub: "가사 및 코드 글자 크기 — 곡 화면과 동일한 조절",
   lyricsWordSpacingTitle: "단어 간격",
   lyricsWordSpacingSub: "가사 단어 사이의 가로 간격",
   settingsTitle: "설정",
@@ -256,4 +258,15 @@ window.SONGBOOK_LANG.kr = {
   devHideDescSub: "일부 설정 항목 아래의 설명 텍스트를 숨깁니다",
   devVividGlassTitle: "곡 상단 유리 효과 선명하게",
   devVividGlassSub: "곡 화면 상단의 프로스트 유리 효과를 기본값인 흰색 계열 대신 더 화려한 색상으로 전환합니다. 라이트 모드에만 적용되며 다크 모드는 영향을 받지 않습니다.",
+
+  // 노래 정보 — 개발자 옵션이 켜져 있을 때만 곡 화면의 "⋮" 메뉴에 표시됩니다
+  // (see openSongInfoModal() in app.js).
+  infoBtn: "노래 정보",
+  infoModalTitle: "노래 정보",
+  infoSourceLabel: "출처",
+  infoFileLabel: "파일",
+  infoIdLabel: "노래 ID",
+  infoNumberLabel: "번호",
+  infoUserSongSource: "사용자 노래 (로컬)",
+  infoUserSongFile: "이 기기의 사용자 노래 보관함에 저장됨 — 원본 파일 없음",
 };

@@ -974,10 +974,14 @@ html[data-theme="dark"] .sort-btn-tap {
   font-size: 0.76rem;
   font-weight: 600;
 }
-/* A solid heart at the badge edge, clear of the centered number. */
+/* A solid heart at the badge edge, clear of the centered number. Offsets
+   are kept equal (top === right) so the heart hangs evenly off the
+   circle's top-right corner instead of drifting toward one side —
+   previously right was 1px more negative than top, which read as
+   slightly off-center. */
 #song-list .song-badge-heart {
   position: absolute;
-  top: -4px;
+  top: -5px;
   right: -5px;
   width: 14px;
   height: 14px;
@@ -985,7 +989,7 @@ html[data-theme="dark"] .sort-btn-tap {
   pointer-events: none;
 }
 html[data-theme="dark"] #song-list .song-badge-heart { fill: #F0A3AF; }
-#song-list[data-view="compact"] .song-badge-heart { width: 12px; height: 12px; top: -4px; right: -5px; }
+#song-list[data-view="compact"] .song-badge-heart { width: 12px; height: 12px; top: -4px; right: -4px; }
 
 .song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .song-row-title {
@@ -1877,6 +1881,13 @@ html[data-theme="dark"] .sv-header-immersive::before {
   gap: 10px;
   margin-top: 10px;
 }
+/* Same Lyrics/Chords A−/A+ control, reused inside the Display settings
+   page's "Text size" row (see index.html #page-song-display) rather than
+   only living in the song view itself. .settings-row is itself a
+   flex-wrap container (icon + title/sub + control), so flex-basis:100%
+   forces this onto its own full-width line under the icon/title every
+   time, instead of only wrapping there once the row runs out of space. */
+.settings-row > .font-controls { flex: 1 1 100%; margin-top: 12px; }
 .font-group {
   flex: 1;
   /* Sized for the chord-style toggle's segmented control (wider than an
@@ -3552,6 +3563,28 @@ span.trash-row-check {
   margin-top: 10px;
 }
 .modal-text-input:focus { border-color: var(--accent-strong); }
+
+/* Song info modal (Developer options only — see openSongInfoModal() in
+   app.js) — a plain label/value list, monospaced value so a file path is
+   easy to read and select. */
+.info-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.info-row:last-child { border-bottom: none; }
+.info-row-label { font-size: 0.86rem; color: var(--ink-faint); flex-shrink: 0; }
+.info-row-value {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-align: right;
+  word-break: break-all;
+  margin-left: auto;
+}
 
 .modal-actions {
   display: flex;

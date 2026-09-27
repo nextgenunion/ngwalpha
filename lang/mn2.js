@@ -54,6 +54,9 @@ window.SONGBOOK_LANG.mn2 = {
   // TODO: placeholder Cyrillic until the traditional-script UI translation is completed.
   lyricsWordSpacingTitle: "Үг хоорондын зай",
   lyricsWordSpacingSub: "Дууны үгсийн хоорондох хэвтээ зай",
+  // TODO: placeholder Cyrillic until the traditional-script UI translation is completed.
+  textSizeTitle: "Бичвэрийн хэмжээ",
+  textSizeSub: "Дууны үг, аккордын бичвэрийн хэмжээ — дууны хуудсан дахьтай ижил удирдлага",
   settingsTitle: "ᠲᠣᢈᠢᠷᠠᠭ᠎ᠠ",
   sectionAppearance: "ᠬᠠᠷᠠᠭᠳᠠᠴᠠ",
   darkModeTitle: "ᠬᠠᠷᠠᠩᠬᠤᠢ ᠭᠣᠷᠢᠮ",
@@ -282,4 +285,15 @@ window.SONGBOOK_LANG.mn2 = {
   devHideDescSub: "Тохиргоо доторх зарим мөрийн доорх тайлбар бичвэрийг нуух",
   devVividGlassTitle: "Дууны хуудасны шилэн эффектийг тод болгох",
   devVividGlassSub: "Дууны хуудасны толгой хэсгийн цайвар шилэн дэвсгэрийг илүү өнгөлөг болгоно. Зөвхөн цайвар горимд нөлөөлнө — бараан горимд өөрчлөлт ороохгүй.",
+
+  // Дууны мэдээлэл — зөвхөн Хөгжүүлэгчийн тохиргоо нээгдсэн үед. Кирилл
+  // хэвээр, дээрх бусад шилжүүлээгүй мөрүүдтэй адил.
+  infoBtn: "Дууны мэдээлэл",
+  infoModalTitle: "Дууны мэдээлэл",
+  infoSourceLabel: "Эх сурвалж",
+  infoFileLabel: "Файл",
+  infoIdLabel: "Дууны ID",
+  infoNumberLabel: "Дугаар",
+  infoUserSongSource: "Хэрэглэгчийн дуунууд (төхөөрөмж дээр)",
+  infoUserSongFile: "Энэ төхөөрөмжийн Хэрэглэгчийн дуунуудад хадгалагдсан — эх файл байхгүй",
 };

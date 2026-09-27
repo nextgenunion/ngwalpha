@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.2.44-alpha)
+# Next Gen Worship — Worship Song App (v4.2.47-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,27 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v4.2.47-alpha
+
+- **New Developer option: song info** — the song-view "⋮" menu gets an
+  "Song info" row once Developer options is unlocked, showing which exact
+  source database and file (`data/<folder>/<id>.json`) the open song's
+  content came from, plus its song ID and number. User Songs report
+  "stored locally, no source file" instead, since they live in IndexedDB
+  rather than a static JSON file. See `songSourceFilePath()` /
+  `openSongInfoModal()` in app.js
+- **Text size now also available from Settings → Display settings** — a
+  new "Text size" row reuses the exact same Lyrics/Chords A−/A+ controls
+  (and the same size state) already in the song view's own font-controls
+  bar, so it can be adjusted from either place
+- **English sort labels shortened** — "Ascending"/"Descending" are now
+  "Ascend"/"Descent" in the English language file only; mn/kr/mn2 are
+  unaffected, they already have their own independent strings
+- **Songbook list favorite-heart badge nudged into alignment** — its
+  top/right offsets were off by 1px from each other, which read as
+  slightly uneven on the circular number badge; now equal on both axes,
+  in comfortable and compact list views
 
 ## v4.2.44-alpha feature merge
 

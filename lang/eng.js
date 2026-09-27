@@ -16,8 +16,8 @@ window.SONGBOOK_LANG.en = {
   searchOptionsTitle: "Search options",
   sortByAlpha: "Alphabet",
   sortByNumber: "Number",
-  sortAsc: "Ascending",
-  sortDesc: "Descending",
+  sortAsc: "Ascend",
+  sortDesc: "Descent",
   resultsAll: (n) => `${n} songs`,
   resultsFiltered: (n, total) => `${n} of ${total} songs`,
   emptyState: "No hymn like that in the songbook. Maybe it's one to add someday 😉",
@@ -47,6 +47,8 @@ window.SONGBOOK_LANG.en = {
   lyricsSpacingTight: "Tight",
   lyricsSpacingNormal: "Normal",
   lyricsSpacingLoose: "Loose",
+  textSizeTitle: "Text size",
+  textSizeSub: "Lyrics and chord text size — same control as the song view",
   lyricsWordSpacingTitle: "Word spacing",
   lyricsWordSpacingSub: "Horizontal spacing between lyric words",
   settingsTitle: "Settings",
@@ -260,4 +262,16 @@ window.SONGBOOK_LANG.en = {
   devHideDescSub: "Hides the description text under some settings rows",
   devVividGlassTitle: "Vivid song header glass",
   devVividGlassSub: "Switches the song page's glass header from the default frosted-white look to a more colorful tint. Light mode only — dark mode is unaffected.",
+
+  // Song info — Developer options only, from the song-view "⋮" menu (see
+  // openSongInfoModal() in app.js). Shows which exact source file a song's
+  // content came from.
+  infoBtn: "Song info",
+  infoModalTitle: "Song info",
+  infoSourceLabel: "Source",
+  infoFileLabel: "File",
+  infoIdLabel: "Song ID",
+  infoNumberLabel: "Number",
+  infoUserSongSource: "User Songs (local)",
+  infoUserSongFile: "Stored in this device's User Songs library — no source file",
 };

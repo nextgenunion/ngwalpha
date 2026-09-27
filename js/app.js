@@ -2691,6 +2691,10 @@ function applyLanguage() {
     't-lyricsSpacingTight': 'lyricsSpacingTight',
     't-lyricsSpacingNormal': 'lyricsSpacingNormal',
     't-lyricsSpacingLoose': 'lyricsSpacingLoose',
+    't-textSizeTitle': 'textSizeTitle',
+    't-textSizeSub': 'textSizeSub',
+    't-textSizeLyricsGroup': 'lyricsGroup',
+    't-textSizeChordsGroup': 'chordsGroup',
     't-lyricsWordSpacingTitle': 'lyricsWordSpacingTitle',
     't-lyricsWordSpacingSub': 'lyricsWordSpacingSub',
     't-lyricsWordSpacingTight': 'lyricsSpacingTight',
@@ -4353,6 +4357,9 @@ function openSongViewMenu() {
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
     ` : ''}
     <button type="button" id="sv-kebab-presentation" aria-pressed="${String(state.presentationMode)}"><svg data-icon="presentation" viewBox="0 0 24 24"></svg>${escapeHtml(state.presentationMode ? t('exitPresentationModeBtn') : t('presentationModeBtn'))}</button>
+    ${state.devUnlocked ? `
+    <button type="button" id="sv-kebab-info"><svg data-icon="info-outline" viewBox="0 0 24 24"></svg>${escapeHtml(t('infoBtn'))}</button>
+    ` : ''}
   `;
   btn.parentElement.style.position = 'relative';
   btn.parentElement.appendChild(wrap);
@@ -4390,6 +4397,12 @@ function openSongViewMenu() {
     e.stopPropagation();
     closeSongViewMenu();
     togglePresentationMode();
+  });
+  const infoBtn = wrap.querySelector('#sv-kebab-info');
+  if (infoBtn) infoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeSongViewMenu();
+    openSongInfoModal(state.activeSourceKey, song);
   });
   wrap.addEventListener('click', (e) => e.stopPropagation());
 }
@@ -7279,6 +7292,56 @@ function openEditLabelsModal(sourceKey, songId) {
     suggestionSourceKey: sourceKey,
   });
   openModal(t('labelsEditTitle'), wrap);
+}
+
+// ---------------------------------------------------------
+// Song info modal — Developer options only (see state.devUnlocked /
+// openSongViewMenu()'s "sv-kebab-info" button). Not something an ordinary
+// visitor needs, but handy while working on song data: which exact source
+// file the open song's content came from, so a data fix can be pointed at
+// the right JSON file straight away instead of guessing from the title.
+// ---------------------------------------------------------
+
+// The on-disk path a given song's JSON lives at — same base URL
+// songDataBaseUrl()/fetchSongBundleSnapshot() use for their own fetches,
+// plus the per-song `<id>.json` filename. Returns null for a User Song
+// ('user' isn't a DB_SOURCES entry — those live in IndexedDB, not a
+// static file, so songDataBaseUrl() throws for it).
+function songSourceFilePath(sourceKey, song) {
+  if (!song) return null;
+  try {
+    return `${songDataBaseUrl(sourceKey)}/${song.id}.json`;
+  } catch {
+    return null;
+  }
+}
+
+function buildInfoRow(label, value) {
+  const row = document.createElement('div');
+  row.className = 'info-row';
+  row.innerHTML = `
+    <span class="info-row-label">${escapeHtml(label)}</span>
+    <span class="info-row-value"></span>
+  `;
+  // Set via textContent (not the innerHTML template above) so a value
+  // containing e.g. "<" from a song title can never be read as markup.
+  row.querySelector('.info-row-value').textContent = value;
+  return row;
+}
+
+function openSongInfoModal(sourceKey, song) {
+  if (!song) return;
+  const isUserSong = sourceKey === 'user';
+  const filePath = songSourceFilePath(sourceKey, song);
+  const wrap = document.createElement('div');
+  wrap.className = 'info-list';
+  wrap.appendChild(buildInfoRow(t('infoSourceLabel'), isUserSong ? t('infoUserSongSource') : dbSourceLabel(sourceKey)));
+  wrap.appendChild(buildInfoRow(t('infoFileLabel'), isUserSong ? t('infoUserSongFile') : filePath));
+  wrap.appendChild(buildInfoRow(t('infoIdLabel'), String(song.id)));
+  if (song.number != null) {
+    wrap.appendChild(buildInfoRow(t('infoNumberLabel'), `#${song.number}`));
+  }
+  openModal(t('infoModalTitle'), wrap);
 }
 
 // ---------------------------------------------------------
