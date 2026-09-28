@@ -216,6 +216,9 @@ const PAGES = {
   'settings':       { elId: 'page-settings',       navKey: 'settings',  rememberScroll: true,  onEnter: () => resetContactUI() },
   'song-display':   { elId: 'page-song-display',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => updateAllSegToggleThumbs({ instant: true }) },
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
+  // Built-in tool, opened from Settings → Tools. ChordFinder.init() builds
+  // the fretboard once, the first time the page is shown (see js/chord-finder.js).
+  'chord-finder':   { elId: 'page-chord-finder',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => { if (window.ChordFinder) window.ChordFinder.init(); } },
   'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through
   // history/deep-linking before that, since showPage() itself doesn't
@@ -229,7 +232,7 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'song-display', 'about', 'trash', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
@@ -308,6 +311,7 @@ const ICON_FILES = {
   'install-mobile': 'icons/svg/install-mobile.svg',
   'restart-alt': 'icons/svg/restart-alt.svg',
   'info-outline': 'icons/svg/info-outline.svg',
+  'chord-finder': 'icons/svg/chord-finder.svg',
   // Full-color one-off (not part of the monochrome fill="currentColor" set
   // above) — the Saturday/Sabbath easter-egg mascot. See initSabbathMascot().
   'mascot-sabbath': 'icons/svg/mascot-sabbath.svg',
@@ -444,6 +448,7 @@ async function init() {
   safe('bindModalShell', bindModalShell);
   safe('bindSettings', bindSettings);
   safe('bindAboutPage', bindAboutPage);
+  safe('bindChordFinderPage', bindChordFinderPage);
   safe('bindTrashPage', bindTrashPage);
   safe('applyLanguage', applyLanguage);
   safe('setupInstallPrompt', setupInstallPrompt);
@@ -2732,6 +2737,10 @@ function applyLanguage() {
     't-reloadAppSub': 'reloadAppSub',
     't-sectionAbout': 'sectionAbout',
     't-sectionAbout2': 'sectionAbout',
+    't-sectionTools': 'sectionTools',
+    't-chordFinderTitle': 'chordFinderTitle',
+    't-chordFinderTitle2': 'chordFinderTitle',
+    't-chordFinderSub': 'chordFinderSub',
     't-versionTitle': 'versionTitle',
     't-creditsHeading': 'creditsHeading',
     'about-nav-sub': 'aboutNavSub',
@@ -2836,6 +2845,7 @@ function applyLanguage() {
   // pill themselves. No-ops harmlessly if Settings isn't the page on
   // screen right now (see positionSegToggleThumb's offsetParent guard).
   updateAllSegToggleThumbs({ instant: true });
+  if (window.ChordFinder) window.ChordFinder.refreshLanguage();
 }
 
 // ---------------------------------------------------------
@@ -7575,6 +7585,13 @@ function resetContactUI() {
 
 function bindAboutPage() {
   document.getElementById('about-back-btn').addEventListener('click', () => history.back());
+}
+
+function bindChordFinderPage() {
+  document.getElementById('chord-finder-back-btn').addEventListener('click', () => history.back());
+  document.getElementById('chord-finder-nav-row').addEventListener('click', () => {
+    showPage('chord-finder', { pushHistory: true, resetScroll: true });
+  });
 }
 
 function bindSettings() {

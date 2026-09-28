@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.2.48-alpha)
+# Next Gen Worship — Worship Song App (v5.0.0-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,21 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.0-alpha
+
+- **New built-in tool: Chord Finder** — Settings → Tools → Chord Finder opens a
+  six-string guitar fretboard (open + 12 frets). Tap frets to hold a chord and
+  the app names it (with up to three alternative names and the note list); tap
+  the × on a string to mute it, or "Clear all" to reset. Works fully offline.
+  Ported from the standalone Chord Finder `index.html` into the app: logic in
+  the new `js/chord-finder.js` (precached by the service worker), markup in
+  `#page-chord-finder`, styles in the "Chord Finder" block at the end of
+  `css/style.css` (uses the app's own light/dark theme and accent tokens).
+  It's registered like About in `PAGES`/`SLIDE_PAGES` in `js/app.js` and
+  translated in all four `lang/*.js` files (`mn2.js` uses Cyrillic
+  placeholders for now, like its other untransliterated strings).
+- Major version bump to **5** for this release.
 
 ## v4.2.48-alpha
 

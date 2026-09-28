@@ -459,6 +459,20 @@
     </div>
   </section>
 
+  <!-- Built-in tools. Each row opens its own page, the same way the About
+       row below does. Chord Finder: see #page-chord-finder + js/chord-finder.js. -->
+  <section class="settings-section">
+    <h3 class="settings-heading" id="t-sectionTools">Tools</h3>
+    <button type="button" class="settings-row settings-row-nav" id="chord-finder-nav-row">
+      <svg class="settings-row-icon" data-icon="chord-finder" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-chordFinderTitle">Chord Finder</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-chordFinderSub">Tap frets on a guitar neck to name the chord</span>
+      </div>
+      <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
+  </section>
+
   <section class="settings-section about-section">
     <h3 class="settings-heading" id="t-sectionAbout">About</h3>
     <button type="button" class="settings-row settings-row-nav" id="about-nav-row">
@@ -601,6 +615,38 @@
       <button id="text-size-visibility-toggle" class="switch" role="switch" aria-checked="true" aria-label="Show text size controls">
         <span class="switch-knob"></span>
       </button>
+    </div>
+  </section>
+ </div>
+</main>
+
+<!-- ===== CHORD FINDER PAGE ===== -->
+<!-- Reached from Settings → Tools → Chord Finder. Logic lives in
+     js/chord-finder.js (built lazily on first open); styling is the
+     "Chord Finder" block at the end of css/style.css. -->
+<main id="page-chord-finder" class="page" data-page="chord-finder" hidden>
+ <div class="page-inner">
+  <header class="song-view-header pv-header">
+    <button id="chord-finder-back-btn" class="icon-btn" aria-label="Back to settings">
+      <svg data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
+    <div class="song-view-title">
+      <h2 id="t-chordFinderTitle2">Chord Finder</h2>
+    </div>
+  </header>
+
+  <section class="cf-result" aria-live="polite" aria-atomic="true">
+    <h1 class="cf-chord-name" id="cf-chord-name"></h1>
+    <p class="cf-notes-line" id="cf-notes-line"></p>
+    <p class="cf-alts" id="cf-alts-line"></p>
+  </section>
+
+  <section class="cf-panel" aria-label="Guitar fretboard">
+    <div class="cf-scroller">
+      <div class="cf-board" id="cf-board"></div>
+    </div>
+    <div class="cf-toolbar">
+      <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
     </div>
   </section>
  </div>
@@ -882,6 +928,7 @@
 <script src="lang/mn2.js"></script>
 <script src="lang/kr.js"></script>
 <!-- Song data loads at runtime from each configured source folder under data/ (see js/app.js DB_SOURCES/loadSongDataFor) -->
+<script src="js/chord-finder.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>

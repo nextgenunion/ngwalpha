@@ -301,4 +301,19 @@ window.SONGBOOK_LANG.mn2 = {
   infoNumberLabel: "Дугаар",
   infoUserSongSource: "Хэрэглэгчийн дуунууд (төхөөрөмж дээр)",
   infoUserSongFile: "Энэ төхөөрөмжийн Хэрэглэгчийн дуунуудад хадгалагдсан — эх файл байхгүй",
+
+  // Хэрэгслүүд → Аккорд хайгч (see js/chord-finder.js) — Cyrillic placeholders pending traditional-script transliteration
+  sectionTools: "Хэрэгслүүд",
+  chordFinderTitle: "Аккорд хайгч",
+  chordFinderSub: "Гитарын ладыг товшиж аккордын нэрийг олоорой",
+  cfClear: "Бүгдийг арилгах",
+  cfAlso: "Мөн:",
+  cfHintSelect: "Дор хаяж гурван нот сонгоно уу",
+  cfHintUnknown: "Үл мэдэгдэх эсвэл дутуу аккорд",
+  cfOpen: "нээлттэй",
+  cfMuteTitle: "Утсыг дуугүй болгох",
+  cfStringAria: (n) => `${n} утас`,
+  cfMuteAria: (n) => `${n} утсыг дуугүй болгох`,
+  cfCellOpenAria: (n) => `${n} утас, нээлттэй`,
+  cfCellFretAria: (n, f) => `${n} утас, ${f}-р лад`,
 };

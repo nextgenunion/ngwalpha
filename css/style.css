@@ -4078,3 +4078,136 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 
   .sv-header-actions { gap: 10px; }       /* 34px buttons -> 44px centers */
 }
+
+/* ==========================================================
+   Chord Finder (Settings → Tools → Chord Finder)
+   Built-in page; logic in js/chord-finder.js. Uses the app's own theme
+   tokens (paper, surface, line, ink and accent variables) so it follows the
+   light/dark theme and the selected accent automatically.
+   ========================================================== */
+#page-chord-finder {
+  --cf-dot: 30px;          /* visible dot diameter */
+  --cf-row-h: 44px;        /* string row height = touch target */
+  --cf-label-w: 56px;      /* left column: string name + mute */
+}
+.cf-result { min-height: 150px; padding: 8px 4px 22px; }
+.cf-chord-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 15vw, 4.75rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.cf-chord-name.cf-is-hint {
+  font-family: var(--font-body);
+  font-size: clamp(1.15rem, 5vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-faint);
+  padding-top: 1rem;
+}
+.cf-notes-line {
+  margin: 10px 0 0;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  min-height: 1.5em;
+}
+.cf-alts {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-faint);
+  min-height: 1.4em;
+}
+
+.cf-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 16px 12px 14px;
+  box-shadow: var(--shadow-1);
+}
+.cf-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cf-board { min-width: 640px; }   /* scrolls sideways on small screens */
+
+/* One row per string: [label + mute] [fret 0..N] */
+.cf-string-row {
+  display: grid;
+  grid-template-columns: var(--cf-label-w) repeat(var(--cf-cols), 1fr);
+  height: var(--cf-row-h);
+}
+.cf-string-head { display: flex; align-items: center; gap: 6px; padding-right: 8px; }
+.cf-string-name {
+  width: 16px; text-align: center;
+  font-size: 0.8125rem; color: var(--ink-faint);
+}
+.cf-mute-btn {
+  width: 28px; height: 28px; margin: auto 0;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 8px; color: var(--ink-faint);
+  cursor: pointer; font-size: 1rem; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.cf-mute-btn[aria-pressed="true"] {
+  color: var(--ink); border-color: var(--ink-faint); background: var(--paper-dim);
+}
+
+/* A single tappable cell = one string at one fret */
+.cf-cell {
+  position: relative;
+  display: grid; place-items: center;
+  border: 0; padding: 0;
+  cursor: pointer;
+  background-color: var(--paper-dim);
+  border-left: 1px solid var(--line);   /* fret wire */
+  -webkit-tap-highlight-color: transparent;
+}
+.cf-cell::before {                        /* the string itself */
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  height: var(--cf-string-w, 1px); background: var(--ink-faint);
+  transform: translateY(-50%); opacity: 0.55; pointer-events: none;
+}
+.cf-cell.cf-open { background: transparent; border-left: 0; justify-items: end; }
+.cf-cell.cf-open::before { display: none; }
+.cf-cell.cf-nut-side { border-left: 4px solid var(--ink-soft); }   /* nut = left edge of fret 1 */
+@media (hover: hover) {
+  .cf-cell:hover .cf-dot:not(.cf-on) {
+    opacity: 1; transform: scale(1); background: transparent;
+    border: 2px solid var(--ink-faint);
+  }
+}
+
+.cf-dot {
+  position: relative; z-index: 1;
+  width: var(--cf-dot); height: var(--cf-dot); border-radius: 50%;
+  opacity: 0; transform: scale(0.6);
+  transition: transform 0.12s var(--press-ease-soft, ease), opacity 0.12s ease;
+}
+.cf-dot.cf-on {
+  opacity: 1; transform: scale(1);
+  background: var(--accent);
+  color: var(--ink);
+  display: grid; place-items: center;
+  font-size: 0.75rem; font-weight: 600;
+}
+/* Open string = hollow ring, sits at the right edge of the fret-0 column */
+.cf-cell.cf-open .cf-dot.cf-on {
+  background: transparent; color: var(--accent-strong);
+  border: 2px solid var(--accent);
+}
+
+.cf-fret-numbers {
+  display: grid; grid-template-columns: var(--cf-label-w) repeat(var(--cf-cols), 1fr);
+  margin-top: 10px; font-size: 0.75rem; color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.cf-fret-numbers span { text-align: center; }
+
+.cf-toolbar { display: flex; justify-content: flex-end; margin-top: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-dot { transition: none; }
+}

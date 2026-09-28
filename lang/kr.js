@@ -274,4 +274,19 @@ window.SONGBOOK_LANG.kr = {
   infoNumberLabel: "번호",
   infoUserSongSource: "사용자 노래 (로컬)",
   infoUserSongFile: "이 기기의 사용자 노래 보관함에 저장됨 — 원본 파일 없음",
+
+  // 도구 → 코드 찾기 (see js/chord-finder.js)
+  sectionTools: "도구",
+  chordFinderTitle: "코드 찾기",
+  chordFinderSub: "기타 프렛을 눌러 코드 이름을 확인하세요",
+  cfClear: "모두 지우기",
+  cfAlso: "다른 후보:",
+  cfHintSelect: "음을 3개 이상 선택하세요",
+  cfHintUnknown: "알 수 없거나 불완전한 코드",
+  cfOpen: "개방현",
+  cfMuteTitle: "줄 뮤트",
+  cfStringAria: (n) => `${n} 줄`,
+  cfMuteAria: (n) => `${n} 줄 뮤트`,
+  cfCellOpenAria: (n) => `${n} 줄, 개방현`,
+  cfCellFretAria: (n, f) => `${n} 줄, ${f}프렛`,
 };

@@ -52,6 +52,7 @@ const CORE_SHELL = [
   './version.js',
   './css/style.css',
   './js/app.js',
+  './js/chord-finder.js',
   './config.js',
   './lang/config.js',
   './lang/eng.js',

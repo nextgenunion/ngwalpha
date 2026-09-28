@@ -279,4 +279,19 @@ window.SONGBOOK_LANG.en = {
   infoNumberLabel: "Number",
   infoUserSongSource: "User Songs (local)",
   infoUserSongFile: "Stored in this device's User Songs library — no source file",
+
+  // Tools → Chord Finder (see js/chord-finder.js)
+  sectionTools: "Tools",
+  chordFinderTitle: "Chord Finder",
+  chordFinderSub: "Tap frets on a guitar neck to name the chord",
+  cfClear: "Clear all",
+  cfAlso: "Also:",
+  cfHintSelect: "Select at least three notes",
+  cfHintUnknown: "Unknown or incomplete chord",
+  cfOpen: "open",
+  cfMuteTitle: "Mute string",
+  cfStringAria: (n) => `String ${n}`,
+  cfMuteAria: (n) => `Mute ${n} string`,
+  cfCellOpenAria: (n) => `${n} string, open`,
+  cfCellFretAria: (n, f) => `${n} string, fret ${f}`,
 };
