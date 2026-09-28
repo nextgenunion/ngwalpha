@@ -728,12 +728,10 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
 #search-input:focus, .search-field:focus,
 #search-input:focus-visible, .search-field:focus-visible { outline: none; box-shadow: none; }
 
-/* Selected-database sync progress: intentionally only a thin line, no text,
-   spinner, card, or blocking overlay. The 2px track keeps its layout space
-   even at opacity 0, so appearing/disappearing never nudges the sort row. */
+/* Quiet frosted track beneath search; fixed space prevents layout shifts. */
 .song-sync-progress {
   position: relative;
-  height: 2px;
+  height: 3px;
   margin: 6px 4px -2px;
   overflow: hidden;
   border-radius: 999px;
@@ -743,14 +741,17 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   pointer-events: none;
 }
 .song-sync-progress.is-active {
-  opacity: 1;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  opacity: .68;
+  background: color-mix(in srgb, var(--paper) 44%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-strong) 11%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .song-sync-progress-bar {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent-strong) 48%, transparent);
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform .16s linear;
@@ -759,7 +760,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
 .song-sync-progress.is-indeterminate .song-sync-progress-bar {
   width: 34%;
   transform: translateX(-120%);
-  animation: song-sync-indeterminate .9s ease-in-out infinite;
+  animation: song-sync-indeterminate 1.8s ease-in-out infinite;
 }
 @keyframes song-sync-indeterminate {
   0%   { transform: translateX(-120%); }
@@ -981,15 +982,17 @@ html[data-theme="dark"] .sort-btn-tap {
    slightly off-center. */
 #song-list .song-badge-heart {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 14px;
-  height: 14px;
+  top: -4px;
+  right: -4px;
+  width: 13px;
+  height: 13px;
   fill: #B5586B;
   pointer-events: none;
 }
 html[data-theme="dark"] #song-list .song-badge-heart { fill: #F0A3AF; }
-#song-list[data-view="compact"] .song-badge-heart { width: 12px; height: 12px; top: -4px; right: -4px; }
+#song-list[data-view="compact"] .song-badge-heart { width: 11px; height: 11px; top: -3px; right: -3px; }
+
+html[data-show-text-size="false"] #page-song-view > .page-inner > .font-controls { display: none; }
 
 .song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .song-row-title {

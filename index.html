@@ -595,21 +595,12 @@
     <div class="settings-row">
       <svg class="settings-row-icon" data-icon="format-bold" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
-        <span class="settings-row-title" id="t-textSizeTitle">Text size</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-textSizeSub">Lyrics and chord text size — same control as the song view</span>
+        <span class="settings-row-title" id="t-textSizeTitle">Show text size controls</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-textSizeSub">Show the A− and A+ buttons on song pages</span>
       </div>
-      <div class="font-controls">
-        <div class="font-group">
-          <span class="font-group-label" id="t-textSizeLyricsGroup">Lyrics</span>
-          <button class="chip-btn" data-font="lyrics-down" aria-label="Decrease lyric size">A−</button>
-          <button class="chip-btn" data-font="lyrics-up" aria-label="Increase lyric size">A+</button>
-        </div>
-        <div class="font-group">
-          <span class="font-group-label" id="t-textSizeChordsGroup">Chords</span>
-          <button class="chip-btn" data-font="chords-down" aria-label="Decrease chord size">A−</button>
-          <button class="chip-btn" data-font="chords-up" aria-label="Increase chord size">A+</button>
-        </div>
-      </div>
+      <button id="text-size-visibility-toggle" class="switch" role="switch" aria-checked="true" aria-label="Show text size controls">
+        <span class="switch-knob"></span>
+      </button>
     </div>
   </section>
  </div>

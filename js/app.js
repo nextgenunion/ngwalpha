@@ -134,6 +134,7 @@ const state = {
   chordSize: 0.82,    // rem
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
   hideChords: false,  // see applyHideChords()
+  showTextSize: true, // visibility of A−/A+ on song pages
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
   lyricsSpacing: 'tight', // vertical: 'tight' | 'normal' | 'loose' — see applyLyricsSpacing(); default is the compact/tight option
   lyricsWordSpacing: 'normal', // horizontal: 'tight' | 'normal' | 'loose' — see applyLyricsWordSpacing()
@@ -655,7 +656,7 @@ async function fetchSongBundleSnapshot(sourceKey, { forceRefresh = false, signal
   if (payload && !Array.isArray(payload) && Number.isFinite(payload.count) && payload.count !== songs.length) {
     throw new Error(`database.json count mismatch (${payload.count} declared, ${songs.length} loaded)`);
   }
-  return songs;
+  return songs.map(song => ({ ...song, _songbookOrigin: 'snapshot' }));
 }
 
 async function fetchIndividualSongData(sourceKey, {
@@ -695,7 +696,7 @@ async function fetchIndividualSongData(sourceKey, {
             const res = await fetch(`${base}/${file}`, fetchOptions);
             if (!res.ok) throw new Error(`${file} responded ${res.status}`);
             const song = await res.json();
-            return { file, song };
+            return { file, song: { ...song, _songbookOrigin: 'individual' } };
           } catch (err) {
             lastErr = err;
             if (err && err.name === 'AbortError') throw err;
@@ -2175,6 +2176,8 @@ function loadPrefs() {
 
   state.hideChords = localStorage.getItem('sb-hide-chords') === 'true';
   applyHideChords();
+  state.showTextSize = localStorage.getItem('sb-show-text-size') !== 'false';
+  applyTextSizeVisibility();
 
   const savedLyricsWeight = localStorage.getItem('sb-lyrics-weight');
   if (savedLyricsWeight === 'normal' || savedLyricsWeight === 'semibold' || savedLyricsWeight === 'bold') {
@@ -2321,6 +2324,12 @@ function applyHideChords() {
   document.documentElement.setAttribute('data-hide-chords', String(state.hideChords));
   const toggle = document.getElementById('hide-chords-toggle');
   if (toggle) toggle.setAttribute('aria-checked', String(state.hideChords));
+}
+
+function applyTextSizeVisibility() {
+  document.documentElement.setAttribute('data-show-text-size', String(state.showTextSize));
+  const toggle = document.getElementById('text-size-visibility-toggle');
+  if (toggle) toggle.setAttribute('aria-checked', String(state.showTextSize));
 }
 
 // Lyrics style (Settings → Songs → Display settings): font weight for lyric text only —
@@ -2693,8 +2702,6 @@ function applyLanguage() {
     't-lyricsSpacingLoose': 'lyricsSpacingLoose',
     't-textSizeTitle': 'textSizeTitle',
     't-textSizeSub': 'textSizeSub',
-    't-textSizeLyricsGroup': 'lyricsGroup',
-    't-textSizeChordsGroup': 'chordsGroup',
     't-lyricsWordSpacingTitle': 'lyricsWordSpacingTitle',
     't-lyricsWordSpacingSub': 'lyricsWordSpacingSub',
     't-lyricsWordSpacingTight': 'lyricsSpacingTight',
@@ -7332,10 +7339,18 @@ function buildInfoRow(label, value) {
 function openSongInfoModal(sourceKey, song) {
   if (!song) return;
   const isUserSong = sourceKey === 'user';
-  const filePath = songSourceFilePath(sourceKey, song);
+  // Resolve the current entry: a background sync may have replaced the song
+  // object since this view opened. Older IndexedDB copies lack origin metadata.
+  const currentSong = findSongByRef(sourceKey, song.id) || song;
+  const filePath = songSourceFilePath(sourceKey, currentSong);
+  const origin = isUserSong ? t('infoOriginUser')
+    : currentSong._songbookOrigin === 'individual' ? t('infoOriginIndividual')
+    : currentSong._songbookOrigin === 'snapshot' ? t('infoOriginSnapshot')
+    : t('infoOriginUnknown');
   const wrap = document.createElement('div');
   wrap.className = 'info-list';
   wrap.appendChild(buildInfoRow(t('infoSourceLabel'), isUserSong ? t('infoUserSongSource') : dbSourceLabel(sourceKey)));
+  wrap.appendChild(buildInfoRow(t('infoOriginLabel'), origin));
   wrap.appendChild(buildInfoRow(t('infoFileLabel'), isUserSong ? t('infoUserSongFile') : filePath));
   wrap.appendChild(buildInfoRow(t('infoIdLabel'), String(song.id)));
   if (song.number != null) {
@@ -7644,6 +7659,12 @@ function bindSettings() {
     state.hideChords = !state.hideChords;
     applyHideChords();
     localStorage.setItem('sb-hide-chords', String(state.hideChords));
+  });
+
+  document.getElementById('text-size-visibility-toggle').addEventListener('click', () => {
+    state.showTextSize = !state.showTextSize;
+    applyTextSizeVisibility();
+    localStorage.setItem('sb-show-text-size', String(state.showTextSize));
   });
 
   const landscapeModeToggle = document.getElementById('landscape-mode-toggle');

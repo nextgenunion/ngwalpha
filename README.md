@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v4.2.47-alpha)
+# Next Gen Worship — Worship Song App (v4.2.48-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,13 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v4.2.48-alpha
+
+- Songbook sync progress now has a quieter translucent frosted track and slower motion.
+- Favorite heart badges are slightly smaller and sit closer to the number circle.
+- Display settings now controls the visibility of the song page text-size buttons.
+- Song info reports whether the current content came from the preload snapshot, an individual file, or an older saved copy whose origin is unknown.
 
 ## v4.2.47-alpha
 
