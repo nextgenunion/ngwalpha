@@ -281,6 +281,7 @@ window.SONGBOOK_LANG.kr = {
   chordFinderSub: "기타 프렛을 눌러 코드 이름을 확인하세요",
   cfClear: "모두 지우기",
   cfAlso: "다른 후보:",
+  cfHintStart: "프렛을 눌러 코드 이름을 확인하세요",
   cfHintSelect: "음을 3개 이상 선택하세요",
   cfHintUnknown: "알 수 없거나 불완전한 코드",
   cfOpen: "개방현",

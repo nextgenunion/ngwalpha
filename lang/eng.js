@@ -286,6 +286,7 @@ window.SONGBOOK_LANG.en = {
   chordFinderSub: "Tap frets on a guitar neck to name the chord",
   cfClear: "Clear all",
   cfAlso: "Also:",
+  cfHintStart: "Tap frets to name a chord",
   cfHintSelect: "Select at least three notes",
   cfHintUnknown: "Unknown or incomplete chord",
   cfOpen: "open",

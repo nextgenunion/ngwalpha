@@ -281,6 +281,7 @@ window.SONGBOOK_LANG.mn = {
   chordFinderSub: "Гитарын ладыг товшиж аккордын нэрийг олоорой",
   cfClear: "Бүгдийг арилгах",
   cfAlso: "Мөн:",
+  cfHintStart: "Ладыг товшиж аккордын нэрийг олоорой",
   cfHintSelect: "Дор хаяж гурван нот сонгоно уу",
   cfHintUnknown: "Үл мэдэгдэх эсвэл дутуу аккорд",
   cfOpen: "нээлттэй",

@@ -1,8 +1,10 @@
 /* ============================================================
    Chord Finder — built-in tool page (Settings → Tools → Chord Finder)
 
-   Tap frets on a six-string guitar fretboard and the chord you are
-   holding is named. Pure client-side; no data, no network.
+   Tap frets on a portrait (vertical) six-string guitar neck and the chord
+   you are holding is named. Strings you leave alone count as open, so
+   Em is just two taps; use the x above a string to mute it.
+   Pure client-side; no data, no network.
 
    Ported from the standalone Chord Finder index.html into the app:
    the same theory/detection/state logic, but the DOM is scoped to
@@ -95,13 +97,16 @@
   };
 
   /* ---------- MODULE 4 — STATE ----------
-     selection[stringIndex] = fret number | null (unset)
-     muted[stringIndex]     = boolean */
+     selection[stringIndex] = null  → untouched ("auto"): counts as open
+                              0     → explicitly open
+                              1..N  → fretted
+     muted[stringIndex]     = boolean (string is not played)
+     String index 0 = high e … 5 = low E. */
   const State = {
     selection: CONFIG.strings.map(() => null),
     muted: CONFIG.strings.map(() => false),
 
-    /** Toggle off if same fret, otherwise replace. Un-mutes the string. */
+    /** Toggle back to untouched if same fret, otherwise replace. Un-mutes. */
     toggleFret(s, fret) {
       this.muted[s] = false;
       this.selection[s] = this.selection[s] === fret ? null : fret;
@@ -117,15 +122,9 @@
       this.muted.fill(false);
     },
 
-    /** Sounding notes, ordered low string → high string. */
-    soundingNotes() {
-      const notes = [];
-      for (let s = CONFIG.strings.length - 1; s >= 0; s--) {
-        const fret = this.selection[s];
-        if (fret === null) continue;
-        notes.push({ string: s, fret, pc: Theory.noteAt(CONFIG.strings[s], fret) });
-      }
-      return notes;
+    /** Has the person touched the board at all? */
+    touched() {
+      return this.selection.some(f => f !== null) || this.muted.some(Boolean);
     },
   };
 
@@ -152,58 +151,63 @@
 
     buildBoard() {
       const { board } = this.els;
-      const cols = CONFIG.frets + 1; // fret 0 … fret N
-      board.style.setProperty('--cf-cols', cols);
+      const n = CONFIG.strings.length;
+      board.style.setProperty('--cf-cols', n);
       board.innerHTML = '';
 
-      CONFIG.strings.forEach((str, s) => {
-        const row = document.createElement('div');
-        row.className = 'cf-string-row';
-        row.setAttribute('role', 'group');
-        row.dataset.string = s;
+      // Portrait layout: one COLUMN per string (low E on the left, like a
+      // printed chord diagram), one ROW per fret, nut at the top.
+      const order = CONFIG.strings.map((_, i) => n - 1 - i); // column → string index
 
-        // Left column: string name + mute toggle
-        const head = document.createElement('div');
-        head.className = 'cf-string-head';
+      // Header row: string names with a mute toggle under each
+      const head = document.createElement('div');
+      head.className = 'cf-row cf-head-row';
+      head.appendChild(document.createElement('span'));
+      order.forEach(s => {
+        const str = CONFIG.strings[s];
+        const box = document.createElement('div');
+        box.className = 'cf-head';
+        box.dataset.string = s;
         const label = document.createElement('span');
         label.className = 'cf-string-name';
         label.setAttribute('aria-hidden', 'true');
         label.textContent = str.name;
-        head.appendChild(label);
-
         const mute = document.createElement('button');
         mute.type = 'button';
         mute.className = 'cf-mute-btn';
         mute.dataset.string = s;
         mute.textContent = '×';
         mute.setAttribute('aria-pressed', 'false');
-        head.appendChild(mute);
-        row.appendChild(head);
+        box.append(label, mute);
+        head.appendChild(box);
+      });
+      board.appendChild(head);
 
-        // Thicker strings toward the bass side (visual only)
-        row.style.setProperty('--cf-string-w', `${1 + (s / (CONFIG.strings.length - 1)) * 2}px`);
+      // Fret rows: 0 (open, above the nut) … N
+      for (let f = 0; f <= CONFIG.frets; f++) {
+        const row = document.createElement('div');
+        row.className = 'cf-row cf-fret-row' + (f === 0 ? ' cf-open-row' : '');
+        row.dataset.fret = f;
 
-        // Fret cells
-        for (let f = 0; f <= CONFIG.frets; f++) {
+        const num = document.createElement('span');
+        num.className = 'cf-fret-num';
+        num.setAttribute('aria-hidden', 'true');
+        num.textContent = f === 0 ? '' : f;
+        row.appendChild(num);
+
+        order.forEach(s => {
           const cell = document.createElement('button');
           cell.type = 'button';
-          cell.className = 'cf-cell' + (f === 0 ? ' cf-open' : '') + (f === 1 ? ' cf-nut-side' : '');
+          cell.className = 'cf-cell' + (f === 0 ? ' cf-open' : '');
           cell.dataset.string = s;
           cell.dataset.fret = f;
+          cell.style.setProperty('--cf-string-w', `${1 + (s / (n - 1)) * 2}px`);
           cell.setAttribute('aria-pressed', 'false');
           cell.innerHTML = '<span class="cf-dot"></span>';
           row.appendChild(cell);
-        }
+        });
         board.appendChild(row);
-      });
-
-      // Fret number labels
-      const nums = document.createElement('div');
-      nums.className = 'cf-fret-numbers';
-      nums.setAttribute('aria-hidden', 'true');
-      nums.innerHTML = '<span></span>' +
-        Array.from({ length: cols }, (_, f) => `<span>${f === 0 ? '' : f}</span>`).join('');
-      board.appendChild(nums);
+      }
 
       this.built = true;
       this.applyLabels();
@@ -214,9 +218,10 @@
       if (!this.built) return;
       const { board, clear } = this.els;
       clear.textContent = tr('cfClear');
-      board.querySelectorAll('.cf-string-row').forEach(row => {
-        const str = CONFIG.strings[+row.dataset.string];
-        row.setAttribute('aria-label', tr('cfStringAria', str.name));
+      board.querySelectorAll('.cf-head').forEach(box => {
+        const str = CONFIG.strings[+box.dataset.string];
+        box.setAttribute('role', 'group');
+        box.setAttribute('aria-label', tr('cfStringAria', str.name));
       });
       board.querySelectorAll('.cf-mute-btn').forEach(btn => {
         const str = CONFIG.strings[+btn.dataset.string];
@@ -228,9 +233,6 @@
         const f = +cell.dataset.fret;
         cell.setAttribute('aria-label', f === 0 ? tr('cfCellOpenAria', str.name) : tr('cfCellFretAria', str.name, f));
       });
-      // The "open" caption under the fret numbers follows the language too.
-      const first = board.querySelector('.cf-fret-numbers span:nth-child(2)');
-      if (first) first.textContent = tr('cfOpen');
     },
 
     /** Sync dots and mute buttons with State. */
@@ -239,12 +241,19 @@
       board.querySelectorAll('.cf-cell').forEach(cell => {
         const s = +cell.dataset.string;
         const f = +cell.dataset.fret;
-        const on = State.selection[s] === f;
+        const sel = State.selection[s];
+        const on = sel === f;
+        // Untouched, unmuted strings ring softly on the open row: they sound open.
+        const auto = f === 0 && sel === null && !State.muted[s];
         const dot = cell.firstElementChild;
         dot.classList.toggle('cf-on', on);
+        dot.classList.toggle('cf-auto', auto);
         cell.setAttribute('aria-pressed', on ? 'true' : 'false');
         // Show the note name inside fretted dots (open strings are hollow rings).
         dot.textContent = on && f !== 0 ? NOTE_NAMES[Theory.noteAt(CONFIG.strings[s], f)] : '';
+      });
+      board.querySelectorAll('.cf-head').forEach(box => {
+        box.classList.toggle('cf-muted', State.muted[+box.dataset.string]);
       });
       board.querySelectorAll('.cf-mute-btn').forEach(btn => {
         btn.setAttribute('aria-pressed', State.muted[+btn.dataset.string] ? 'true' : 'false');
@@ -261,26 +270,75 @@
     },
   };
 
-  /* ---------- MODULE 6 — ANALYSIS (glue between State, Theory, View) ---------- */
-  function analyze() {
-    const notes = State.soundingNotes();
-    const noteNames = notes.map(n => NOTE_NAMES[n.pc]).join('  ');
+  /* ---------- MODULE 6 — ANALYSIS (glue between State, Theory, View) ----------
+     Untouched strings count as open, so Em needs only its two fretted notes.
+     But a guitarist usually doesn't play the low strings below the chord
+     (Am is x02210, not the low E), and can't say so without tapping mute.
+     So we also try dropping untouched strings that sit BELOW the lowest
+     fretted string, lowest first, and keep whichever reading is best:
+     a root-position name beats a slash chord, and each dropped string costs
+     a little. Em (low E open) → "Em"; Am (low E untouched) → "Am", not "Am/E". */
+  const DROP_PENALTY = 3;
 
-    const unique = [...new Set(notes.map(n => n.pc))];
-    if (unique.length < CONFIG.minNotes) {
-      return { title: tr('cfHintSelect'), isHint: true, noteNames, alternatives: [] };
+  function soundingFor(dropCount) {
+    const n = CONFIG.strings.length;
+    // Lowest-pitched fretted string (largest index), if any
+    let lowestFretted = -1;
+    for (let s = 0; s < n; s++) if (State.selection[s] > 0) lowestFretted = Math.max(lowestFretted, s);
+
+    // Droppable = untouched, unmuted strings lower than the lowest fretted one
+    const droppable = [];
+    if (lowestFretted >= 0) {
+      for (let s = n - 1; s > lowestFretted; s--) {
+        if (State.selection[s] === null && !State.muted[s]) droppable.push(s);
+      }
+    }
+    const dropped = new Set(droppable.slice(0, dropCount));
+
+    const notes = [];
+    for (let s = n - 1; s >= 0; s--) {            // low string → high string
+      if (State.muted[s] || dropped.has(s)) continue;
+      const fret = State.selection[s] === null ? 0 : State.selection[s];
+      notes.push({ string: s, fret, pc: Theory.noteAt(CONFIG.strings[s], fret) });
+    }
+    return { notes, maxDrop: droppable.length };
+  }
+
+  function analyze() {
+    if (!State.touched()) {
+      return { title: tr('cfHintStart'), isHint: true, noteNames: '', alternatives: [] };
     }
 
-    const bass = notes[0].pc; // lowest sounding string
-    const ranked = Theory.detect(unique, bass);
+    const merged = new Map();  // name → { name, score, notes }
+    let maxDrop = 0;
+    for (let k = 0; k <= maxDrop; k++) {
+      const { notes, maxDrop: md } = soundingFor(k);
+      if (k === 0) maxDrop = md;
+      const unique = [...new Set(notes.map(x => x.pc))];
+      if (unique.length < CONFIG.minNotes) continue;
+      Theory.detect(unique, notes[0].pc).forEach(c => {
+        const score = c.score + k * DROP_PENALTY;
+        const prev = merged.get(c.name);
+        if (!prev || score < prev.score) merged.set(c.name, { name: c.name, score, notes });
+      });
+    }
+
+    const ranked = [...merged.values()].sort((a, b) => a.score - b.score);
     if (!ranked.length) {
-      return { title: tr('cfHintUnknown'), isHint: true, noteNames, alternatives: [] };
+      const base = soundingFor(0).notes;
+      const uniq = new Set(base.map(x => x.pc)).size;
+      return {
+        title: uniq < CONFIG.minNotes ? tr('cfHintSelect') : tr('cfHintUnknown'),
+        isHint: true,
+        noteNames: base.map(x => NOTE_NAMES[x.pc]).join('  '),
+        alternatives: [],
+      };
     }
 
     return {
       title: ranked[0].name,
       isHint: false,
-      noteNames,
+      noteNames: ranked[0].notes.map(x => NOTE_NAMES[x.pc]).join('  '),
       alternatives: ranked.slice(1, 1 + CONFIG.maxAlternatives).map(c => c.name),
     };
   }
