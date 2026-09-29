@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.3-alpha)
+# Next Gen Worship — Worship Song App (v5.0.2-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,31 +14,6 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
-
-## v5.0.3-alpha
-
-- **Chord Finder's editable board now actually looks like a guitar neck.**
-  Previously every cell painted its own flat `--paper-dim` tile with a
-  barely-visible 1px `--line` divider, so 12 identical gray rows read as one
-  undifferentiated slab with no fret separation and almost no string
-  tapering. Reworked in `css/style.css`:
-  - The fretted area (`.cf-board-frets`, new wrapper built in
-    `js/chord-finder.js`) is now one continuous neck with its own
-    higher-contrast token set (`--cf-wood`, `--cf-fret-wire`,
-    `--cf-fret-shine`, `--cf-string`, `--cf-nut`, `--cf-inlay` — all derived
-    from the existing theme via `color-mix()`, so light/dark and every
-    accent still follow automatically).
-  - Fret wires are a 3px band with a bright top edge over a darker
-    underside instead of a flat 1px line, so each fret reads as a raised
-    physical wire.
-  - The nut is a distinct thick bone-colored bar, not just a soft border.
-  - Strings now taper from ~5px (low E) down to ~1.5px (high e), with a
-    faint center highlight, instead of the previous near-uniform 1–3px.
-  - Standard position inlays (frets 3/5/7/9, double-dot at 12) are drawn
-    centered across the neck — the same set added to the presentation-mode
-    diagram's SVG for consistency.
-  Net effect: the board now reads as an instrument at a glance instead of
-  a gray grid, in both themes.
 
 ## v5.0.2-alpha
 

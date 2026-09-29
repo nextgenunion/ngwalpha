@@ -4084,26 +4084,12 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
    Built-in page; logic in js/chord-finder.js. Portrait layout: one column
    per string (low E left), one row per fret, nut at the top. Uses the
    app's own theme tokens (paper, surface, line, ink and accent variables)
-   so it follows light/dark and the selected accent automatically, but the
-   neck itself gets its own higher-contrast fretboard tokens below — the
-   general-purpose --line/--paper-dim tokens are too low-contrast to read
-   as an instrument (that was the original flat-gray-slab problem).
+   so it follows light/dark and the selected accent automatically.
    ========================================================== */
 #page-chord-finder {
   --cf-dot: 30px;          /* visible dot diameter */
-  --cf-row-h: 42px;        /* fret row height = touch target */
-  --cf-label-w: 30px;      /* left column: fret numbers */
-
-  /* Fretboard-specific tones — deliberately more contrasty than the
-     generic --line/--paper-dim tokens so frets and strings actually
-     read as an instrument rather than a flat gray grid. */
-  --cf-wood: color-mix(in srgb, var(--ink) 6%, var(--paper-dim));
-  --cf-wood-edge: color-mix(in srgb, var(--ink) 12%, var(--paper-dim));
-  --cf-fret-wire: color-mix(in srgb, var(--ink) 55%, var(--paper-dim));
-  --cf-fret-shine: color-mix(in srgb, var(--ink) 20%, var(--paper-dim));
-  --cf-string: color-mix(in srgb, var(--ink) 70%, var(--paper-dim));
-  --cf-nut: color-mix(in srgb, var(--ink) 88%, var(--paper-dim));
-  --cf-inlay: color-mix(in srgb, var(--ink) 16%, var(--paper-dim));
+  --cf-row-h: 44px;        /* fret row height = touch target */
+  --cf-label-w: 34px;      /* left column: fret numbers */
 }
 .cf-result { min-height: 130px; padding: 8px 4px 18px; }
 .cf-chord-name {
@@ -4145,15 +4131,6 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   box-shadow: var(--shadow-1);
 }
 .cf-board { width: 100%; }
-/* The neck itself: a distinct plate behind the fret rows (not the header
-   row above it), so it reads as a physical object sitting on the panel
-   rather than more of the panel's own background. */
-.cf-board-frets {
-  position: relative;
-  background: linear-gradient(180deg, var(--cf-wood-edge), var(--cf-wood) 14px, var(--cf-wood));
-  border-radius: 6px;
-  overflow: hidden;
-}
 
 /* Every row: [fret number] [6 string cells] */
 .cf-row {
@@ -4179,85 +4156,35 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 .cf-head.cf-muted .cf-string-name { text-decoration: line-through; opacity: 0.6; }
 
 .cf-fret-row { height: var(--cf-row-h); }
-.cf-fret-row.cf-open-row { height: 36px; }
+.cf-fret-row.cf-open-row { height: 40px; }
 .cf-fret-num {
   align-self: center; text-align: center;
   font-size: 0.75rem; color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
 }
 
-/* A single tappable cell = one string at one fret. Cells share one
-   continuous wood background (set on .cf-board-frets) rather than each
-   painting its own --paper-dim tile — that's what made every row look
-   like a separate flat slab instead of one continuous neck. */
+/* A single tappable cell = one string at one fret */
 .cf-cell {
   position: relative;
   display: grid; place-items: center;
   border: 0; padding: 0;
   cursor: pointer;
-  background: transparent;
+  background-color: var(--paper-dim);
+  border-top: 1px solid var(--line);    /* fret wire */
   -webkit-tap-highlight-color: transparent;
-}
-/* Fret wire: a 2px metal band with a bright top edge and darker underside,
-   so it reads as a raised physical wire instead of a flat 1px divider. */
-.cf-cell::after {
-  content: ""; position: absolute; top: 0; left: -1px; right: -1px; height: 3px;
-  background: linear-gradient(180deg, var(--cf-fret-shine), var(--cf-fret-wire) 55%, var(--cf-fret-wire));
-  pointer-events: none;
 }
 .cf-cell::before {                        /* the string itself (vertical) */
   content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
-  width: var(--cf-string-w, 1.5px); background: var(--cf-string);
-  transform: translateX(-50%); pointer-events: none;
-  /* Faint highlight down the middle so a thick (low) string doesn't read
-     as a flat gray bar — a hint of roundness/wind, like real wound strings. */
-  background-image: linear-gradient(90deg,
-    transparent, color-mix(in srgb, var(--paper) 35%, transparent) 45%,
-    color-mix(in srgb, var(--paper) 35%, transparent) 55%, transparent);
+  width: var(--cf-string-w, 1px); background: var(--ink-faint);
+  transform: translateX(-50%); opacity: 0.55; pointer-events: none;
 }
 .cf-cell.cf-open {
-  background: transparent;
+  background: transparent; border-top: 0;
+  border-bottom: 4px solid var(--ink-soft);   /* the nut */
 }
-.cf-cell.cf-open::after { display: none; }
 .cf-cell.cf-open::before { display: none; }
-/* The nut: thick, bone-colored bar sitting above fret 1 — the single most
-   important visual cue that this is a guitar headstock/neck junction. */
-.cf-open-row + .cf-fret-row .cf-cell::after {
-  height: 6px;
-  background: linear-gradient(180deg, var(--cf-nut), var(--cf-fret-wire) 85%);
-}
-/* Inlay position markers at the standard frets (3/5/7/9/12), centered
-   across the neck — the classic visual anchor that says "this is a
-   fretboard" at a glance. Placed via a pseudo-element on the row itself
-   (not per-cell) so one dot spans the middle of the neck, like the real
-   thing; 12th fret gets the traditional double-dot instead of one. */
-/* Centered across the STRING AREA only (excluding the fret-number label
-   column), which is why these use the grid's own column span rather than
-   the row's 50% — the row includes --cf-label-w, which would skew center
-   toward the labels. grid-column matches .cf-row's own template. */
-.cf-fret-row { position: relative; }
-.cf-fret-row[data-fret="3"]::before,
-.cf-fret-row[data-fret="5"]::before,
-.cf-fret-row[data-fret="7"]::before,
-.cf-fret-row[data-fret="9"]::before {
-  content: "";
-  grid-column: 2 / -1;
-  align-self: center; justify-self: center;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--cf-inlay);
-  pointer-events: none; z-index: 0;
-}
-.cf-fret-row[data-fret="12"]::before,
-.cf-fret-row[data-fret="12"]::after {
-  content: "";
-  grid-column: 2 / -1;
-  align-self: center; justify-self: center;
-  width: 10px; height: 10px;
-  border-radius: 50%; background: var(--cf-inlay);
-  pointer-events: none; z-index: 0;
-}
-.cf-fret-row[data-fret="12"]::before { transform: translateX(-26px); }
-.cf-fret-row[data-fret="12"]::after  { transform: translateX(26px); }
+/* The first fret row sits directly under the nut — no wire on top of it */
+.cf-open-row + .cf-fret-row .cf-cell { border-top: 0; }
 @media (hover: hover) {
   .cf-cell:hover .cf-dot:not(.cf-on) {
     opacity: 1; transform: scale(1); background: transparent;
@@ -4266,7 +4193,7 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 }
 
 .cf-dot {
-  position: relative; z-index: 2;
+  position: relative; z-index: 1;
   width: var(--cf-dot); height: var(--cf-dot); border-radius: 50%;
   opacity: 0; transform: scale(0.6);
   transition: transform 0.12s var(--press-ease-soft, ease), opacity 0.12s ease;
@@ -4342,7 +4269,6 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.cf-d-inlay  { fill: var(--line); }
 .cf-d-startfret {
   fill: var(--ink-soft);
   font-family: var(--font-body);

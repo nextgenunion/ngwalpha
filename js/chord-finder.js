@@ -190,12 +190,7 @@
       });
       board.appendChild(head);
 
-      // Fret rows: 0 (open, above the nut) … N. Wrapped in their own
-      // element so the wood-toned neck background (.cf-board-frets in
-      // style.css) covers just the fretted area, not the string-name/
-      // mute header row above it.
-      const fretsWrap = document.createElement('div');
-      fretsWrap.className = 'cf-board-frets';
+      // Fret rows: 0 (open, above the nut) … N
       for (let f = 0; f <= CONFIG.frets; f++) {
         const row = document.createElement('div');
         row.className = 'cf-row cf-fret-row' + (f === 0 ? ' cf-open-row' : '');
@@ -213,17 +208,13 @@
           cell.className = 'cf-cell' + (f === 0 ? ' cf-open' : '');
           cell.dataset.string = s;
           cell.dataset.fret = f;
-          // Taper thick (low E, left) → thin (high e, right), like a real
-          // wound-to-plain string set — the previous 1-3px range read as
-          // near-uniform; this is a clearer, still-subtle gradient.
-          cell.style.setProperty('--cf-string-w', `${1.5 + (s / (n - 1)) * 3.5}px`);
+          cell.style.setProperty('--cf-string-w', `${1 + (s / (n - 1)) * 2}px`);
           cell.setAttribute('aria-pressed', 'false');
           cell.innerHTML = '<span class="cf-dot"></span>';
           row.appendChild(cell);
         });
-        fretsWrap.appendChild(row);
+        board.appendChild(row);
       }
-      board.appendChild(fretsWrap);
 
       this.built = true;
       this.applyLabels();
@@ -355,21 +346,6 @@
       for (let c = 0; c < n; c++) {
         out += `<line class="cf-d-string" x1="${colX(c)}" x2="${colX(c)}" y1="${rowY(0)}" y2="${rowY(rows)}"/>`;
       }
-
-      // Position inlays at the standard frets (3/5/7/9/12) within the
-      // visible window — same visual anchor as the editable board, so a
-      // printed chord chart reads as a fretboard rather than a bare grid.
-      const midX = (colX(0) + colX(n - 1)) / 2;
-      [3, 5, 7, 9, 12].forEach(fret => {
-        if (fret < start || fret >= start + rows) return;
-        const cy = rowY(fret - start) + rowH / 2;
-        if (fret === 12) {
-          out += `<circle class="cf-d-inlay" cx="${midX - 16}" cy="${cy}" r="5"/>`;
-          out += `<circle class="cf-d-inlay" cx="${midX + 16}" cy="${cy}" r="5"/>`;
-        } else {
-          out += `<circle class="cf-d-inlay" cx="${midX}" cy="${cy}" r="5"/>`;
-        }
-      });
 
       // "3fr"-style label when the window doesn't start at the nut
       if (!atNut) {
