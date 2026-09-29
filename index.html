@@ -633,6 +633,11 @@
     <div class="song-view-title">
       <h2 id="t-chordFinderTitle2">Chord Finder</h2>
     </div>
+    <div class="pv-header-actions" id="cf-header-actions">
+      <button id="cf-menu-btn" class="icon-btn" aria-label="Chord Finder options" aria-haspopup="true">
+        <svg data-icon="menu-kebab" viewBox="0 0 24 24"></svg>
+      </button>
+    </div>
   </header>
 
   <section class="cf-result" aria-live="polite" aria-atomic="true">
@@ -647,6 +652,12 @@
       <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
     </div>
   </section>
+
+  <!-- Presentation mode: a plain printed-style chord diagram (5 frets,
+       fret numbers only). Filled by ChordFinder.renderPresentation();
+       shown instead of .cf-result/.cf-panel while
+       #page-chord-finder.presentation-mode is set. -->
+  <section class="cf-present" id="cf-present" aria-live="polite" aria-atomic="true" hidden></section>
  </div>
 </main>
 

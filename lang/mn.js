@@ -285,6 +285,7 @@ window.SONGBOOK_LANG.mn = {
   cfHintSelect: "Дор хаяж гурван нот сонгоно уу",
   cfHintUnknown: "Үл мэдэгдэх эсвэл дутуу аккорд",
   cfOpen: "нээлттэй",
+  cfMutedWord: "дуугүй",
   cfMuteTitle: "Утсыг дуугүй болгох",
   cfStringAria: (n) => `${n} утас`,
   cfMuteAria: (n) => `${n} утсыг дуугүй болгох`,

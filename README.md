@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.1-alpha)
+# Next Gen Worship — Worship Song App (v5.0.2-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,27 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.2-alpha
+
+- **Chord Finder now has a ⋮ menu with Presentation mode** — the button sits
+  at the top right of the Chord Finder page (same look as the song view's ⋮).
+  Presentation mode swaps the interactive board for a plain printed-style
+  chord diagram to show other people: six strings, **five fret rows**, and
+  each held note marked with **only its fret number** (no note names, string
+  names, mute buttons, alternatives or Clear button). `×` above a string =
+  muted, `○` = open. A thick nut is drawn when the chord fits in frets 1–5;
+  a chord higher up the neck slides the five-fret window to start at its
+  lowest fretted note and labels it (e.g. `5fr`), never running past fret 12.
+- To leave presentation mode, tap the small faint ⋮ in the corner (same
+  low-profile dot the song view uses) and choose "Exit presentation mode".
+  Leaving the page also exits it, so the tool never reopens stuck in it.
+- The screen stays awake while presenting (same wake-lock the song view uses).
+- Logic: `Presentation` and `Menu` modules in `js/chord-finder.js`; styles in
+  the "Chord Finder — kebab menu + Presentation mode" block at the end of
+  `css/style.css`; one new translation key (`cfMutedWord`) in all four
+  `lang/*.js` files. The menu reuses the existing "Presentation mode" /
+  "Exit presentation mode" strings.
 
 ## v5.0.1-alpha
 

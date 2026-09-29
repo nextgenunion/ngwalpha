@@ -4222,3 +4222,86 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .cf-dot { transition: none; }
 }
+
+/* ----------------------------------------------------------
+   Chord Finder — kebab menu + Presentation mode
+   The header's "…" opens a .kebab-dropdown (same one the song view
+   uses). Presentation mode swaps the interactive board for a plain
+   printed-style chord diagram (js/chord-finder.js → Presentation):
+   5 fret rows, fret numbers only. Like the song view's presentation
+   mode, the kebab shrinks to a faint dot rather than disappearing, since
+   it is the only way back out.
+   ---------------------------------------------------------- */
+#page-chord-finder .pv-header-actions { margin-left: auto; }
+#cf-menu-btn { width: 34px; height: 34px; flex-shrink: 0; }
+#cf-menu-btn svg { width: 18px; height: 18px; }
+
+.cf-present {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Fill the space under the (tiny) header so the diagram sits in the
+     middle of the screen, not stuck to the top. */
+  min-height: calc(100vh - 90px);
+  min-height: calc(100dvh - 90px);
+  padding: 0 0 24px;
+}
+.cf-present[hidden] { display: none; }
+
+.cf-diagram {
+  display: block;
+  width: min(100%, 520px);
+  height: auto;
+  /* Fill most of the screen height so it reads across a room. */
+  max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
+}
+.cf-d-fret   { stroke: var(--ink-soft); stroke-width: 2; stroke-linecap: square; }
+.cf-d-nut    { stroke: var(--ink);      stroke-width: 9; stroke-linecap: square; }
+.cf-d-string { stroke: var(--ink);      stroke-width: 2.5; }
+.cf-d-x      { stroke: var(--ink); stroke-width: 3.2; stroke-linecap: round; fill: none; }
+.cf-d-open   { stroke: var(--ink); stroke-width: 3;   fill: none; }
+.cf-d-dot    { fill: var(--ink); }
+.cf-d-num {
+  fill: var(--paper);
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cf-d-startfret {
+  fill: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Presentation mode: hide the finder's own UI, keep only the diagram. */
+#page-chord-finder.presentation-mode .pv-header .song-view-title,
+#page-chord-finder.presentation-mode #chord-finder-back-btn,
+#page-chord-finder.presentation-mode .cf-result,
+#page-chord-finder.presentation-mode .cf-panel {
+  display: none;
+}
+#page-chord-finder.presentation-mode .pv-header {
+  min-height: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+#page-chord-finder.presentation-mode .pv-header-actions { margin-left: auto; }
+#page-chord-finder.presentation-mode #cf-menu-btn {
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.4;
+  transition: opacity .15s ease, width .22s ease, height .22s ease;
+}
+#page-chord-finder.presentation-mode #cf-menu-btn svg { width: 14px; height: 14px; }
+#page-chord-finder.presentation-mode #cf-menu-btn:hover,
+#page-chord-finder.presentation-mode #cf-menu-btn:active { opacity: 0.85; }
+@media (prefers-reduced-motion: reduce) {
+  #page-chord-finder.presentation-mode #cf-menu-btn { transition: none; }
+}

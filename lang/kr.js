@@ -285,6 +285,7 @@ window.SONGBOOK_LANG.kr = {
   cfHintSelect: "음을 3개 이상 선택하세요",
   cfHintUnknown: "알 수 없거나 불완전한 코드",
   cfOpen: "개방현",
+  cfMutedWord: "음소거",
   cfMuteTitle: "줄 뮤트",
   cfStringAria: (n) => `${n} 줄`,
   cfMuteAria: (n) => `${n} 줄 뮤트`,

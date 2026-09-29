@@ -2891,6 +2891,12 @@ function showPage(name, opts = {}) {
     document.querySelectorAll('#sv-audio audio').forEach(a => a.pause());
   }
 
+  // Same idea for the Chord Finder's presentation mode: its only way out is
+  // a small kebab, so never let it reopen stuck in it after navigating away.
+  if (!isSamePage && state.currentPage === 'chord-finder' && window.ChordFinder) {
+    window.ChordFinder.exitPresentation();
+  }
+
   // Otherwise, before switching away, remember where we were scrolled on
   // the page's own scroll container (see the CSS/.page notes for why it's
   // an element's scrollTop now, not window.scrollY) so coming back to it
@@ -7887,7 +7893,10 @@ function releaseWakeLock() {
 // Called from showPage() on every navigation — cheap no-op when nothing
 // actually needs to change (e.g. moving between two non-song pages).
 function updateWakeLock() {
-  wakeLockWanted = state.currentPage === 'song-view';
+  // Song view always (reading lyrics); Chord Finder only while presenting a
+  // chord diagram to others, so the screen doesn't dim mid-demonstration.
+  wakeLockWanted = state.currentPage === 'song-view'
+    || (state.currentPage === 'chord-finder' && !!window.ChordFinder && window.ChordFinder.isPresenting());
   if (wakeLockWanted) {
     if (!wakeLockSentinel && document.visibilityState === 'visible') requestWakeLock();
   } else {

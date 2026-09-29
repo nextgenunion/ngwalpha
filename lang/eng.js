@@ -290,6 +290,7 @@ window.SONGBOOK_LANG.en = {
   cfHintSelect: "Select at least three notes",
   cfHintUnknown: "Unknown or incomplete chord",
   cfOpen: "open",
+  cfMutedWord: "muted",
   cfMuteTitle: "Mute string",
   cfStringAria: (n) => `String ${n}`,
   cfMuteAria: (n) => `Mute ${n} string`,
