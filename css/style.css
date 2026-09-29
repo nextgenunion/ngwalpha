@@ -4085,95 +4085,148 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
    separate styles below and is intentionally unchanged.
    ========================================================== */
 #page-chord-finder {
-  --cf-dot: 22px;
-  --cf-row-h: 43px;
-  --cf-half-row: 21.5px;
-  --cf-label-w: 42px;
+  --cf-dot: clamp(24px, 3.4vw, 34px);
+  --cf-row-h: clamp(39px, 5vw, 46px);
+  --cf-half-row: calc(var(--cf-row-h) / 2);
+  --cf-label-w: 32px;
 }
-.cf-result { min-height: 130px; padding: 8px 4px 18px; }
-.cf-chord-name {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(3rem, 15vw, 4.75rem);
-  font-weight: 500;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  color: var(--ink);
-}
-.cf-chord-name.cf-is-hint {
-  font-family: var(--font-body);
-  font-size: clamp(1.15rem, 5vw, 1.5rem);
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--ink-faint);
-  padding-top: 1rem;
-}
-.cf-notes-line {
-  margin: 10px 0 0;
-  font-size: 1rem;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  min-height: 1.5em;
-}
-.cf-alts {
-  margin: 6px 0 0;
-  font-size: 0.875rem;
-  color: var(--ink-faint);
-  min-height: 1.4em;
+#page-chord-finder .sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 .cf-panel {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-m);
-  padding: 16px 10px 14px;
+  padding: 14px 12px 12px;
   box-shadow: var(--shadow-1);
 }
 
-/* Keep real fret spacing on phones instead of squeezing 12 frets into tiny
-   table cells. The board scrolls sideways naturally when the viewport is
-   narrow, while desktop/tablet widths fill the available panel. */
+/* Compact normal-view controls. These are intentionally outside presentation
+   mode and use the app's own neutral/accent tokens rather than a new visual
+   language. */
+.cf-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 0 2px 12px;
+}
+.cf-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+}
+.cf-control-label {
+  color: var(--ink-faint);
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.cf-range-dash { color: var(--ink-faint); }
+.cf-select-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+.cf-select-wrap select {
+  min-width: 50px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0 22px 0 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cf-select-wrap select:focus-visible,
+.cf-segment button:focus-visible,
+.cf-fret-number:focus-visible,
+.cf-cell:focus-visible,
+.cf-string-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cf-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+}
+.cf-segment button {
+  border: 0;
+  border-radius: 7px;
+  min-height: 27px;
+  padding: 0 9px;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+.cf-segment button.is-active {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+
+/* All visible frets always fit inside the panel. No horizontal scrollbar is
+   needed for the default 1–12 range; narrowing the range simply gives each
+   fret more room. */
 .cf-board {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
+  padding: 2px 0 0;
 }
 .cf-neck {
-  min-width: 720px;
   width: 100%;
+  min-width: 0;
 }
 .cf-strings {
   position: relative;
+  isolation: isolate;
 }
 .cf-string-row,
 .cf-fret-numbers {
   display: grid;
-  grid-template-columns: var(--cf-label-w) repeat(var(--cf-frets), minmax(48px, 1fr));
+  grid-template-columns: var(--cf-label-w) repeat(var(--cf-frets), minmax(0, 1fr));
 }
 .cf-string-row {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   height: var(--cf-row-h);
 }
 
-/* Tuning labels are visually just the left-side E B G D A E labels. Tapping
-   one retains the finder's existing mute function without adding an extra
-   row of controls above the neck. */
+/* Tuning labels remain visually plain. They retain the existing tap-to-mute
+   behavior for presentation compatibility. */
 .cf-string-toggle {
   width: 100%;
   height: 100%;
   display: grid;
   place-items: center start;
   border: 0;
-  padding: 0 8px 0 2px;
+  padding: 0 5px 0 0;
   background: transparent;
   color: var(--ink-soft);
   font: inherit;
-  font-size: 0.86rem;
-  font-weight: 600;
+  font-size: 0.79rem;
+  font-weight: 650;
   line-height: 1;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -4184,13 +4237,15 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   text-decoration-thickness: 1.5px;
 }
 
-/* One transparent hit target per fret. The horizontal pseudo-element is the
-   actual guitar string; circles sit directly on that line, not in a grid box. */
+/* One transparent hit target per fret. The string is drawn through the center
+   of the hit target, so selected markers sit on the string rather than in a
+   table/grid cell. */
 .cf-cell {
   position: relative;
   display: grid;
   place-items: center;
   height: var(--cf-row-h);
+  min-width: 0;
   border: 0;
   padding: 0;
   background: transparent;
@@ -4206,83 +4261,282 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   height: var(--cf-string-w, 1.5px);
   transform: translateY(-50%);
   background: var(--ink-soft);
-  opacity: 0.9;
+  opacity: 0.94;
   pointer-events: none;
 }
-.cf-string-row.cf-muted .cf-cell::before { opacity: 0.25; }
+.cf-string-row.cf-muted .cf-cell::before { opacity: 0.22; }
 
-/* Fret wires are a single overlay, so the verticals start on the top E and
-   stop on the low E instead of extending above/below the guitar neck. */
-.cf-fret-wires {
+/* Fret wires only span the string area. The first vertical is a nut only when
+   the visible range starts at fret 1. */
+.cf-fret-wires,
+.cf-inlays,
+.cf-barre-layer {
   position: absolute;
-  z-index: 0;
-  pointer-events: none;
   left: var(--cf-label-w);
   right: 0;
   top: var(--cf-half-row);
   bottom: var(--cf-half-row);
   display: grid;
-  grid-template-columns: repeat(var(--cf-frets), 1fr);
+  grid-template-columns: repeat(var(--cf-frets), minmax(0, 1fr));
+  pointer-events: none;
 }
+.cf-fret-wires { z-index: 1; }
 .cf-fret-wires::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: color-mix(in srgb, var(--ink-soft) 72%, transparent);
+}
+.cf-at-nut .cf-fret-wires::before {
   width: 5px;
   transform: translateX(-2.5px);
   border-radius: 1px;
   background: var(--ink);
 }
 .cf-fret-wires > span {
-  border-right: 1px solid color-mix(in srgb, var(--ink-soft) 72%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--ink-soft) 66%, transparent);
 }
 
+/* Guitar-position inlays sit behind the strings at 3, 5, 7, 9 and double 12. */
+.cf-inlays {
+  z-index: 0;
+  align-items: center;
+}
+.cf-inlay-slot {
+  position: relative;
+  height: 100%;
+}
+.cf-inlay-slot i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(7px, 1.05vw, 10px);
+  height: clamp(7px, 1.05vw, 10px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.cf-inlay-slot[data-inlay="double"] i:first-child { top: 43%; }
+.cf-inlay-slot[data-inlay="double"] i:last-child  { top: 57%; }
+
+/* A full barre is a subtle accent capsule behind the selected-note circles. */
+.cf-barre-layer { z-index: 2; }
+.cf-barre-slot {
+  position: relative;
+  height: 100%;
+}
+.cf-barre-marker {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 5px;
+  width: clamp(8px, 1.2vw, 12px);
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-strong) 18%, transparent);
+}
+
+/* Selected markers use the app's chosen accent. Labels can show the note,
+   an estimated finger number, or nothing while the circle stays visible. */
 .cf-dot {
   position: relative;
-  z-index: 3;
+  z-index: 5;
   width: var(--cf-dot);
   height: var(--cf-dot);
+  display: grid;
+  place-items: center;
   border-radius: 50%;
   opacity: 0;
-  transform: scale(0.7);
-  background: color-mix(in srgb, var(--ink) 14%, var(--surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
+  transform: scale(0.72);
+  background: var(--accent);
+  color: var(--paper);
+  border: 2px solid color-mix(in srgb, var(--accent-strong) 42%, var(--accent));
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--accent-strong) 22%, transparent);
+  font-size: clamp(0.64rem, 1.25vw, 0.78rem);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.02em;
   transition: transform 0.12s var(--press-ease-soft, ease), opacity 0.12s ease;
   pointer-events: none;
 }
+html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .cf-dot.cf-on {
   opacity: 1;
   transform: scale(1);
 }
+.cf-dot.cf-dot-unlabeled::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+}
 @media (hover: hover) {
   .cf-cell:hover .cf-dot:not(.cf-on) {
-    opacity: 0.45;
+    opacity: 0.20;
     transform: scale(0.78);
   }
 }
 
+/* Fret numbers are real buttons: tapping one creates/removes a full barre. */
 .cf-fret-numbers {
-  min-height: 28px;
+  min-height: 30px;
   align-items: start;
 }
 .cf-fret-number {
-  padding-top: 7px;
+  min-width: 0;
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 0 4px;
+  background: transparent;
   text-align: center;
   color: var(--ink-faint);
-  font-size: 0.8rem;
+  font: inherit;
+  font-size: clamp(0.66rem, 1.4vw, 0.79rem);
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
-.cf-toolbar { display: flex; justify-content: flex-end; margin-top: 12px; }
+.cf-fret-number:hover { color: var(--ink-soft); }
+.cf-fret-number.is-barre {
+  color: var(--accent-strong);
+  background: var(--accent-tint);
+  font-weight: 750;
+}
 
-@media (max-width: 700px) {
-  .cf-panel { padding-left: 8px; padding-right: 8px; }
-  .cf-neck { min-width: 670px; }
+.cf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.cf-barre-hint {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+.cf-toolbar .btn-secondary { flex: 0 0 auto; }
+
+/* The identified chord now lives BELOW the fretboard. Its minimum height is
+   stable, so changing from hint → chord → alternatives never kicks the neck
+   around on screen. */
+.cf-result {
+  min-height: 158px;
+  margin-top: 14px;
+  padding: 18px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-1);
+}
+.cf-chord-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.35rem, 8vw, 3.7rem);
+  font-weight: 550;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  color: var(--ink);
+}
+.cf-chord-name.cf-is-hint {
+  max-width: 520px;
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 3.7vw, 1.25rem);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: var(--ink-faint);
+  line-height: 1.35;
+}
+.cf-voicing-line {
+  min-height: 1.25em;
+  margin: 6px 0 0;
+  color: var(--ink-faint);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+.cf-notes-line {
+  min-height: 42px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.cf-note-pill {
+  min-width: 42px;
+  min-height: 38px;
+  padding: 6px 9px 5px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--accent-tint);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--accent-strong);
+  line-height: 1;
+}
+.cf-note-pill strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.cf-note-pill small {
+  margin-top: 4px;
+  color: color-mix(in srgb, var(--accent-strong) 68%, var(--ink-faint));
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.cf-alts {
+  min-height: 27px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+.cf-alts:empty { margin-top: 0; }
+.cf-alts-label { margin-right: 1px; }
+.cf-alt-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-weight: 650;
+}
+
+@media (max-width: 560px) {
+  #page-chord-finder { --cf-label-w: 27px; --cf-row-h: 39px; }
+  .cf-panel { padding-left: 7px; padding-right: 7px; }
+  .cf-controls { gap: 7px 10px; padding-left: 0; padding-right: 0; }
+  .cf-control-label { display: none; }
+  .cf-select-wrap select { min-width: 45px; height: 30px; padding-left: 7px; padding-right: 18px; }
+  .cf-segment button { padding-left: 7px; padding-right: 7px; }
+  .cf-string-toggle { font-size: 0.70rem; }
+  .cf-toolbar { align-items: flex-start; }
+  .cf-barre-hint { max-width: 55%; }
+  .cf-result { min-height: 150px; padding-left: 10px; padding-right: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cf-dot { transition: none; }
+  .cf-dot, .cf-segment button { transition: none; }
 }
 
 /* ----------------------------------------------------------
@@ -4309,6 +4563,30 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   padding: 0 0 24px;
 }
 .cf-present[hidden] { display: none; }
+
+.cf-present-stage {
+  width: min(100%, 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2.4vh, 28px);
+}
+
+.cf-present-chord {
+  min-height: 1.15em;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: clamp(34px, 6vw, 58px);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  text-align: center;
+}
+.cf-present-chord.is-empty {
+  visibility: hidden;
+}
 
 .cf-diagram {
   display: block;

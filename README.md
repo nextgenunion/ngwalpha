@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.3-alpha)
+# Next Gen Worship — Worship Song App (v5.0.4-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,34 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.4-alpha
+
+- **Chord Finder normal view refined to behave like an actual guitar neck** — the
+  default 1–12 fret range now always fits the available width with no horizontal
+  scrollbar, standard inlay dots appear at frets 3/5/7/9 with a double marker at
+  12, and selected notes use larger circles in the app's current accent color.
+- Selected-note circles show **note names by default**, with a compact Marker
+  control for **Note / Finger / Hide**. The finger mode estimates 1–4 fingering
+  labels while keeping the same selected-note positions.
+- Added editable **visible fret range** controls (start/end within the 12-fret
+  finder). Selections outside a newly chosen range are cleared so hidden notes
+  never keep affecting the displayed chord.
+- **Tap any fret number below the neck to create/remove a full barre** at that
+  fret. A subtle accent bar is drawn behind the strings and the fret number gets
+  an active state; individual notes can then be changed normally.
+- The detected chord card now sits **below the fretboard** and keeps a stable
+  minimum height, so identifying a chord no longer pushes the fretboard around.
+  The card shows the main chord, practical voicing text, interval-role note pills,
+  and alternative names in the existing app design language.
+- Chord detection is substantially broader: it now starts at **two selected
+  notes**, supports common omitted-5th guitar voicings, and recognizes many more
+  6/add/7/9/11/13, suspended, altered, diminished and augmented chord types.
+  Normal identification now analyzes **only the notes actually selected** instead
+  of silently treating every untouched string as open, which fixes many false
+  unknown/incorrect readings.
+- **Presentation mode source and styles are unchanged.** All of these changes are
+  confined to the normal Settings → Tools → Chord Finder experience.
 
 ## v5.0.3-alpha
 

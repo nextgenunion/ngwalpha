@@ -640,17 +640,43 @@
     </div>
   </header>
 
-  <section class="cf-result" aria-live="polite" aria-atomic="true">
-    <h1 class="cf-chord-name" id="cf-chord-name"></h1>
-    <p class="cf-notes-line" id="cf-notes-line"></p>
-    <p class="cf-alts" id="cf-alts-line"></p>
-  </section>
-
   <section class="cf-panel" aria-label="Guitar fretboard">
+    <div class="cf-controls" aria-label="Chord finder display options">
+      <div class="cf-control-group cf-range-control">
+        <span class="cf-control-label" id="cf-range-label">Frets</span>
+        <label class="cf-select-wrap">
+          <span class="sr-only">First fret</span>
+          <select id="cf-range-start" aria-label="First visible fret"></select>
+        </label>
+        <span class="cf-range-dash" aria-hidden="true">–</span>
+        <label class="cf-select-wrap">
+          <span class="sr-only">Last fret</span>
+          <select id="cf-range-end" aria-label="Last visible fret"></select>
+        </label>
+      </div>
+
+      <div class="cf-control-group cf-marker-control">
+        <span class="cf-control-label" id="cf-marker-label">Marker</span>
+        <div class="cf-segment" role="group" aria-label="Selected-note labels">
+          <button type="button" data-cf-label-mode="note" aria-pressed="true">Note</button>
+          <button type="button" data-cf-label-mode="finger" aria-pressed="false">Finger</button>
+          <button type="button" data-cf-label-mode="hide" aria-pressed="false">Hide</button>
+        </div>
+      </div>
+    </div>
+
     <div class="cf-board" id="cf-board"></div>
     <div class="cf-toolbar">
+      <p class="cf-barre-hint" id="cf-barre-hint">Tap a fret number for a barre</p>
       <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
     </div>
+  </section>
+
+  <section class="cf-result" aria-live="polite" aria-atomic="true">
+    <h1 class="cf-chord-name" id="cf-chord-name"></h1>
+    <p class="cf-voicing-line" id="cf-voicing-line"></p>
+    <div class="cf-notes-line" id="cf-notes-line"></div>
+    <div class="cf-alts" id="cf-alts-line"></div>
   </section>
 
   <!-- Presentation mode: a plain printed-style chord diagram (5 frets,
