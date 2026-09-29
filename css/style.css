@@ -4081,15 +4081,14 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 
 /* ==========================================================
    Chord Finder (Settings → Tools → Chord Finder)
-   Built-in page; logic in js/chord-finder.js. Portrait layout: one column
-   per string (low E left), one row per fret, nut at the top. Uses the
-   app's own theme tokens (paper, surface, line, ink and accent variables)
-   so it follows light/dark and the selected accent automatically.
+   Interactive horizontal fretboard. Presentation mode has its own
+   separate styles below and is intentionally unchanged.
    ========================================================== */
 #page-chord-finder {
-  --cf-dot: 30px;          /* visible dot diameter */
-  --cf-row-h: 44px;        /* fret row height = touch target */
-  --cf-label-w: 34px;      /* left column: fret numbers */
+  --cf-dot: 22px;
+  --cf-row-h: 43px;
+  --cf-half-row: 21.5px;
+  --cf-label-w: 42px;
 }
 .cf-result { min-height: 130px; padding: 8px 4px 18px; }
 .cf-chord-name {
@@ -4127,98 +4126,161 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-m);
-  padding: 14px 10px 14px;
+  padding: 16px 10px 14px;
   box-shadow: var(--shadow-1);
 }
-.cf-board { width: 100%; }
 
-/* Every row: [fret number] [6 string cells] */
-.cf-row {
+/* Keep real fret spacing on phones instead of squeezing 12 frets into tiny
+   table cells. The board scrolls sideways naturally when the viewport is
+   narrow, while desktop/tablet widths fill the available panel. */
+.cf-board {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.cf-neck {
+  min-width: 720px;
+  width: 100%;
+}
+.cf-strings {
+  position: relative;
+}
+.cf-string-row,
+.cf-fret-numbers {
   display: grid;
-  grid-template-columns: var(--cf-label-w) repeat(var(--cf-cols), 1fr);
+  grid-template-columns: var(--cf-label-w) repeat(var(--cf-frets), minmax(48px, 1fr));
+}
+.cf-string-row {
+  position: relative;
+  z-index: 1;
+  height: var(--cf-row-h);
 }
 
-/* Header: string name over its mute toggle */
-.cf-head-row { margin-bottom: 4px; }
-.cf-head { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.cf-string-name { font-size: 0.8125rem; color: var(--ink-faint); line-height: 1.2; }
-.cf-mute-btn {
-  width: 32px; height: 28px;
-  display: grid; place-items: center;
-  background: transparent; border: 1px solid transparent;
-  border-radius: 8px; color: var(--ink-faint);
-  cursor: pointer; font-size: 1.05rem; line-height: 1;
+/* Tuning labels are visually just the left-side E B G D A E labels. Tapping
+   one retains the finder's existing mute function without adding an extra
+   row of controls above the neck. */
+.cf-string-toggle {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center start;
+  border: 0;
+  padding: 0 8px 0 2px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.cf-mute-btn[aria-pressed="true"] {
-  color: var(--ink); border-color: var(--ink-faint); background: var(--paper-dim);
-}
-.cf-head.cf-muted .cf-string-name { text-decoration: line-through; opacity: 0.6; }
-
-.cf-fret-row { height: var(--cf-row-h); }
-.cf-fret-row.cf-open-row { height: 40px; }
-.cf-fret-num {
-  align-self: center; text-align: center;
-  font-size: 0.75rem; color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
+.cf-string-toggle[aria-pressed="true"] {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
 }
 
-/* A single tappable cell = one string at one fret */
+/* One transparent hit target per fret. The horizontal pseudo-element is the
+   actual guitar string; circles sit directly on that line, not in a grid box. */
 .cf-cell {
   position: relative;
-  display: grid; place-items: center;
-  border: 0; padding: 0;
+  display: grid;
+  place-items: center;
+  height: var(--cf-row-h);
+  border: 0;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
-  background-color: var(--paper-dim);
-  border-top: 1px solid var(--line);    /* fret wire */
   -webkit-tap-highlight-color: transparent;
 }
-.cf-cell::before {                        /* the string itself (vertical) */
-  content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
-  width: var(--cf-string-w, 1px); background: var(--ink-faint);
-  transform: translateX(-50%); opacity: 0.55; pointer-events: none;
+.cf-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--cf-string-w, 1.5px);
+  transform: translateY(-50%);
+  background: var(--ink-soft);
+  opacity: 0.9;
+  pointer-events: none;
 }
-.cf-cell.cf-open {
-  background: transparent; border-top: 0;
-  border-bottom: 4px solid var(--ink-soft);   /* the nut */
+.cf-string-row.cf-muted .cf-cell::before { opacity: 0.25; }
+
+/* Fret wires are a single overlay, so the verticals start on the top E and
+   stop on the low E instead of extending above/below the guitar neck. */
+.cf-fret-wires {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  left: var(--cf-label-w);
+  right: 0;
+  top: var(--cf-half-row);
+  bottom: var(--cf-half-row);
+  display: grid;
+  grid-template-columns: repeat(var(--cf-frets), 1fr);
 }
-.cf-cell.cf-open::before { display: none; }
-/* The first fret row sits directly under the nut — no wire on top of it */
-.cf-open-row + .cf-fret-row .cf-cell { border-top: 0; }
-@media (hover: hover) {
-  .cf-cell:hover .cf-dot:not(.cf-on) {
-    opacity: 1; transform: scale(1); background: transparent;
-    border: 2px solid var(--ink-faint);
-  }
+.cf-fret-wires::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  transform: translateX(-2.5px);
+  border-radius: 1px;
+  background: var(--ink);
+}
+.cf-fret-wires > span {
+  border-right: 1px solid color-mix(in srgb, var(--ink-soft) 72%, transparent);
 }
 
 .cf-dot {
-  position: relative; z-index: 1;
-  width: var(--cf-dot); height: var(--cf-dot); border-radius: 50%;
-  opacity: 0; transform: scale(0.6);
+  position: relative;
+  z-index: 3;
+  width: var(--cf-dot);
+  height: var(--cf-dot);
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.7);
+  background: color-mix(in srgb, var(--ink) 14%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
   transition: transform 0.12s var(--press-ease-soft, ease), opacity 0.12s ease;
+  pointer-events: none;
 }
 .cf-dot.cf-on {
-  opacity: 1; transform: scale(1);
-  background: var(--accent);
-  color: var(--ink);
-  display: grid; place-items: center;
-  font-size: 0.75rem; font-weight: 600;
+  opacity: 1;
+  transform: scale(1);
 }
-/* Open string = hollow ring on the open row */
-.cf-cell.cf-open .cf-dot.cf-on {
-  background: transparent; color: var(--accent-strong);
-  border: 2px solid var(--accent);
-}
-/* Untouched string: sounds open — shown as a soft dashed ring */
-.cf-cell.cf-open .cf-dot.cf-auto {
-  opacity: 0.55; transform: scale(0.8);
-  background: transparent;
-  border: 2px dashed var(--accent);
+@media (hover: hover) {
+  .cf-cell:hover .cf-dot:not(.cf-on) {
+    opacity: 0.45;
+    transform: scale(0.78);
+  }
 }
 
-.cf-toolbar { display: flex; justify-content: flex-end; margin-top: 14px; }
+.cf-fret-numbers {
+  min-height: 28px;
+  align-items: start;
+}
+.cf-fret-number {
+  padding-top: 7px;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.8rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cf-toolbar { display: flex; justify-content: flex-end; margin-top: 12px; }
 
+@media (max-width: 700px) {
+  .cf-panel { padding-left: 8px; padding-right: 8px; }
+  .cf-neck { min-width: 670px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .cf-dot { transition: none; }
 }

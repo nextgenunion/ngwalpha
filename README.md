@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.2-alpha)
+# Next Gen Worship — Worship Song App (v5.0.3-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,20 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.3-alpha
+
+- **Chord Finder interactive fretboard redesigned horizontally** — Settings →
+  Tools → Chord Finder now reads like a real guitar neck: E/B/G/D/A/E strings
+  run left-to-right, the nut is at the left, 12 vertical fret wires are shown,
+  fret numbers sit underneath, and selected notes are simple circles centered
+  directly on the strings. Narrow screens can scroll the neck horizontally
+  instead of crushing the fret spacing.
+- The existing mute behavior is retained without a separate control row: tap a
+  tuning label at the left to mute/unmute that string. Chord detection itself
+  is unchanged.
+- **Presentation mode was not redesigned or restyled**; its existing printed
+  chord diagram remains separate and unchanged.
 
 ## v5.0.2-alpha
 
