@@ -275,6 +275,8 @@ window.SONGBOOK_LANG.kr = {
   infoUserSongSource: "사용자 노래 (로컬)",
   infoUserSongFile: "이 기기의 사용자 노래 보관함에 저장됨 — 원본 파일 없음",
 
+  chordViewerUnavailable: "이 코드의 다이어그램을 표시할 수 없습니다.",
+
   // 도구 → 코드 찾기 (see js/chord-finder.js)
   sectionTools: "도구",
   chordFinderTitle: "코드 찾기",

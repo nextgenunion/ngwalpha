@@ -440,6 +440,7 @@ async function init() {
   safe('bindSongsPage', bindSongsPage);
   safe('bindScrollIndexInteraction', bindScrollIndexInteraction);
   safe('bindSongView', bindSongView);
+  safe('bindChordViewer', bindChordViewer);
   safe('bindLyricsCopy', bindLyricsCopy);
   safe('bindUserSongsPage', bindUserSongsPage);
   safe('bindSongEditor', bindSongEditor);
@@ -4873,7 +4874,13 @@ function renderLyrics(opts = {}) {
       const lineHasChord = pieces.some(p => p.chord);
       lineEl.classList.toggle('is-plain', !lineHasChord);
 
-      groups.forEach(group => {
+      groups.forEach((group, groupIndex) => {
+        // Flexbox's CSS gap is visual only and contributes no character to
+        // the clipboard. Keep a real DOM space between visual words as a
+        // native-copy fallback (especially Android/PWA context-menu copy).
+        // A whitespace-only anonymous flex item is not rendered, so this does
+        // not alter the on-screen spacing controlled by --lyric-word-gap.
+        if (groupIndex > 0) lineEl.appendChild(document.createTextNode(' '));
         const wrap = document.createElement('span');
         wrap.className = 'lyric-token';
         group.forEach(piece => {
@@ -4882,7 +4889,18 @@ function renderLyrics(opts = {}) {
           if (piece.chord) {
             const chordEl = document.createElement('span');
             chordEl.className = 'chord-tag';
-            chordEl.textContent = transposeChord(piece.chord, transpose);
+            const displayedChord = transposeChord(piece.chord, transpose);
+            chordEl.textContent = displayedChord;
+            // In the real song view, chord labels double as compact chord-
+            // diagram buttons. The popup uses ChordFinder's Presentation SVG,
+            // so there is only one visual renderer to maintain. Editor/help
+            // previews stay display-only.
+            if (containerId === 'lyrics-container') {
+              chordEl.dataset.chord = displayedChord.trim();
+              chordEl.setAttribute('role', 'button');
+              chordEl.setAttribute('tabindex', '0');
+              chordEl.setAttribute('aria-label', displayedChord.trim());
+            }
             if (animateChords) {
               chordEl.classList.add('chord-pop');
               chordEl.style.setProperty('--chord-pop-delay', Math.min(chordAnimIndex * 12, 380) + 'ms');
@@ -4908,6 +4926,55 @@ function renderLyrics(opts = {}) {
     });
 
     container.appendChild(sectionEl);
+  });
+}
+
+// ---------------------------------------------------------
+// Chord viewer popup.
+//
+// Tapping a chord above the lyrics opens the SAME generated SVG diagram used
+// by Chord Finder Presentation Mode. No per-chord images are stored and the
+// popup automatically follows theme colors / barre / start-fret conventions.
+// ---------------------------------------------------------
+function openChordViewer(chordName) {
+  const symbol = String(chordName || '').trim();
+  if (!symbol) return;
+
+  const body = document.createElement('div');
+  body.className = 'song-chord-viewer';
+  const rendered = window.ChordFinder && typeof window.ChordFinder.diagramForChord === 'function'
+    ? window.ChordFinder.diagramForChord(symbol)
+    : null;
+
+  if (rendered && rendered.svg) {
+    const diagram = document.createElement('div');
+    diagram.className = 'song-chord-viewer-diagram';
+    diagram.innerHTML = rendered.svg;
+    body.appendChild(diagram);
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'song-chord-viewer-empty';
+    empty.textContent = t('chordViewerUnavailable');
+    body.appendChild(empty);
+  }
+  openModal(symbol, body);
+}
+
+function bindChordViewer() {
+  const lyrics = document.getElementById('lyrics-container');
+  if (!lyrics) return;
+
+  const activate = (target) => {
+    const chord = target && target.closest && target.closest('.chord-tag[data-chord]');
+    if (!chord || !lyrics.contains(chord)) return false;
+    openChordViewer(chord.dataset.chord || chord.textContent);
+    return true;
+  };
+
+  lyrics.addEventListener('click', e => { activate(e.target); });
+  lyrics.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (activate(e.target)) e.preventDefault();
   });
 }
 

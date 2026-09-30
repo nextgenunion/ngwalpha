@@ -667,7 +667,6 @@
 
     <div class="cf-board" id="cf-board"></div>
     <div class="cf-toolbar">
-      <p class="cf-barre-hint" id="cf-barre-hint">Tap a fret number for a barre</p>
       <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
     </div>
   </section>
@@ -679,8 +678,8 @@
     <div class="cf-alts" id="cf-alts-line"></div>
   </section>
 
-  <!-- Presentation mode: a plain printed-style chord diagram (5 frets,
-       fret numbers only). Filled by ChordFinder.renderPresentation();
+  <!-- Presentation mode: a clean chord diagram (5 frets, barre line,
+       finger markers and starting-fret label). Filled by ChordFinder;
        shown instead of .cf-result/.cf-panel while
        #page-chord-finder.presentation-mode is set. -->
   <section class="cf-present" id="cf-present" aria-live="polite" aria-atomic="true" hidden></section>

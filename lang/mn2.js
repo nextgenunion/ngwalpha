@@ -302,6 +302,8 @@ window.SONGBOOK_LANG.mn2 = {
   infoUserSongSource: "Хэрэглэгчийн дуунууд (төхөөрөмж дээр)",
   infoUserSongFile: "Энэ төхөөрөмжийн Хэрэглэгчийн дуунуудад хадгалагдсан — эх файл байхгүй",
 
+  chordViewerUnavailable: "Энэ аккордын диаграмыг харуулах боломжгүй.",
+
   // Хэрэгслүүд → Аккорд хайгч (see js/chord-finder.js) — Cyrillic placeholders pending traditional-script transliteration
   sectionTools: "Хэрэгслүүд",
   chordFinderTitle: "Аккорд хайгч",

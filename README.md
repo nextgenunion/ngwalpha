@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.4-alpha)
+# Next Gen Worship — Worship Song App (v5.0.7-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,33 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.7-alpha
+
+- Fixed open-chord bass detection: untouched unmuted strings now count as open, so normal `x02210` identifies as `Am` instead of `Am/E`.
+- Added tappable chord diagrams in the song view. Tapping a rendered chord opens a popup generated with the Chord Finder Presentation renderer; no chord-image library is stored.
+- Added local chord-to-voicing generation for common major/minor/sus/6/7/9/11/13/altered chord symbols and slash basses.
+- Fixed native/mobile lyric copy spacing by keeping real word-boundary spaces in the rendered DOM while retaining the existing visual word-gap layout.
+
+## v5.0.6-alpha
+
+- Chord Finder now opens with **frets 1–7** as the default visible range; the
+  existing range controls still allow any start/end within frets 1–12.
+- Presentation mode now renders a selected barre as **one continuous rounded
+  index-finger bar** across the covered strings instead of six separate dots.
+  Fretted notes above the barre remain individual markers.
+- Higher-position presentation diagrams now reserve dedicated space for a
+  stronger **starting-fret label** (for example `7fr`), so movable shapes are
+  never mistaken for first-position chords.
+- Presentation markers use finger numbers for individual placements, matching
+  familiar chord-chart conventions; the barre itself is marked with `1`.
+- Removed the normal-view “Tap a fret number for a barre” description; the fret
+  numbers remain directly clickable.
+
+## v5.0.5-alpha
+
+- Presentation mode now keeps the detected chord name in a stable title slot
+  above the diagram.
 
 ## v5.0.4-alpha
 

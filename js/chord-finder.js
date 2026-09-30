@@ -94,6 +94,7 @@
     { suffix: 'maj13',   intervals: [0,2,4,5,7,9,11], required: [0,4,9,11],  optional: [2,5,7],   weight: 6 },
     { suffix: 'm13',     intervals: [0,2,3,5,7,9,10], required: [0,3,9,10],  optional: [2,5,7],   weight: 5 },
     { suffix: '13b9',    intervals: [0,1,4,7,9,10],   required: [0,1,4,9,10],optional: [7],       weight: 6 },
+    { suffix: '7b13',    intervals: [0,4,7,8,10],      required: [0,4,8,10],  optional: [7],       weight: 5 },
   ];
 
   const OMIT_LABELS = { 2: '9', 5: '11', 7: '5' };
@@ -158,10 +159,12 @@
   };
 
   /* ---------- MODULE 4 — STATE ----------
-     selection[stringIndex] = null → not selected / not sounding
+     selection[stringIndex] = null → open string (unless muted)
                               1..N → selected fret
-     muted remains available for presentation mode, but normal chord analysis
-     is based only on the notes the person actually placed on the fretboard.
+     This matches a real chord diagram: untouched strings sound open until the
+     tuning label is tapped to mute them. It also keeps analysis and
+     Presentation Mode in sync — a normal open Am therefore has A, not E, as
+     its bass once the low-E string is muted.
      String index 0 = high e … 5 = low E. */
   const State = {
     selection: CONFIG.strings.map(() => null),
@@ -219,7 +222,7 @@
   /* ---------- NORMAL-VIEW DISPLAY PREFERENCES ---------- */
   const Prefs = {
     rangeStart: 1,
-    rangeEnd: CONFIG.frets,
+    rangeEnd: 7,
     labelMode: 'note', // note | finger | hide
 
     load() {
@@ -227,10 +230,20 @@
         const a = +localStorage.getItem('ngw-cf-range-start');
         const b = +localStorage.getItem('ngw-cf-range-end');
         const m = localStorage.getItem('ngw-cf-label-mode');
-        if (Number.isFinite(a) && a >= 1 && a <= CONFIG.frets) this.rangeStart = a;
-        if (Number.isFinite(b) && b >= 1 && b <= CONFIG.frets) this.rangeEnd = b;
+        const defaultsVersion = localStorage.getItem('ngw-cf-range-defaults');
+
+        // v5.0.4/5 could save the old 1–12 default as a side effect of
+        // changing Marker mode. Migrate that old default once so existing
+        // installs actually receive the new 1–7 default, while preserving
+        // genuinely custom ranges such as 3–9 or 6–12.
+        const oldDefault = defaultsVersion !== '1-7' && a === 1 && b === CONFIG.frets;
+        if (!oldDefault) {
+          if (Number.isFinite(a) && a >= 1 && a <= CONFIG.frets) this.rangeStart = a;
+          if (Number.isFinite(b) && b >= 1 && b <= CONFIG.frets) this.rangeEnd = b;
+        }
         if (this.rangeStart > this.rangeEnd) [this.rangeStart, this.rangeEnd] = [this.rangeEnd, this.rangeStart];
         if (['note', 'finger', 'hide'].includes(m)) this.labelMode = m;
+        localStorage.setItem('ngw-cf-range-defaults', '1-7');
       } catch (_) {}
     },
 
@@ -306,7 +319,6 @@
         rangeEnd: document.getElementById('cf-range-end'),
         rangeLabel: document.getElementById('cf-range-label'),
         markerLabel: document.getElementById('cf-marker-label'),
-        barreHint: document.getElementById('cf-barre-hint'),
         labelButtons: [...document.querySelectorAll('[data-cf-label-mode]')],
       };
       return !!(this.els.board && this.els.name && this.els.notes && this.els.alts && this.els.clear);
@@ -441,11 +453,10 @@
     /** (Re)apply translated aria-labels/tooltips — cheap, safe to call any time. */
     applyLabels() {
       if (!this.built) return;
-      const { board, clear, rangeLabel, markerLabel, barreHint, labelButtons } = this.els;
+      const { board, clear, rangeLabel, markerLabel, labelButtons } = this.els;
       clear.textContent = tr('cfClear');
       if (rangeLabel) rangeLabel.textContent = tr('cfFrets');
       if (markerLabel) markerLabel.textContent = tr('cfMarker');
-      if (barreHint) barreHint.textContent = tr('cfBarreHint');
       const markerNames = { note: 'cfMarkerNote', finger: 'cfMarkerFinger', hide: 'cfMarkerHide' };
       labelButtons.forEach(btn => { btn.textContent = tr(markerNames[btn.dataset.cfLabelMode]); });
 
@@ -543,14 +554,14 @@
   };
 
   /* ---------- MODULE 5b — PRESENTATION MODE ----------
-     A plain, printed-style chord diagram for showing the chord to other
-     people: 6 strings, 5 fret rows, and each held note marked with just
-     its FRET NUMBER (no note names, no string names, no controls).
+     A clean chord-viewer diagram for showing the voicing to other people:
+     6 strings, 5 fret rows, a continuous barre when a barre is active, and
+     a clear starting-fret label for shapes played above first position.
 
-     Which 5 frets? Real chord charts slide a window along the neck:
+     Which 5 frets? The window slides along the neck:
        - chord fits in frets 1-5  → window starts at fret 1, thick nut on top
        - otherwise                → window starts at the lowest fretted note,
-                                    a "3fr"-style label names where it starts
+                                    and a "7fr"-style label anchors the shape
      Above the strings: × = muted / not played, ○ = open string. */
   const Presentation = {
     active: false,
@@ -567,13 +578,31 @@
       const lo = Math.min(...fretted);
       const hi = Math.max(...fretted);
       if (hi <= CONFIG.presentationFrets) return 1;
-      // Never run off the end of the neck.
+      // Keep the lowest held fret visible and never run off the 12-fret neck.
       return Math.min(lo, CONFIG.frets - CONFIG.presentationFrets + 1);
+    },
+
+    /** Return the visible column span of the active barre. The fret-number
+        control creates a real barre state; notes fretted above it still sit
+        under the same index-finger barre, so they remain inside the span. */
+    barreSpan(start, rows) {
+      const fret = State.barreFret;
+      if (fret === null || fret < start || fret >= start + rows) return null;
+
+      const cols = [];
+      const n = CONFIG.strings.length;
+      for (let c = 0; c < n; c++) {
+        const s = n - 1 - c;
+        const held = State.selection[s];
+        if (!State.muted[s] && typeof held === 'number' && held >= fret) cols.push(c);
+      }
+      if (cols.length < 2) return null;
+      return { fret, first: Math.min(...cols), last: Math.max(...cols) };
     },
 
     /** Build the diagram as an inline SVG string. Colors come from CSS
         classes (see the Chord Finder block in style.css) so it follows the
-        app's light/dark theme and accent automatically. */
+        app's light/dark theme automatically. */
     svg() {
       const values = this.held();
       const n = CONFIG.strings.length;
@@ -582,10 +611,9 @@
       const atNut = start === 1;
 
       // Geometry (viewBox units; the SVG scales to fit its container)
-      const gap = 44;                    // string spacing
-      const rowH = 52;                   // fret spacing
-      const padL = 62;                   // always reserve room for the "3fr" label so the
-                                         // diagram keeps one size (and doesn't jump) as chords change
+      const gap = 44;
+      const rowH = 52;
+      const padL = 78;                   // permanent room for a visible "7fr" label
       const padR = 62;
       const padTop = 58;                 // room for x / o markers
       const padBottom = 22;
@@ -597,12 +625,13 @@
 
       // Column order: low E on the left, like a printed chord chart.
       const colX = c => padL + c * gap;
-      const strAt = c => n - 1 - c;      // column → string index
-      const rowY = r => padTop + r * rowH;   // top edge of fret row r (0-based)
+      const strAt = c => n - 1 - c;
+      const rowY = r => padTop + r * rowH;
+      const barre = this.barreSpan(start, rows);
 
       let out = `<svg class="cf-diagram" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeAttr(diagramAria(values, start))}" preserveAspectRatio="xMidYMid meet">`;
 
-      // Fret wires (horizontal). The top line is the thick nut only at the open position.
+      // Fret wires (horizontal). The top line is the thick nut only at first position.
       for (let r = 0; r <= rows; r++) {
         const isNut = r === 0 && atNut;
         out += `<line class="${isNut ? 'cf-d-nut' : 'cf-d-fret'}" x1="${colX(0)}" x2="${colX(n - 1)}" y1="${rowY(r)}" y2="${rowY(r)}"/>`;
@@ -612,24 +641,41 @@
         out += `<line class="cf-d-string" x1="${colX(c)}" x2="${colX(c)}" y1="${rowY(0)}" y2="${rowY(rows)}"/>`;
       }
 
-      // "3fr"-style label when the window doesn't start at the nut
+      // Higher-position diagrams must explicitly show where the grid starts.
       if (!atNut) {
-        out += `<text class="cf-d-startfret" x="${colX(0) - 14}" y="${rowY(0) + rowH / 2}" text-anchor="end" dominant-baseline="central">${start}fr</text>`;
+        out += `<text class="cf-d-startfret" x="${colX(0) - 16}" y="${rowY(0) + rowH / 2}" text-anchor="end" dominant-baseline="central">${start}fr</text>`;
       }
 
-      // Markers above the nut + fretted dots
+      // A barre is one finger laid across several strings, so render it as one
+      // continuous rounded bar instead of six unrelated dots.
+      if (barre) {
+        const cy = rowY(barre.fret - start) + rowH / 2;
+        const x1 = colX(barre.first);
+        const x2 = colX(barre.last);
+        out += `<rect class="cf-d-barre" x="${x1 - dotR}" y="${cy - dotR}" width="${x2 - x1 + dotR * 2}" height="${dotR * 2}" rx="${dotR}" ry="${dotR}"/>`;
+        out += `<text class="cf-d-barre-num" x="${x1}" y="${cy}" text-anchor="middle" dominant-baseline="central">1</text>`;
+      }
+
+      // Markers above the nut + individual fretted dots. Notes exactly on the
+      // active barre are already represented by the long bar; notes above it
+      // remain individual finger placements.
+      const fingers = fingerLabels();
       for (let c = 0; c < n; c++) {
-        const v = values[strAt(c)];
+        const s = strAt(c);
+        const v = values[s];
         const x = colX(c);
         if (v === 'x') {
           const y = padTop - 26, d = 7;
           out += `<path class="cf-d-x" d="M${x - d} ${y - d}L${x + d} ${y + d}M${x + d} ${y - d}L${x - d} ${y + d}"/>`;
         } else if (v === 0) {
           out += `<circle class="cf-d-open" cx="${x}" cy="${padTop - 26}" r="8"/>`;
+        } else if (barre && v === barre.fret && c >= barre.first && c <= barre.last) {
+          continue;
         } else if (v >= start && v < start + rows) {
           const cy = rowY(v - start) + rowH / 2;
+          const finger = fingers.get(`${s}:${v}`) || '';
           out += `<circle class="cf-d-dot" cx="${x}" cy="${cy}" r="${dotR}"/>`;
-          out += `<text class="cf-d-num" x="${x}" y="${cy}" text-anchor="middle" dominant-baseline="central">${v}</text>`;
+          if (finger) out += `<text class="cf-d-num" x="${x}" y="${cy}" text-anchor="middle" dominant-baseline="central">${finger}</text>`;
         }
       }
       return out + '</svg>';
@@ -734,14 +780,16 @@
   }
 
   /* ---------- MODULE 6 — ANALYSIS (normal finder only) ----------
-     Normal mode now behaves like a reverse chord lookup: only the dots the
-     person actually places are analyzed. Untouched strings are not silently
-     counted as open strings. Presentation mode keeps its own existing logic. */
+     A guitar chord shape treats every unmuted untouched string as OPEN. That
+     is also how Presentation Mode already draws the shape, so analysis must
+     use the same rule. The earlier selected-dots-only pass made an ordinary
+     x02210 Am lose its open A bass and get mislabeled Am/E. */
   function soundingSelected() {
     const notes = [];
     for (let s = CONFIG.strings.length - 1; s >= 0; s--) { // low string → high string
-      const fret = State.selection[s];
-      if (fret === null || State.muted[s]) continue;
+      if (State.muted[s]) continue;
+      const selected = State.selection[s];
+      const fret = selected === null ? 0 : selected;
       notes.push({ string: s, fret, pc: Theory.noteAt(CONFIG.strings[s], fret) });
     }
     return notes;
@@ -763,6 +811,13 @@
   }
 
   function analyze() {
+    // At rest all six strings are technically open, but showing a chord name
+    // before the person has touched the tool would be surprising. Wait until
+    // at least one fret is placed or one string is muted, then analyze the
+    // complete sounding shape (including every remaining open string).
+    if (!State.touched() && !State.muted.some(Boolean)) {
+      return { title: tr('cfHintStart'), isHint: true, voicingName: '', noteDetails: [], alternatives: [] };
+    }
     const notes = soundingSelected();
     if (!notes.length) {
       return { title: tr('cfHintStart'), isHint: true, voicingName: '', noteDetails: [], alternatives: [] };
@@ -821,6 +876,256 @@
     View.buildBoard();
     View.syncControls();
     update();
+  }
+
+  /* ---------- MODULE 6b — CHORD → DIAGRAM (song-view popup) ----------
+     The song page can ask for a chord chart by symbol (Am, D/F#, Cmaj7…).
+     No bitmap library is stored: the symbol is parsed into the same interval
+     formulas above, a playable six-string voicing is generated locally, and
+     the existing Presentation SVG renderer draws it. */
+  const NOTE_PC = {
+    C: 0, 'C#': 1, DB: 1, D: 2, 'D#': 3, EB: 3, E: 4,
+    F: 5, 'F#': 6, GB: 6, G: 7, 'G#': 8, AB: 8,
+    A: 9, 'A#': 10, BB: 10, B: 11,
+  };
+
+  const CHORD_SUFFIX_ALIASES = new Map([
+    ['maj', ''], ['major', ''], ['M', ''], ['64', ''],
+    ['min', 'm'], ['minor', 'm'], ['-', 'm'],
+    ['2', 'sus2'], ['add2', 'add9'], ['m2', 'madd9'],
+    ['4', 'sus4'], ['(4)', 'sus4'], ['add4', 'add11'], ['m4', 'madd11'],
+    ['sus', 'sus4'], ['sus7', '7sus4'], ['7sus', '7sus4'], ['9sus', '9sus4'], ['sus9', '9sus4'],
+    ['+', 'aug'],
+    ['o', 'dim'], ['°', 'dim'],
+    ['o7', 'dim7'], ['°7', 'dim7'], ['dim6', 'dim7'],
+    ['ø', 'm7b5'], ['ø7', 'm7b5'],
+    ['M7', 'maj7'], ['M9', 'maj9'], ['M13', 'maj13'],
+    ['ma7', 'maj7'], ['maj79', 'maj9'],
+    ['7(b5)', '7b5'], ['m7(b5)', 'm7b5'], ['m7(11)', 'm11'],
+    ['min7', 'm7'], ['min9', 'm9'], ['min11', 'm11'], ['min13', 'm13'],
+  ]);
+
+  function notePc(name) {
+    if (!name) return null;
+    const normal = String(name)
+      .replace(/♯/g, '#').replace(/♭/g, 'b')
+      .toUpperCase();
+    return Object.prototype.hasOwnProperty.call(NOTE_PC, normal) ? NOTE_PC[normal] : null;
+  }
+
+  function parseChordSymbol(symbol) {
+    let raw = String(symbol || '').trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+    if (!raw) return null;
+
+    // Only a FINAL /Note is a slash bass. This deliberately leaves 6/9 intact.
+    let bassName = '';
+    const bassMatch = raw.match(/\/([A-Ga-g](?:#|b)?)$/);
+    if (bassMatch) {
+      bassName = bassMatch[1];
+      raw = raw.slice(0, bassMatch.index);
+    }
+
+    const m = raw.match(/^([A-Ga-g])([#b]?)(.*)$/);
+    if (!m) return null;
+    const rootName = m[1].toUpperCase() + (m[2] || '');
+    const root = notePc(rootName);
+    const bass = bassName ? notePc(bassName) : null;
+    if (root === null || (bassName && bass === null)) return null;
+
+    let suffix = (m[3] || '').trim();
+    // Common parenthesized spellings: C(add9), A(maj7), etc.
+    if (/^\([^()]+\)$/.test(suffix)) suffix = suffix.slice(1, -1);
+    if (CHORD_SUFFIX_ALIASES.has(suffix)) suffix = CHORD_SUFFIX_ALIASES.get(suffix);
+    // Case-insensitive aliases that should not turn "m" into "M".
+    const lowerAliases = {
+      'maj7': 'maj7', 'maj9': 'maj9', 'maj13': 'maj13',
+      'min7': 'm7', 'min9': 'm9', 'min11': 'm11', 'min13': 'm13',
+      'minor7': 'm7', 'minor9': 'm9',
+    };
+    const lower = suffix.toLowerCase();
+    if (lowerAliases[lower]) suffix = lowerAliases[lower];
+
+    const type = CHORD_TYPES.find(t => t.suffix === suffix);
+    if (!type) return null;
+    return { symbol: String(symbol).trim(), root, bass, rootName, bassName, type };
+  }
+
+  function inferGeneratedBarre(valuesLowToHigh) {
+    const fretted = valuesLowToHigh.filter(v => v > 0);
+    if (!fretted.length) return null;
+    const f = Math.min(...fretted);
+    const exact = [];
+    valuesLowToHigh.forEach((v, i) => { if (v === f) exact.push(i); });
+    if (exact.length < 2) return null;
+    const first = Math.min(...exact);
+    const last = Math.max(...exact);
+    // A two/three-string cluster such as x02220 or xx0232 is normally
+    // fingered separately. Auto-call it a barre only when the index finger
+    // clearly spans at least four strings and every string in that span is
+    // held at or above the same fret (F, Bm, C#m shapes, etc.).
+    if (last - first + 1 < 4) return null;
+    for (let i = first; i <= last; i++) {
+      if (valuesLowToHigh[i] < f) return null;
+    }
+    return f;
+  }
+
+  function generatedVoicingScore(values, parsed, targetPcs) {
+    const sounding = [];
+    const lowStrings = [...CONFIG.strings].reverse();
+    for (let i = 0; i < values.length; i++) {
+      const fret = values[i];
+      if (fret < 0) continue;
+      sounding.push({ i, fret, pc: Theory.noteAt(lowStrings[i], fret) });
+    }
+    if (sounding.length < 3) return null;
+
+    const pcs = new Set(sounding.map(x => x.pc));
+    const chordPcsPresent = new Set([...pcs].filter(pc => targetPcs.has(pc)));
+    const required = new Set(parsed.type.required.map(rel => (parsed.root + rel) % 12));
+    if ([...required].some(pc => !chordPcsPresent.has(pc))) return null;
+    if (chordPcsPresent.size < Math.min(3, targetPcs.size)) return null;
+
+    const bass = sounding[0].pc;
+    if (parsed.bass !== null && bass !== parsed.bass) return null;
+    if (parsed.bass === null && bass !== parsed.root) return null;
+    // A slash bass is allowed to be a non-chord tone (D/E, G/A, etc.), but
+    // no other accidental pitch is allowed into the generated voicing.
+    if ([...pcs].some(pc => !targetPcs.has(pc) && pc !== parsed.bass)) return null;
+
+    const fretted = values.filter(v => v > 0);
+    const minFret = fretted.length ? Math.min(...fretted) : 0;
+    const maxFret = fretted.length ? Math.max(...fretted) : 0;
+    const span = fretted.length ? maxFret - minFret : 0;
+    if (span > 4) return null; // one clean five-fret presentation window
+
+    const firstSound = values.findIndex(v => v >= 0);
+    let lastSound = -1;
+    for (let i = values.length - 1; i >= 0; i--) {
+      if (values[i] >= 0) { lastSound = i; break; }
+    }
+    let internalMutes = 0;
+    let adjacentTravel = 0;
+    let prevFret = null;
+    for (let i = firstSound; i <= lastSound; i++) {
+      const fret = values[i];
+      if (fret < 0) { internalMutes++; continue; }
+      if (prevFret !== null) adjacentTravel += Math.abs(fret - prevFret);
+      prevFret = fret;
+    }
+
+    const barreFret = inferGeneratedBarre(values);
+    let fingerCount = fretted.length;
+    if (barreFret !== null) {
+      const exactOnBarre = values.filter(v => v === barreFret).length;
+      fingerCount -= Math.max(0, exactOnBarre - 1);
+    }
+
+    const muted = values.filter(v => v < 0).length;
+    const opens = values.filter(v => v === 0).length;
+    const missing = [...targetPcs].filter(pc => !pcs.has(pc)).length;
+
+    // Practical guitar-first ranking, following the same principle Fretscape
+    // documents: familiar/simple voicings first, theoretical alternatives
+    // later. Edge mutes are normal; holes inside a shape are strongly
+    // discouraged. Root bass wins unless a slash bass was explicitly asked.
+    let score = 0;
+    score += muted * 12;
+    score += internalMutes * 24;
+    score += missing * 3;
+    score += span * 3;
+    score += fingerCount * 2;
+    score += fretted.reduce((a, b) => a + b, 0) * 0.3;
+    score += maxFret * 2;
+    score += adjacentTravel * 2;
+    if (opens && maxFret > 3) score += (maxFret - 3) * 7;
+    score -= opens * 2.5;
+    score += Math.abs(5 - sounding.length) * 2;
+    score += parsed.bass !== null ? -10 : (bass === parsed.root ? -25 : 8);
+    score += minFret * 0.5;
+
+    return { score, values: values.slice(), barreFret };
+  }
+
+  function generateVoicing(symbol) {
+    const parsed = parseChordSymbol(symbol);
+    if (!parsed) return null;
+
+    const targetPcs = new Set(parsed.type.intervals.map(rel => (parsed.root + rel) % 12));
+    const lowStrings = [...CONFIG.strings].reverse(); // low E → high e
+    const allowedPcs = new Set(targetPcs);
+    if (parsed.bass !== null) allowedPcs.add(parsed.bass);
+    const options = lowStrings.map(stringDef => {
+      const out = [-1]; // muted
+      for (let fret = 0; fret <= CONFIG.frets; fret++) {
+        if (allowedPcs.has(Theory.noteAt(stringDef, fret))) out.push(fret);
+      }
+      return out;
+    });
+
+    let best = null;
+    const current = new Array(lowStrings.length).fill(-1);
+    function walk(i, minPositive, maxPositive) {
+      if (i === options.length) {
+        const candidate = generatedVoicingScore(current, parsed, targetPcs);
+        if (candidate && (!best || candidate.score < best.score)) best = candidate;
+        return;
+      }
+      for (const fret of options[i]) {
+        let lo = minPositive;
+        let hi = maxPositive;
+        if (fret > 0) {
+          lo = lo === null ? fret : Math.min(lo, fret);
+          hi = hi === null ? fret : Math.max(hi, fret);
+          if (hi - lo > 4) continue;
+        }
+        current[i] = fret;
+        walk(i + 1, lo, hi);
+      }
+    }
+    walk(0, null, null);
+    if (!best) return null;
+    return { ...best, parsed };
+  }
+
+  function diagramForChord(symbol) {
+    const generated = generateVoicing(symbol);
+    if (!generated) return null;
+
+    // Reuse the exact Presentation renderer without permanently changing the
+    // interactive finder's state. values are low→high; State is high→low.
+    const savedSelection = State.selection.slice();
+    const savedMuted = State.muted.slice();
+    const savedBarre = State.barreFret;
+    try {
+      const nextSelection = CONFIG.strings.map(() => null);
+      const nextMuted = CONFIG.strings.map(() => false);
+      generated.values.forEach((v, lowIndex) => {
+        const stateIndex = CONFIG.strings.length - 1 - lowIndex;
+        if (v < 0) {
+          nextSelection[stateIndex] = null;
+          nextMuted[stateIndex] = true;
+        } else if (v === 0) {
+          nextSelection[stateIndex] = null;
+          nextMuted[stateIndex] = false;
+        } else {
+          nextSelection[stateIndex] = v;
+          nextMuted[stateIndex] = false;
+        }
+      });
+      State.selection = nextSelection;
+      State.muted = nextMuted;
+      State.barreFret = generated.barreFret;
+      return {
+        svg: Presentation.svg(),
+        values: generated.values.slice(),
+        barreFret: generated.barreFret,
+      };
+    } finally {
+      State.selection = savedSelection;
+      State.muted = savedMuted;
+      State.barreFret = savedBarre;
+    }
   }
 
   /* ---------- MODULE 7 — EVENTS & INIT ---------- */
@@ -892,5 +1197,5 @@
 
   function isPresenting() { return Presentation.active; }
 
-  window.ChordFinder = { init, refreshLanguage, exitPresentation, isPresenting, _theory: Theory, _presentation: Presentation };
+  window.ChordFinder = { init, refreshLanguage, exitPresentation, isPresenting, diagramForChord, _theory: Theory, _presentation: Presentation, _parseChordSymbol: parseChordSymbol, _generateVoicing: generateVoicing };
 })();

@@ -4413,15 +4413,9 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .cf-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 10px;
-}
-.cf-barre-hint {
-  margin: 0;
-  color: var(--ink-faint);
-  font-size: 0.72rem;
-  line-height: 1.3;
 }
 .cf-toolbar .btn-secondary { flex: 0 0 auto; }
 
@@ -4531,8 +4525,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   .cf-select-wrap select { min-width: 45px; height: 30px; padding-left: 7px; padding-right: 18px; }
   .cf-segment button { padding-left: 7px; padding-right: 7px; }
   .cf-string-toggle { font-size: 0.70rem; }
-  .cf-toolbar { align-items: flex-start; }
-  .cf-barre-hint { max-width: 55%; }
+  .cf-toolbar { align-items: center; }
   .cf-result { min-height: 150px; padding-left: 10px; padding-right: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4602,18 +4595,21 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .cf-d-x      { stroke: var(--ink); stroke-width: 3.2; stroke-linecap: round; fill: none; }
 .cf-d-open   { stroke: var(--ink); stroke-width: 3;   fill: none; }
 .cf-d-dot    { fill: var(--ink); }
-.cf-d-num {
+.cf-d-barre  { fill: var(--ink); }
+.cf-d-num,
+.cf-d-barre-num {
   fill: var(--paper);
   font-family: var(--font-body);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
 .cf-d-startfret {
-  fill: var(--ink-soft);
+  fill: var(--ink);
   font-family: var(--font-body);
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
 }
 
 /* Presentation mode: hide the finder's own UI, keep only the diagram. */
@@ -4644,4 +4640,39 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 #page-chord-finder.presentation-mode #cf-menu-btn:active { opacity: 0.85; }
 @media (prefers-reduced-motion: reduce) {
   #page-chord-finder.presentation-mode #cf-menu-btn { transition: none; }
+}
+
+/* ---------- Song view: tappable chord diagram popup (v5.0.7) ---------- */
+/* Chord labels still stay out of lyric text selection/copy, but they now
+   behave like compact diagram buttons when tapped. */
+#lyrics-container .chord-tag[data-chord] {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#lyrics-container .chord-tag[data-chord]:active {
+  filter: brightness(.96);
+}
+
+.song-chord-viewer {
+  display: flex;
+  min-height: 250px;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 0 8px;
+}
+.song-chord-viewer-diagram {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.song-chord-viewer-diagram .cf-diagram {
+  width: min(100%, 390px);
+  max-height: min(58dvh, 470px);
+}
+.song-chord-viewer-empty {
+  margin: 24px 0 30px;
+  color: var(--ink-faint);
+  font-size: .92rem;
+  text-align: center;
 }

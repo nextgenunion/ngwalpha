@@ -280,6 +280,8 @@ window.SONGBOOK_LANG.en = {
   infoUserSongSource: "User Songs (local)",
   infoUserSongFile: "Stored in this device's User Songs library — no source file",
 
+  chordViewerUnavailable: "No diagram available for this chord.",
+
   // Tools → Chord Finder (see js/chord-finder.js)
   sectionTools: "Tools",
   chordFinderTitle: "Chord Finder",
