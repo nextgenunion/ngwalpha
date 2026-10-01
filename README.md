@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.15-alpha)
+# Next Gen Worship — Worship Song App (v5.0.16-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,13 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.16-alpha
+
+- **Conservative simplicity pass:** removed one confirmed-dead search helper, five unused translation keys from every language pack, and an unused Chord Finder `.sr-only` rule. No feature behavior was intentionally changed.
+- **Storage duplication reduced:** Playlists and personal Labels now share one small IndexedDB + localStorage mirror helper instead of maintaining two nearly identical storage implementations. Their database names, keys, fallback behavior, and public `load()`/`save()` call sites remain unchanged.
+- **List animation duplication reduced:** Songs, Playlists, and Add Songs now share the same enter/exit/cancel bookkeeping helpers instead of each carrying a copy of the same `animationend` state cleanup.
+- This pass deliberately did **not** replace the chord engine, service worker, or modal system with a framework/library. Those areas were reviewed against established open-source alternatives first; the current implementations remain where replacement would add more migration risk or dependency weight than practical benefit.
 
 ## v5.0.15-alpha
 

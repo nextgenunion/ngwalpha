@@ -2954,6 +2954,40 @@ function prefersReducedMotion() {
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
+
+// Shared list-row animation bookkeeping used by search results, playlists,
+// and the Add Songs picker.
+function cancelRowExit(el) {
+  if (!el || el.dataset.state !== 'exiting') return;
+  delete el.dataset.state;
+  el.classList.remove('song-row-exit');
+  if (el._exitCleanup) {
+    el.removeEventListener('animationend', el._exitCleanup);
+    el._exitCleanup = null;
+  }
+}
+
+function animateRowEnter(el) {
+  if (!el) return;
+  el.classList.add('song-row-enter');
+  el.addEventListener('animationend', function onEnd() {
+    el.classList.remove('song-row-enter');
+  }, { once: true });
+}
+
+function animateRowExit(el, onRemove) {
+  if (!el || el.dataset.state === 'exiting') return;
+  el.dataset.state = 'exiting';
+  el.classList.add('song-row-exit');
+  const cleanup = () => {
+    el._exitCleanup = null;
+    if (onRemove) onRemove(el);
+    else el.remove();
+  };
+  el._exitCleanup = cleanup;
+  el.addEventListener('animationend', cleanup, { once: true });
+}
+
 // Plays the .song-row-tap press animation on the clicked row and gives it
 // a beat to actually be seen before running the navigation itself — see
 // the .song-row-tap comment in style.css for why plain :active isn't
@@ -3225,12 +3259,6 @@ function compileSearchQuery(q) {
     query,
     words: query ? query.split(' ').filter(Boolean) : [],
   };
-}
-
-// Kept as a tiny compatibility helper for code/debugging that only needs
-// the token list. Hot search paths use compileSearchQuery() once per query.
-function searchWords(q) {
-  return compileSearchQuery(q).words;
 }
 
 // Search performance: the expensive, immutable parts of each song are
@@ -3635,14 +3663,7 @@ function renderSongList(opts = {}) {
       // Already on screen — bring back from a leave-animation if this
       // song reappeared mid-fade (e.g. one character got backspaced),
       // and refresh its highlighted title text for the new query.
-      if (li.dataset.state === 'exiting') {
-        delete li.dataset.state;
-        li.classList.remove('song-row-exit');
-        if (li._exitCleanup) {
-          li.removeEventListener('animationend', li._exitCleanup);
-          li._exitCleanup = null;
-        }
-      }
+      cancelRowExit(li);
       updateSongRowContent(li, song, hasNumbers, q);
     } else {
       li = buildSongRow(song, hasNumbers, q, sourceKey);
@@ -3660,15 +3681,7 @@ function renderSongList(opts = {}) {
       li.remove();
       return;
     }
-    li.dataset.state = 'exiting';
-    li.classList.add('song-row-exit');
-    const cleanup = () => {
-      li.removeEventListener('animationend', cleanup);
-      li._exitCleanup = null;
-      li.remove();
-    };
-    li._exitCleanup = cleanup;
-    li.addEventListener('animationend', cleanup);
+    animateRowExit(li);
   });
 
   // New order goes in ahead of anything still fading out, so the visible
@@ -3685,11 +3698,7 @@ function renderSongList(opts = {}) {
     visibleAfter.forEach(key => {
       const li = newRows.get(key);
       if (!li || !listEl.contains(li)) return;
-      li.classList.add('song-row-enter');
-      li.addEventListener('animationend', function onEnd() {
-        li.classList.remove('song-row-enter');
-        li.removeEventListener('animationend', onEnd);
-      }, { once: true });
+      animateRowEnter(li);
     });
   }
 
@@ -5267,66 +5276,77 @@ function confirmDeleteUserSong(song, opts = {}) {
 // Settings → Export/Import playlists to carry playlists from one browser
 // to another on the same device.
 // ---------------------------------------------------------
-const PLAYLIST_DB_NAME = 'ngworship-playlists-db';
-const PLAYLIST_DB_STORE = 'kv';
-const PLAYLIST_DB_KEY = 'playlists';
-const PLAYLIST_LS_KEY = 'ngw-playlists';
-
-const PlaylistStorage = {
-  _openDb() {
+function createMirroredKeyValueStorage({ dbName, dbVersion = 1, storeName = 'kv', key, localStorageKey, logName }) {
+  function openDb() {
     return new Promise((resolve, reject) => {
       if (!('indexedDB' in window)) { reject(new Error('IndexedDB unavailable')); return; }
-      const req = indexedDB.open(PLAYLIST_DB_NAME, 1);
+      const req = indexedDB.open(dbName, dbVersion);
       req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(PLAYLIST_DB_STORE)) db.createObjectStore(PLAYLIST_DB_STORE);
+        if (!req.result.objectStoreNames.contains(storeName)) req.result.createObjectStore(storeName);
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
-  },
-  async load() {
-    try {
-      const db = await this._openDb();
-      const data = await new Promise((resolve, reject) => {
-        const tx = db.transaction(PLAYLIST_DB_STORE, 'readonly');
-        const req = tx.objectStore(PLAYLIST_DB_STORE).get(PLAYLIST_DB_KEY);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error);
-      });
-      db.close();
-      if (data) return data;
-    } catch (err) {
-      console.warn('Songbook: playlist IndexedDB load failed, trying localStorage —', err);
-    }
-    try {
-      const raw = localStorage.getItem(PLAYLIST_LS_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (err) {
-      console.warn('Songbook: playlist localStorage load failed —', err);
-      return null;
-    }
-  },
-  async save(data) {
-    try {
-      localStorage.setItem(PLAYLIST_LS_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.warn('Songbook: playlist localStorage save failed —', err);
-    }
-    try {
-      const db = await this._openDb();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(PLAYLIST_DB_STORE, 'readwrite');
-        tx.objectStore(PLAYLIST_DB_STORE).put(data, PLAYLIST_DB_KEY);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-    } catch (err) {
-      console.warn('Songbook: playlist IndexedDB save failed (localStorage copy still saved) —', err);
-    }
-  },
-};
+  }
+
+  return {
+    async load() {
+      try {
+        const db = await openDb();
+        try {
+          const data = await new Promise((resolve, reject) => {
+            const req = db.transaction(storeName, 'readonly').objectStore(storeName).get(key);
+            req.onsuccess = () => resolve(req.result ?? null);
+            req.onerror = () => reject(req.error);
+          });
+          if (data != null) return data;
+        } finally {
+          db.close();
+        }
+      } catch (err) {
+        console.warn(`Songbook: ${logName} IndexedDB load failed, trying localStorage —`, err);
+      }
+      try {
+        const raw = localStorage.getItem(localStorageKey);
+        return raw ? JSON.parse(raw) : null;
+      } catch (err) {
+        console.warn(`Songbook: ${logName} localStorage load failed —`, err);
+        return null;
+      }
+    },
+
+    async save(data) {
+      try {
+        localStorage.setItem(localStorageKey, JSON.stringify(data));
+      } catch (err) {
+        console.warn(`Songbook: ${logName} localStorage save failed —`, err);
+      }
+      try {
+        const db = await openDb();
+        try {
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).put(data, key);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
+          });
+        } finally {
+          db.close();
+        }
+      } catch (err) {
+        console.warn(`Songbook: ${logName} IndexedDB save failed (localStorage mirror still saved) —`, err);
+      }
+    },
+  };
+}
+
+const PlaylistStorage = createMirroredKeyValueStorage({
+  dbName: 'ngworship-playlists-db',
+  key: 'playlists',
+  localStorageKey: 'ngw-playlists',
+  logName: 'playlist',
+});
 
 function genPlaylistId() {
   return 'pl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -5636,72 +5656,12 @@ function deletePlaylist(id) {
 // automatically alongside whatever's been personally added, with no
 // changes needed here.
 // ---------------------------------------------------------
-const LABELS_DB_NAME = 'ngworship-labels-db';
-const LABELS_DB_VERSION = 1;
-const LABELS_DB_STORE = 'kv';
-const LABELS_DB_KEY = 'labels';
-const LABELS_LS_KEY = 'ngw-labels';
-
-const LabelStorage = {
-  _openDb() {
-    return new Promise((resolve, reject) => {
-      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
-      const req = indexedDB.open(LABELS_DB_NAME, LABELS_DB_VERSION);
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(LABELS_DB_STORE)) {
-          req.result.createObjectStore(LABELS_DB_STORE);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  },
-  async load() {
-    try {
-      const db = await this._openDb();
-      const data = await new Promise((resolve, reject) => {
-        const tx = db.transaction(LABELS_DB_STORE, 'readonly');
-        const req = tx.objectStore(LABELS_DB_STORE).get(LABELS_DB_KEY);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      db.close();
-      if (data) return data;
-    } catch (err) {
-      console.warn('Songbook: labels IndexedDB read failed, trying localStorage —', err);
-    }
-    try {
-      const raw = localStorage.getItem(LABELS_LS_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (err) {
-      console.warn('Songbook: labels localStorage read failed —', err);
-      return null;
-    }
-  },
-  async save(data) {
-    // Keep a current localStorage mirror on every successful change, just
-    // like playlists do. If IndexedDB later becomes unavailable/corrupt,
-    // the fallback is therefore current instead of being an old or missing
-    // copy that was only ever written after a previous failure.
-    try {
-      localStorage.setItem(LABELS_LS_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.warn('Songbook: labels localStorage mirror write failed —', err);
-    }
-    try {
-      const db = await this._openDb();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(LABELS_DB_STORE, 'readwrite');
-        tx.objectStore(LABELS_DB_STORE).put(data, LABELS_DB_KEY);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-    } catch (err) {
-      console.warn('Songbook: labels IndexedDB write failed (localStorage mirror still saved) —', err);
-    }
-  },
-};
+const LabelStorage = createMirroredKeyValueStorage({
+  dbName: 'ngworship-labels-db',
+  key: 'labels',
+  localStorageKey: 'ngw-labels',
+  logName: 'labels',
+});
 
 async function loadPersonalLabels() {
   const saved = await LabelStorage.load();
@@ -6101,22 +6061,11 @@ function renderPlaylistsList(opts = {}) {
       // Already on screen — bring back from a leave-animation if this
       // playlist reappears mid-fade (shouldn't normally happen, but
       // mirrors renderSongList's same safeguard), and refresh its text.
-      if (li.dataset.state === 'exiting') {
-        delete li.dataset.state;
-        li.classList.remove('song-row-exit');
-        if (li._exitCleanup) {
-          li.removeEventListener('animationend', li._exitCleanup);
-          li._exitCleanup = null;
-        }
-      }
+      cancelRowExit(li);
       updatePlaylistRowContent(li, pl);
     } else {
       li = buildPlaylistRow(id, pl);
-      li.classList.add('song-row-enter');
-      li.addEventListener('animationend', function onEnd() {
-        li.classList.remove('song-row-enter');
-        li.removeEventListener('animationend', onEnd);
-      }, { once: true });
+      animateRowEnter(li);
     }
     fragment.appendChild(li); // detaches reused rows from listEl, leaving only dropped-out ones (and stale dividers) behind
   });
@@ -6131,15 +6080,7 @@ function renderPlaylistsList(opts = {}) {
   // once its animation finishes, instead of cutting it instantly.
   existingRows.forEach((li, id) => {
     if (keptIds.has(id) || li.dataset.state === 'exiting') return;
-    li.dataset.state = 'exiting';
-    li.classList.add('song-row-exit');
-    const cleanup = () => {
-      li.removeEventListener('animationend', cleanup);
-      li._exitCleanup = null;
-      li.remove();
-    };
-    li._exitCleanup = cleanup;
-    li.addEventListener('animationend', cleanup);
+    animateRowExit(li);
   });
 
   // Old dividers are cheap to just drop and recreate fresh above (they
@@ -6513,11 +6454,7 @@ function renderPlaylistView(opts = {}) {
     li.appendChild(removeBtn);
 
     if (animate && !prefersReducedMotion() && !prevKeys.has(`${ref.sourceKey}:${song.id}`)) {
-      li.classList.add('song-row-enter');
-      li.addEventListener('animationend', function onEnd() {
-        li.classList.remove('song-row-enter');
-        li.removeEventListener('animationend', onEnd);
-      }, { once: true });
+      animateRowEnter(li);
     }
 
     listEl.appendChild(li);
@@ -7493,14 +7430,7 @@ function openAddSongsModal(playlistId) {
       keptKeys.add(key);
       let li = existingItems.get(key);
       if (li) {
-        if (li.dataset.state === 'exiting') {
-          delete li.dataset.state;
-          li.classList.remove('song-row-exit');
-          if (li._exitCleanup) {
-            li.removeEventListener('animationend', li._exitCleanup);
-            li._exitCleanup = null;
-          }
-        }
+        cancelRowExit(li);
         li.firstElementChild.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, sourceKey, song.id)));
       } else {
         li = buildChecklistItem(song, sourceKey, hasNumbers);
@@ -7518,18 +7448,12 @@ function openAddSongsModal(playlistId) {
     // cutting it (and the space it took up) instantly.
     existingItems.forEach((li, key) => {
       if (keptKeys.has(key) || li.dataset.state === 'exiting') return;
-      li.dataset.state = 'exiting';
-      li.classList.add('song-row-exit');
-      const cleanup = () => {
-        li.removeEventListener('animationend', cleanup);
-        li._exitCleanup = null;
+      animateRowExit(li, (row) => {
         const startH = listWrap.getBoundingClientRect().height;
-        li.remove();
-        listWrap.style.height = 'auto'; // momentarily un-clip so scrollHeight below reads the true post-removal size, not a still-mid-transition inline height
+        row.remove();
+        listWrap.style.height = 'auto'; // un-clip so scrollHeight reads the true post-removal size
         animateWrapHeightTo(listWrap, listWrap.scrollHeight, startH);
-      };
-      li._exitCleanup = cleanup;
-      li.addEventListener('animationend', cleanup);
+      });
     });
 
     list.insertBefore(fragment, list.firstChild);
