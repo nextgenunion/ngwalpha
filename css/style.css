@@ -3497,51 +3497,45 @@ span.trash-row-check {
   left: 0;
   right: 0;
   height: var(--vvh, 100vh);
+  box-sizing: border-box;
   z-index: 50;
   background: color-mix(in srgb, #000 45%, transparent);
-  align-items: flex-end;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
   opacity: 1;
   transition: opacity .24s ease;
 }
 .modal-overlay[hidden] { display: none; }
 .modal-overlay:not([hidden]) { display: flex; }
 .modal-card {
-  width: 100%;
-  max-width: 480px;
-  max-height: min(82vh, calc(var(--vvh, 100vh) - 24px));
+  width: min(100%, 440px);
+  max-width: 440px;
+  max-height: min(78vh, calc(var(--vvh, 100vh) - 32px));
   display: flex;
   flex-direction: column;
   background: var(--paper);
-  border-radius: var(--radius-l) var(--radius-l) 0 0;
+  border-radius: var(--radius-l);
   box-shadow: var(--shadow-2);
-  padding-bottom: env(safe-area-inset-bottom);
-  animation: modal-slide-up .38s var(--motion-settle);
+  padding-bottom: 0;
+  animation: modal-slide-up .34s var(--motion-settle);
 }
-/* Scale rides along with the slide-up (0.92→1) so the sheet visibly
-   grows into place rather than just rising — same layered-motion idea as
-   the page slide above. Slower and with a bigger scale delta than a
-   typical press animation on purpose: this is a whole surface arriving,
-   not a small control reacting to a tap, so it reads better slowed down. */
+/* The shared dialog now behaves like a centered popup at every viewport
+   size. A small rise + scale gives the card some arrival motion without
+   reading like the old mobile bottom sheet. */
 @keyframes modal-slide-up {
-  from { transform: translateY(32px) scale(.92); opacity: 0; }
+  from { transform: translateY(12px) scale(.95); opacity: 0; }
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
-/* Added by closeModal() alongside the overlay's opacity fade, so the
-   sheet itself visibly retreats (shrinks back down, slightly faster than
-   the slide-up it came in on — see kebab-pop-out's comment for the same
-   "dismissal should read as snappier than the open" reasoning) instead
-   of just vanishing the instant the backdrop fade finishes. */
+/* Added by closeModal() alongside the overlay fade so the centered card
+   settles away instead of disappearing in one frame. */
 .modal-overlay-closing .modal-card {
   animation: modal-slide-down .18s cubic-bezier(.4, 0, 1, 1) both;
 }
 @keyframes modal-slide-down {
   from { transform: translateY(0) scale(1); opacity: 1; }
-  to   { transform: translateY(16px) scale(.96); opacity: 0; }
-}
-@media (min-width: 560px) {
-  .modal-overlay { align-items: center; }
-  .modal-card { border-radius: var(--radius-l); }
+  to   { transform: translateY(8px) scale(.97); opacity: 0; }
 }
 .modal-header {
   display: flex;
@@ -4588,7 +4582,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   width: min(calc(100% - 24px), 360px);
   max-width: 360px;
   max-height: min(58dvh, 500px);
-  margin: 0 12px max(12px, env(safe-area-inset-bottom));
+  margin: 0;
   border-radius: var(--radius-l);
   padding-bottom: 0;
 }
@@ -4624,9 +4618,32 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 }
 .song-chord-viewer-diagram {
   width: 100%;
+  min-height: 148px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  transition: height .24s var(--motion-settle);
+}
+.song-chord-viewer-stage {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity .11s ease, transform .14s ease;
+}
+.song-chord-viewer-stage.is-leaving {
+  opacity: 0;
+  transform: translateY(3px) scale(.985);
+}
+.song-chord-viewer-stage.is-entering {
+  animation: song-chord-viewer-stage-in .22s var(--motion-settle) both;
+}
+@keyframes song-chord-viewer-stage-in {
+  from { opacity: 0; transform: translateY(-3px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .song-chord-viewer-diagram .cf-diagram {
   width: min(100%, 270px);
@@ -4637,9 +4654,6 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   color: var(--ink-faint);
   font-size: .92rem;
   text-align: center;
-}
-@media (min-width: 560px) {
-  .modal-card[data-modal-variant="chord-viewer"] { margin: 12px; }
 }
 
 /* v5.0.11 — Chord Finder display controls live in the kebab menu so the
@@ -4992,4 +5006,9 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .song-chord-viewer.is-piano .song-chord-viewer-diagram .cf-piano-diagram {
   width: min(100%, 320px);
   max-height: 150px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .song-chord-viewer-diagram { transition: none; }
+  .song-chord-viewer-stage { transition: none; animation: none !important; }
 }

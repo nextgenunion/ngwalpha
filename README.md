@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.14-alpha)
+# Next Gen Worship — Worship Song App (v5.0.15-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,12 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.15-alpha
+
+- **Shared popup/modal presentation is now centered on mobile** instead of becoming a bottom sheet. Song database, add-to-playlist, playlist dialogs, label/info pickers and other shared popups use a compact rounded card with breathing room around it and an internal scroll area when content is long; full app pages are unchanged.
+- **Song chord viewer is centered consistently on mobile** and no longer inherits bottom-sheet spacing from the generic modal shell.
+- **Guitar ↔ Piano and alternate-voicing changes now transition smoothly**: the current diagram fades/settles out, the new instrument/voicing fades in, and the diagram container animates between the guitar and piano heights so the popup does not abruptly jump size. Reduced-motion preferences still disable the transition.
 
 ## v5.0.14-alpha
 

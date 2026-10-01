@@ -78,6 +78,9 @@
 
       const diagram = document.createElement('div');
       diagram.className = 'song-chord-viewer-diagram';
+      const stage = document.createElement('div');
+      stage.className = 'song-chord-viewer-stage';
+      diagram.appendChild(stage);
       body.appendChild(diagram);
 
       const nav = document.createElement('div');
@@ -102,49 +105,95 @@
       nav.append(prev, count, next);
       body.appendChild(nav);
 
-      const paint = () => {
-        diagram.innerHTML = '';
+      let paintTicket = 0;
+      let swapTimer = null;
+      let settleTimer = null;
+      const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+      const commitPaint = () => {
+        stage.innerHTML = '';
         if (!voicings.length) {
           const empty = document.createElement('p');
           empty.className = 'song-chord-viewer-empty';
           empty.textContent = typeof unavailableText === 'function' ? unavailableText() : '';
-          diagram.appendChild(empty);
+          stage.appendChild(empty);
           nav.hidden = true;
+          count.textContent = '';
           return;
         }
-        diagram.innerHTML = voicings[index].svg;
+        stage.innerHTML = voicings[index].svg;
         const multiple = voicings.length > 1;
         nav.hidden = !multiple;
         count.textContent = multiple ? `${index + 1} / ${voicings.length}` : '';
       };
 
+      const paint = ({ animate = false } = {}) => {
+        const ticket = ++paintTicket;
+        if (swapTimer) clearTimeout(swapTimer);
+        if (settleTimer) clearTimeout(settleTimer);
+
+        if (!animate || reduceMotion() || !diagram.isConnected) {
+          stage.classList.remove('is-leaving', 'is-entering');
+          diagram.style.height = '';
+          commitPaint();
+          return;
+        }
+
+        const startHeight = diagram.getBoundingClientRect().height;
+        if (startHeight > 0) diagram.style.height = `${startHeight}px`;
+        stage.classList.remove('is-entering');
+        stage.classList.add('is-leaving');
+
+        swapTimer = setTimeout(() => {
+          if (ticket !== paintTicket) return;
+          stage.classList.remove('is-leaving');
+          commitPaint();
+
+          // The stage can measure its new natural height even while the outer
+          // diagram is temporarily pinned to the previous height. Transitioning
+          // that outer height is what stops Guitar ↔ Piano from snapping the
+          // whole modal to a new size in a single frame.
+          const targetHeight = Math.max(stage.getBoundingClientRect().height, stage.scrollHeight || 0);
+          if (targetHeight > 0) diagram.style.height = `${targetHeight}px`;
+          stage.classList.add('is-entering');
+
+          settleTimer = setTimeout(() => {
+            if (ticket !== paintTicket) return;
+            stage.classList.remove('is-entering');
+            diagram.style.height = '';
+          }, 280);
+        }, 105);
+      };
+
       const move = delta => {
         if (voicings.length < 2) return;
         index = (index + delta + voicings.length) % voicings.length;
-        paint();
+        paint({ animate: true });
       };
 
-      const setInstrument = nextInstrument => {
-        instrument = nextInstrument === 'piano' ? 'piano' : 'guitar';
+      const setInstrument = (nextInstrument, { animate = false } = {}) => {
+        const normalized = nextInstrument === 'piano' ? 'piano' : 'guitar';
+        if (normalized === instrument && voicings.length) return;
+        instrument = normalized;
         if (hasInstrumentSwitch) preferredInstrument = instrument;
         body.className = `song-chord-viewer is-${instrument}`;
         if (guitarBtn) guitarBtn.setAttribute('aria-pressed', String(instrument === 'guitar'));
         if (pianoBtn) pianoBtn.setAttribute('aria-pressed', String(instrument === 'piano'));
         voicings = (getVoicings(symbol, instrument) || []).filter(v => v && v.svg);
         index = 0;
-        paint();
+        paint({ animate });
       };
 
       prev.addEventListener('click', () => move(-1));
       next.addEventListener('click', () => move(1));
-      if (guitarBtn) guitarBtn.addEventListener('click', () => setInstrument('guitar'));
-      if (pianoBtn) pianoBtn.addEventListener('click', () => setInstrument('piano'));
+      if (guitarBtn) guitarBtn.addEventListener('click', () => setInstrument('guitar', { animate: true }));
+      if (pianoBtn) pianoBtn.addEventListener('click', () => setInstrument('piano', { animate: true }));
       body.addEventListener('keydown', event => {
         if (event.key === 'ArrowLeft') { event.preventDefault(); move(-1); }
         if (event.key === 'ArrowRight') { event.preventDefault(); move(1); }
       });
 
-      setInstrument(instrument);
+      setInstrument(instrument, { animate: false });
       openModal(symbol, body, { variant: 'chord-viewer' });
     }
 

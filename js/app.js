@@ -6736,9 +6736,9 @@ function closeModal() {
     return;
   }
 
-  // .modal-overlay-closing plays the card's slide-down (see style.css)
-  // alongside this opacity fade, instead of the whole modal just
-  // disappearing the instant this function runs.
+  // .modal-overlay-closing plays the card's compact retreat (see style.css)
+  // alongside this opacity fade instead of the whole popup disappearing
+  // the instant this function runs.
   overlay.classList.add('modal-overlay-closing');
   overlay.style.opacity = '0';
   const cleanup = (e) => {

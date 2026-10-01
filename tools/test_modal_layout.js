@@ -1,0 +1,15 @@
+const fs=require('fs');
+const css=fs.readFileSync(__dirname+'/../css/style.css','utf8');
+let failed=0;
+const check=(ok,msg)=>{console.log(ok?'PASS':'FAIL',msg);if(!ok)failed++;};
+const overlay=(css.match(/\.modal-overlay\s*\{[\s\S]*?\n\}/)||[''])[0];
+const card=(css.match(/\.modal-card\s*\{[\s\S]*?\n\}/)||[''])[0];
+const chord=(css.match(/\.modal-card\[data-modal-variant="chord-viewer"\]\s*\{[\s\S]*?\n\}/)||[''])[0];
+check(/align-items:\s*center/.test(overlay),'shared mobile modal overlay is centered');
+check(/padding:/.test(overlay),'centered overlay keeps edge/safe-area breathing room');
+check(/width:\s*min\(100%,\s*440px\)/.test(card),'shared popup is capped instead of full-width');
+check(/border-radius:\s*var\(--radius-l\)/.test(card),'shared popup keeps rounded corners on mobile');
+check(/max-height:\s*min\(78vh/.test(card),'shared popup is height-capped rather than full-screen');
+check(/width:\s*min\(calc\(100% - 24px\),\s*360px\)/.test(chord),'chord viewer keeps the smaller popup width');
+check(/song-chord-viewer-stage-in/.test(css),'chord viewer has a dedicated diagram transition');
+if(failed)process.exit(1);
