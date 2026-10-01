@@ -38,66 +38,18 @@
     ],
     frets: 12,
     minNotes: 2,
-    maxAlternatives: 4,
+    maxAlternatives: 3,
     presentationFrets: 5,   // fret rows shown in presentation mode
   };
 
-  /* ---------- MODULE 2 — MUSIC THEORY DATA ----------
-     `required` notes define the chord quality. `optional` notes are normal
-     chord tones that guitar voicings commonly leave out (most often the 5th).
-     This makes the finder useful for real-world voicings instead of rejecting
-     everything that is not a textbook stack of every chord tone. */
-  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-  const CHORD_TYPES = [
-    { suffix: '',        intervals: [0,4,7],          required: [0,4],       optional: [7],       weight: 0 },
-    { suffix: 'm',       intervals: [0,3,7],          required: [0,3],       optional: [7],       weight: 0 },
-    { suffix: '5',       intervals: [0,7],            required: [0,7],       optional: [],        weight: 1 },
-    { suffix: 'dim',     intervals: [0,3,6],          required: [0,3,6],     optional: [],        weight: 2 },
-    { suffix: 'aug',     intervals: [0,4,8],          required: [0,4,8],     optional: [],        weight: 2 },
-    { suffix: 'sus2',    intervals: [0,2,7],          required: [0,2,7],     optional: [],        weight: 2 },
-    { suffix: 'sus4',    intervals: [0,5,7],          required: [0,5,7],     optional: [],        weight: 2 },
-
-    { suffix: '6',       intervals: [0,4,7,9],        required: [0,4,9],     optional: [7],       weight: 3 },
-    { suffix: 'm6',      intervals: [0,3,7,9],        required: [0,3,9],     optional: [7],       weight: 3 },
-    { suffix: 'add9',    intervals: [0,2,4,7],        required: [0,2,4],     optional: [7],       weight: 2 },
-    { suffix: 'madd9',   intervals: [0,2,3,7],        required: [0,2,3],     optional: [7],       weight: 2 },
-    { suffix: 'add11',   intervals: [0,4,5,7],        required: [0,4,5],     optional: [7],       weight: 3 },
-    { suffix: 'madd11',  intervals: [0,3,5,7],        required: [0,3,5],     optional: [7],       weight: 3 },
-    { suffix: '6/9',     intervals: [0,2,4,7,9],      required: [0,2,4,9],   optional: [7],       weight: 4 },
-    { suffix: 'm6/9',    intervals: [0,2,3,7,9],      required: [0,2,3,9],   optional: [7],       weight: 4 },
-
-    { suffix: '7',       intervals: [0,4,7,10],       required: [0,4,10],    optional: [7],       weight: 1 },
-    { suffix: 'maj7',    intervals: [0,4,7,11],       required: [0,4,11],    optional: [7],       weight: 1 },
-    { suffix: 'm7',      intervals: [0,3,7,10],       required: [0,3,10],    optional: [7],       weight: 1 },
-    { suffix: 'mMaj7',   intervals: [0,3,7,11],       required: [0,3,11],    optional: [7],       weight: 3 },
-    { suffix: 'm7b5',    intervals: [0,3,6,10],       required: [0,3,6,10],  optional: [],        weight: 2 },
-    { suffix: 'dim7',    intervals: [0,3,6,9],        required: [0,3,6,9],   optional: [],        weight: 3 },
-    { suffix: '7sus4',   intervals: [0,5,7,10],       required: [0,5,10],    optional: [7],       weight: 3 },
-    { suffix: '7b5',     intervals: [0,4,6,10],       required: [0,4,6,10],  optional: [],        weight: 3 },
-    { suffix: '7#5',     intervals: [0,4,8,10],       required: [0,4,8,10],  optional: [],        weight: 3 },
-    { suffix: 'maj7#5',  intervals: [0,4,8,11],       required: [0,4,8,11],  optional: [],        weight: 4 },
-
-    { suffix: '9',       intervals: [0,2,4,7,10],     required: [0,2,4,10],  optional: [7],       weight: 2 },
-    { suffix: 'maj9',    intervals: [0,2,4,7,11],     required: [0,2,4,11],  optional: [7],       weight: 2 },
-    { suffix: 'm9',      intervals: [0,2,3,7,10],     required: [0,2,3,10],  optional: [7],       weight: 2 },
-    { suffix: 'mMaj9',   intervals: [0,2,3,7,11],     required: [0,2,3,11],  optional: [7],       weight: 4 },
-    { suffix: '7b9',     intervals: [0,1,4,7,10],     required: [0,1,4,10],  optional: [7],       weight: 3 },
-    { suffix: '7#9',     intervals: [0,3,4,7,10],     required: [0,3,4,10],  optional: [7],       weight: 3 },
-    { suffix: '9sus4',   intervals: [0,2,5,7,10],     required: [0,2,5,10],  optional: [7],       weight: 4 },
-    { suffix: '7#11',    intervals: [0,2,4,6,7,10],   required: [0,4,6,10],  optional: [2,7],     weight: 4 },
-    { suffix: 'maj7#11', intervals: [0,2,4,6,7,11],   required: [0,4,6,11],  optional: [2,7],     weight: 5 },
-
-    { suffix: '11',      intervals: [0,2,4,5,7,10],   required: [0,4,5,10],  optional: [2,7],     weight: 5 },
-    { suffix: 'm11',     intervals: [0,2,3,5,7,10],   required: [0,3,5,10],  optional: [2,7],     weight: 4 },
-    { suffix: '13',      intervals: [0,2,4,5,7,9,10], required: [0,4,9,10],  optional: [2,5,7],   weight: 5 },
-    { suffix: 'maj13',   intervals: [0,2,4,5,7,9,11], required: [0,4,9,11],  optional: [2,5,7],   weight: 6 },
-    { suffix: 'm13',     intervals: [0,2,3,5,7,9,10], required: [0,3,9,10],  optional: [2,5,7],   weight: 5 },
-    { suffix: '13b9',    intervals: [0,1,4,7,9,10],   required: [0,1,4,9,10],optional: [7],       weight: 6 },
-    { suffix: '7b13',    intervals: [0,4,7,8,10],      required: [0,4,8,10],  optional: [7],       weight: 5 },
-  ];
-
-  const OMIT_LABELS = { 2: '9', 5: '11', 7: '5' };
+  /* ---------- MODULE 2 — MUSIC THEORY DATA ---------- */
+  const Core = window.ChordCore;
+  if (!Core) {
+    console.error('Chord Finder: js/chord-core.js must load first.');
+    return;
+  }
+  const NOTE_NAMES = Core.NOTE_NAMES;
+  const CHORD_TYPES = Core.TYPES;
 
   /* ---------- MODULE 3 — CHORD DETECTION (pure, no DOM) ---------- */
   const Theory = {
@@ -107,54 +59,7 @@
 
     /** Ranked chord candidates for the given pitch classes + bass note. */
     detect(pitchClasses, bass) {
-      const set = new Set(pitchClasses);
-      const candidates = [];
-      if (set.size < CONFIG.minNotes) return candidates;
-
-      // A practical identifier should try every selected note as a possible
-      // root. That catches inversions and slash chords while avoiding wild
-      // rootless guesses that would swamp simple guitar shapes with theory.
-      for (const root of set) {
-        for (const type of CHORD_TYPES) {
-          const abs = rel => (root + rel) % 12;
-          const chordPcs = new Set(type.intervals.map(abs));
-
-          // A selected pitch that is not part of the formula is a real extra,
-          // so this formula cannot be the selected chord.
-          if ([...set].some(pc => !chordPcs.has(pc))) continue;
-          // Defining tones must be present. Optional tones may be omitted.
-          if (type.required.some(rel => !set.has(abs(rel)))) continue;
-
-          const missingOptional = type.optional.filter(rel => !set.has(abs(rel)));
-          const base = NOTE_NAMES[root] + type.suffix;
-          const isSlash = root !== bass;
-          const slash = isSlash ? `/${NOTE_NAMES[bass]}` : '';
-
-          const omitted = missingOptional
-            .map(rel => OMIT_LABELS[rel])
-            .filter(Boolean);
-          const omitText = omitted.length ? `(omit${omitted.join(',omit')})` : '';
-          const name = base + slash;
-          const voicingName = base + omitText + slash;
-
-          // Lower score = better. Simpler names, complete voicings and root
-          // position win, but incomplete real-world voicings remain valid.
-          const exactBonus = set.size === chordPcs.size ? -6 : 0;
-          const omissionPenalty = missingOptional.length * 4;
-          const slashPenalty = isSlash ? 25 : 0;
-          const score = type.weight * 10 + omissionPenalty + slashPenalty + exactBonus;
-          candidates.push({ name, voicingName, score, root, type, missingOptional });
-        }
-      }
-
-      candidates.sort((a, b) => a.score - b.score || a.name.length - b.name.length);
-      const seen = new Set();
-      return candidates.filter(c => {
-        const key = `${c.name}|${c.voicingName}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      return Core.identify(pitchClasses, bass);
     },
   };
 
@@ -169,30 +74,61 @@
   const State = {
     selection: CONFIG.strings.map(() => null),
     muted: CONFIG.strings.map(() => false),
-    barreFret: null,
+    // Interactive barres use the finder's string order: 0 = high e, 5 = low E.
+    // The fret-number control creates one full barre; editing/muting endpoints
+    // can naturally shrink it into a partial barre.
+    barres: [],
+
+    cleanupBarres() {
+      const cleaned = [];
+      for (const original of this.barres) {
+        const fret = +original.fret;
+        const from = Math.max(0, Math.min(this.selection.length - 1, +original.fromString));
+        const to = Math.max(from, Math.min(this.selection.length - 1, +original.toString));
+        let best = null;
+        let segStart = null;
+        const consider = (a, b) => {
+          if (a === null || b - a + 1 < 2) return;
+          let exact = 0;
+          for (let s = a; s <= b; s++) if (this.selection[s] === fret) exact++;
+          if (!exact) return; // no note still physically held by the barre itself
+          const len = b - a + 1;
+          if (!best || len > best.len || (len === best.len && exact > best.exact)) best = { a, b, len, exact };
+        };
+        for (let s = from; s <= to; s++) {
+          const held = !this.muted[s] && this.selection[s] !== null && this.selection[s] >= fret;
+          if (held && segStart === null) segStart = s;
+          if ((!held || s === to) && segStart !== null) {
+            const segEnd = held && s === to ? s : s - 1;
+            consider(segStart, segEnd);
+            segStart = null;
+          }
+        }
+        if (best) cleaned.push({ fret, fromString: best.a, toString: best.b, finger: original.finger || 1 });
+      }
+      this.barres = cleaned;
+    },
 
     /** Toggle a fretted note. Only one visible note can be selected per string. */
     toggleFret(s, fret) {
       this.muted[s] = false;
       const wasOn = this.selection[s] === fret;
       this.selection[s] = wasOn ? null : fret;
-      // If a note that visually defined the current full barre is removed (or
-      // a lower fret is chosen), stop advertising it as a full barre.
-      if (this.barreFret !== null && ((wasOn && fret === this.barreFret) || fret < this.barreFret)) {
-        this.barreFret = null;
-      }
+      this.cleanupBarres();
     },
 
     /** Clicking a bottom fret number creates/removes a full six-string barre. */
     toggleBarre(fret) {
-      if (this.barreFret === fret) {
-        for (let s = 0; s < this.selection.length; s++) {
+      const existing = this.barres.find(b => b.fret === fret);
+      if (existing) {
+        for (let s = existing.fromString; s <= existing.toString; s++) {
           if (this.selection[s] === fret) this.selection[s] = null;
         }
-        this.barreFret = null;
+        this.barres = this.barres.filter(b => b !== existing);
+        this.cleanupBarres();
         return;
       }
-      this.barreFret = fret;
+      this.barres = [{ fret, fromString: 0, toString: this.selection.length - 1, finger: 1 }];
       this.muted.fill(false);
       this.selection.fill(fret);
     },
@@ -200,17 +136,19 @@
     toggleMute(s) {
       this.muted[s] = !this.muted[s];
       if (this.muted[s]) this.selection[s] = null;
+      this.cleanupBarres();
     },
 
     clear() {
       this.selection.fill(null);
       this.muted.fill(false);
-      this.barreFret = null;
+      this.barres = [];
     },
 
     clearOutsideRange(start, end) {
       this.selection = this.selection.map(f => (f !== null && (f < start || f > end)) ? null : f);
-      if (this.barreFret !== null && (this.barreFret < start || this.barreFret > end)) this.barreFret = null;
+      this.barres = this.barres.filter(b => b.fret >= start && b.fret <= end);
+      this.cleanupBarres();
     },
 
     /** Has the person placed at least one note? */
@@ -272,19 +210,25 @@
     return '';
   }
 
-  function fingerLabels() {
+  function fingerLabels(selection = State.selection, barres = State.barres) {
     const out = new Map();
     let nextFinger = 1;
-    if (State.barreFret !== null) {
-      for (let s = 0; s < State.selection.length; s++) {
-        if (State.selection[s] === State.barreFret) out.set(`${s}:${State.barreFret}`, '1');
+    const covered = new Set();
+    if (Array.isArray(barres) && barres.length) {
+      for (const barre of barres) {
+        for (let s = barre.fromString; s <= barre.toString; s++) {
+          if (selection[s] === barre.fret) {
+            out.set(`${s}:${barre.fret}`, String(barre.finger || 1));
+            covered.add(`${s}:${barre.fret}`);
+          }
+        }
       }
       nextFinger = 2;
     }
     const rest = [];
-    for (let s = 0; s < State.selection.length; s++) {
-      const fret = State.selection[s];
-      if (fret === null || fret === State.barreFret) continue;
+    for (let s = 0; s < selection.length; s++) {
+      const fret = selection[s];
+      if (fret === null || covered.has(`${s}:${fret}`)) continue;
       rest.push({ s, fret });
     }
     // Lowest fret first; on one fret, number from the bass side upward.
@@ -394,7 +338,10 @@
       for (let f = start; f <= end; f++) {
         const slot = document.createElement('span');
         slot.className = 'cf-barre-slot';
-        if (State.barreFret === f) slot.innerHTML = '<i class="cf-barre-marker"></i>';
+        slot.dataset.fret = f;
+        State.barres.filter(b => b.fret === f).forEach(barre => {
+          slot.insertAdjacentHTML('beforeend', `<i class="cf-barre-marker" style="--cf-barre-from:${barre.fromString};--cf-barre-to:${barre.toString}"></i>`);
+        });
         barreLayer.appendChild(slot);
       }
       strings.appendChild(barreLayer);
@@ -438,7 +385,7 @@
         num.className = 'cf-fret-number';
         num.dataset.fret = f;
         num.textContent = f;
-        num.setAttribute('aria-pressed', State.barreFret === f ? 'true' : 'false');
+        num.setAttribute('aria-pressed', State.barres.some(b => b.fret === f) ? 'true' : 'false');
         numbers.appendChild(num);
       }
 
@@ -507,8 +454,24 @@
         btn.setAttribute('aria-pressed', State.muted[+btn.dataset.string] ? 'true' : 'false');
       });
       board.querySelectorAll('.cf-fret-number').forEach(btn => {
-        btn.classList.toggle('is-barre', +btn.dataset.fret === State.barreFret);
-        btn.setAttribute('aria-pressed', +btn.dataset.fret === State.barreFret ? 'true' : 'false');
+        const active = State.barres.some(b => b.fret === +btn.dataset.fret);
+        btn.classList.toggle('is-barre', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      // The barre background is a separate visual layer created by buildBoard().
+      // Keep it in sync during ordinary cell edits too; otherwise clearing a
+      // barre through its note dots leaves a stale/ghost capsule behind until
+      // the board is rebuilt.
+      board.querySelectorAll('.cf-barre-slot').forEach(slot => {
+        const fret = +slot.dataset.fret;
+        slot.innerHTML = '';
+        State.barres.filter(b => b.fret === fret).forEach(barre => {
+          const marker = document.createElement('i');
+          marker.className = 'cf-barre-marker';
+          marker.style.setProperty('--cf-barre-from', barre.fromString);
+          marker.style.setProperty('--cf-barre-to', barre.toString);
+          slot.appendChild(marker);
+        });
       });
     },
 
@@ -566,9 +529,12 @@
   const Presentation = {
     active: false,
 
-    /** Fret currently chosen on each string, ignoring muted ones. */
-    held() {
-      return CONFIG.strings.map((_, s) => State.muted[s] ? 'x' : (State.selection[s] === null ? 0 : State.selection[s]));
+    /** Fret currently chosen on each string, ignoring muted ones. Accepts a
+        supplied diagram state so the SVG renderer can be used as a pure API. */
+    held(diagramState) {
+      const selection = diagramState ? diagramState.selection : State.selection;
+      const muted = diagramState ? diagramState.muted : State.muted;
+      return CONFIG.strings.map((_, s) => muted[s] ? 'x' : (selection[s] === null ? 0 : selection[s]));
     },
 
     /** First fret of the 5-fret window (1 = shows the nut). */
@@ -582,29 +548,33 @@
       return Math.min(lo, CONFIG.frets - CONFIG.presentationFrets + 1);
     },
 
-    /** Return the visible column span of the active barre. The fret-number
-        control creates a real barre state; notes fretted above it still sit
-        under the same index-finger barre, so they remain inside the span. */
-    barreSpan(start, rows) {
-      const fret = State.barreFret;
-      if (fret === null || fret < start || fret >= start + rows) return null;
-
-      const cols = [];
+    /** Return visible column spans for all active barres. Diagram state uses
+        the finder's string order (0 = high e, 5 = low E). */
+    barreSpans(start, rows, diagramState) {
+      const selection = diagramState ? diagramState.selection : State.selection;
+      const muted = diagramState ? diagramState.muted : State.muted;
+      const barres = diagramState && Array.isArray(diagramState.barres) ? diagramState.barres : State.barres;
+      const spans = [];
       const n = CONFIG.strings.length;
-      for (let c = 0; c < n; c++) {
-        const s = n - 1 - c;
-        const held = State.selection[s];
-        if (!State.muted[s] && typeof held === 'number' && held >= fret) cols.push(c);
+      for (const barre of barres || []) {
+        const fret = +barre.fret;
+        if (!Number.isFinite(fret) || fret < start || fret >= start + rows) continue;
+        const cols = [];
+        for (let s = barre.fromString; s <= barre.toString; s++) {
+          const held = selection[s];
+          if (!muted[s] && typeof held === 'number' && held >= fret) cols.push(n - 1 - s);
+        }
+        if (cols.length < 2) continue;
+        spans.push({ fret, first: Math.min(...cols), last: Math.max(...cols), finger: barre.finger || 1 });
       }
-      if (cols.length < 2) return null;
-      return { fret, first: Math.min(...cols), last: Math.max(...cols) };
+      return spans;
     },
 
     /** Build the diagram as an inline SVG string. Colors come from CSS
         classes (see the Chord Finder block in style.css) so it follows the
         app's light/dark theme automatically. */
-    svg() {
-      const values = this.held();
+    svg(diagramState = null) {
+      const values = this.held(diagramState);
       const n = CONFIG.strings.length;
       const rows = CONFIG.presentationFrets;
       const start = this.startFret(values);
@@ -627,7 +597,7 @@
       const colX = c => padL + c * gap;
       const strAt = c => n - 1 - c;
       const rowY = r => padTop + r * rowH;
-      const barre = this.barreSpan(start, rows);
+      const barres = this.barreSpans(start, rows, diagramState);
 
       let out = `<svg class="cf-diagram" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeAttr(diagramAria(values, start))}" preserveAspectRatio="xMidYMid meet">`;
 
@@ -646,20 +616,20 @@
         out += `<text class="cf-d-startfret" x="${colX(0) - 16}" y="${rowY(0) + rowH / 2}" text-anchor="end" dominant-baseline="central">${start}fr</text>`;
       }
 
-      // A barre is one finger laid across several strings, so render it as one
-      // continuous rounded bar instead of six unrelated dots.
-      if (barre) {
+      // A barre is one finger laid across a contiguous string span. Render
+      // full and partial barres with the exact same continuous capsule.
+      for (const barre of barres) {
         const cy = rowY(barre.fret - start) + rowH / 2;
         const x1 = colX(barre.first);
         const x2 = colX(barre.last);
         out += `<rect class="cf-d-barre" x="${x1 - dotR}" y="${cy - dotR}" width="${x2 - x1 + dotR * 2}" height="${dotR * 2}" rx="${dotR}" ry="${dotR}"/>`;
-        out += `<text class="cf-d-barre-num" x="${x1}" y="${cy}" text-anchor="middle" dominant-baseline="central">1</text>`;
+        out += `<text class="cf-d-barre-num" x="${x1}" y="${cy}" text-anchor="middle" dominant-baseline="central">${barre.finger || 1}</text>`;
       }
 
       // Markers above the nut + individual fretted dots. Notes exactly on the
       // active barre are already represented by the long bar; notes above it
       // remain individual finger placements.
-      const fingers = fingerLabels();
+      const fingers = fingerLabels(diagramState ? diagramState.selection : State.selection, diagramState && Array.isArray(diagramState.barres) ? diagramState.barres : State.barres);
       for (let c = 0; c < n; c++) {
         const s = strAt(c);
         const v = values[s];
@@ -669,7 +639,7 @@
           out += `<path class="cf-d-x" d="M${x - d} ${y - d}L${x + d} ${y + d}M${x + d} ${y - d}L${x - d} ${y + d}"/>`;
         } else if (v === 0) {
           out += `<circle class="cf-d-open" cx="${x}" cy="${padTop - 26}" r="8"/>`;
-        } else if (barre && v === barre.fret && c >= barre.first && c <= barre.last) {
+        } else if (barres.some(barre => v === barre.fret && c >= barre.first && c <= barre.last)) {
           continue;
         } else if (v >= start && v < start + rows) {
           const cy = rowY(v - start) + rowH / 2;
@@ -883,91 +853,25 @@
      No bitmap library is stored: the symbol is parsed into the same interval
      formulas above, a playable six-string voicing is generated locally, and
      the existing Presentation SVG renderer draws it. */
-  const NOTE_PC = {
-    C: 0, 'C#': 1, DB: 1, D: 2, 'D#': 3, EB: 3, E: 4,
-    F: 5, 'F#': 6, GB: 6, G: 7, 'G#': 8, AB: 8,
-    A: 9, 'A#': 10, BB: 10, B: 11,
-  };
+  const parseChordSymbol = Core.parse;
 
-  const CHORD_SUFFIX_ALIASES = new Map([
-    ['maj', ''], ['major', ''], ['M', ''], ['64', ''],
-    ['min', 'm'], ['minor', 'm'], ['-', 'm'],
-    ['2', 'sus2'], ['add2', 'add9'], ['m2', 'madd9'],
-    ['4', 'sus4'], ['(4)', 'sus4'], ['add4', 'add11'], ['m4', 'madd11'],
-    ['sus', 'sus4'], ['sus7', '7sus4'], ['7sus', '7sus4'], ['9sus', '9sus4'], ['sus9', '9sus4'],
-    ['+', 'aug'],
-    ['o', 'dim'], ['°', 'dim'],
-    ['o7', 'dim7'], ['°7', 'dim7'], ['dim6', 'dim7'],
-    ['ø', 'm7b5'], ['ø7', 'm7b5'],
-    ['M7', 'maj7'], ['M9', 'maj9'], ['M13', 'maj13'],
-    ['ma7', 'maj7'], ['maj79', 'maj9'],
-    ['7(b5)', '7b5'], ['m7(b5)', 'm7b5'], ['m7(11)', 'm11'],
-    ['min7', 'm7'], ['min9', 'm9'], ['min11', 'm11'], ['min13', 'm13'],
-  ]);
-
-  function notePc(name) {
-    if (!name) return null;
-    const normal = String(name)
-      .replace(/♯/g, '#').replace(/♭/g, 'b')
-      .toUpperCase();
-    return Object.prototype.hasOwnProperty.call(NOTE_PC, normal) ? NOTE_PC[normal] : null;
-  }
-
-  function parseChordSymbol(symbol) {
-    let raw = String(symbol || '').trim().replace(/♯/g, '#').replace(/♭/g, 'b');
-    if (!raw) return null;
-
-    // Only a FINAL /Note is a slash bass. This deliberately leaves 6/9 intact.
-    let bassName = '';
-    const bassMatch = raw.match(/\/([A-Ga-g](?:#|b)?)$/);
-    if (bassMatch) {
-      bassName = bassMatch[1];
-      raw = raw.slice(0, bassMatch.index);
-    }
-
-    const m = raw.match(/^([A-Ga-g])([#b]?)(.*)$/);
-    if (!m) return null;
-    const rootName = m[1].toUpperCase() + (m[2] || '');
-    const root = notePc(rootName);
-    const bass = bassName ? notePc(bassName) : null;
-    if (root === null || (bassName && bass === null)) return null;
-
-    let suffix = (m[3] || '').trim();
-    // Common parenthesized spellings: C(add9), A(maj7), etc.
-    if (/^\([^()]+\)$/.test(suffix)) suffix = suffix.slice(1, -1);
-    if (CHORD_SUFFIX_ALIASES.has(suffix)) suffix = CHORD_SUFFIX_ALIASES.get(suffix);
-    // Case-insensitive aliases that should not turn "m" into "M".
-    const lowerAliases = {
-      'maj7': 'maj7', 'maj9': 'maj9', 'maj13': 'maj13',
-      'min7': 'm7', 'min9': 'm9', 'min11': 'm11', 'min13': 'm13',
-      'minor7': 'm7', 'minor9': 'm9',
-    };
-    const lower = suffix.toLowerCase();
-    if (lowerAliases[lower]) suffix = lowerAliases[lower];
-
-    const type = CHORD_TYPES.find(t => t.suffix === suffix);
-    if (!type) return null;
-    return { symbol: String(symbol).trim(), root, bass, rootName, bassName, type };
-  }
-
-  function inferGeneratedBarre(valuesLowToHigh) {
+  function inferGeneratedBarres(valuesLowToHigh) {
     const fretted = valuesLowToHigh.filter(v => v > 0);
-    if (!fretted.length) return null;
-    const f = Math.min(...fretted);
+    if (!fretted.length) return [];
+    const fret = Math.min(...fretted);
     const exact = [];
-    valuesLowToHigh.forEach((v, i) => { if (v === f) exact.push(i); });
-    if (exact.length < 2) return null;
+    valuesLowToHigh.forEach((v, i) => { if (v === fret) exact.push(i); });
+    if (exact.length < 2) return [];
     const first = Math.min(...exact);
     const last = Math.max(...exact);
-    // A two/three-string cluster such as x02220 or xx0232 is normally
-    // fingered separately. Auto-call it a barre only when the index finger
-    // clearly spans at least four strings and every string in that span is
-    // held at or above the same fret (F, Bm, C#m shapes, etc.).
-    if (last - first + 1 < 4) return null;
+    // Avoid falsely turning ordinary two/three-note clusters (A, D, etc.)
+    // into barres. Four-plus contiguous strings is a strong conventional
+    // signal and correctly captures F/F#m and five-string B/Bm/C#m shapes.
+    if (last - first + 1 < 4) return [];
     for (let i = first; i <= last; i++) {
-      if (valuesLowToHigh[i] < f) return null;
+      if (valuesLowToHigh[i] < fret) return [];
     }
-    return f;
+    return [{ fret, fromString: first, toString: last, finger: 1 }];
   }
 
   function generatedVoicingScore(values, parsed, targetPcs) {
@@ -1014,10 +918,11 @@
       prevFret = fret;
     }
 
-    const barreFret = inferGeneratedBarre(values);
+    const barres = inferGeneratedBarres(values);
     let fingerCount = fretted.length;
-    if (barreFret !== null) {
-      const exactOnBarre = values.filter(v => v === barreFret).length;
+    for (const barre of barres) {
+      let exactOnBarre = 0;
+      for (let i = barre.fromString; i <= barre.toString; i++) if (values[i] === barre.fret) exactOnBarre++;
       fingerCount -= Math.max(0, exactOnBarre - 1);
     }
 
@@ -1044,12 +949,26 @@
     score += parsed.bass !== null ? -10 : (bass === parsed.root ? -25 : 8);
     score += minFret * 0.5;
 
-    return { score, values: values.slice(), barreFret };
+    return { score, values: values.slice(), barres };
   }
 
   function generateVoicing(symbol) {
     const parsed = parseChordSymbol(symbol);
     if (!parsed) return null;
+
+    // Familiar first-choice guitar shapes win for ordinary major/minor/7th
+    // chords. The algorithmic search remains the universal fallback, so this
+    // small library does not cap chord coverage or require image assets.
+    const curated = window.GuitarVoicings && window.GuitarVoicings.get(parsed);
+    if (curated) {
+      return {
+        score: -Infinity,
+        values: curated.values.slice(),
+        barres: inferGeneratedBarres(curated.values),
+        parsed,
+        source: curated.source,
+      };
+    }
 
     const targetPcs = new Set(parsed.type.intervals.map(rel => (parsed.root + rel) % 12));
     const lowStrings = [...CONFIG.strings].reverse(); // low E → high e
@@ -1088,44 +1007,64 @@
     return { ...best, parsed };
   }
 
+  /** Pure diagram renderer used by both Presentation Mode and external
+      callers. `values` are ordered low E → high e and contain -1 (mute),
+      0 (open), or a positive fret number. `barres` use that same low-to-high
+      string numbering (0 = low E, 5 = high e). No interactive state is read
+      or mutated. `barreFret` remains accepted as a legacy full-span hint. */
+  function renderDiagram({ values, barres = null, barreFret = null } = {}) {
+    if (!Array.isArray(values) || values.length !== CONFIG.strings.length) return null;
+
+    const selection = CONFIG.strings.map(() => null);
+    const muted = CONFIG.strings.map(() => false);
+    values.forEach((value, lowIndex) => {
+      const stateIndex = CONFIG.strings.length - 1 - lowIndex;
+      const fret = Number(value);
+      if (!Number.isFinite(fret) || fret < 0) {
+        selection[stateIndex] = null;
+        muted[stateIndex] = true;
+      } else if (fret === 0) {
+        selection[stateIndex] = null;
+        muted[stateIndex] = false;
+      } else {
+        selection[stateIndex] = fret;
+        muted[stateIndex] = false;
+      }
+    });
+
+    let publicBarres = Array.isArray(barres) ? barres : [];
+    if (!publicBarres.length && barreFret !== null) {
+      const fret = +barreFret;
+      const held = values.map((v, i) => ({ v: +v, i })).filter(x => x.v >= fret);
+      if (held.length >= 2) publicBarres = [{ fret, fromString: held[0].i, toString: held[held.length - 1].i, finger: 1 }];
+    }
+    const stateBarres = publicBarres.map(barre => {
+      const fromLow = Math.max(0, Math.min(CONFIG.strings.length - 1, +barre.fromString));
+      const toLow = Math.max(fromLow, Math.min(CONFIG.strings.length - 1, +barre.toString));
+      return {
+        fret: +barre.fret,
+        fromString: CONFIG.strings.length - 1 - toLow,
+        toString: CONFIG.strings.length - 1 - fromLow,
+        finger: +barre.finger || 1,
+      };
+    }).filter(barre => Number.isFinite(barre.fret) && barre.toString > barre.fromString);
+
+    return Presentation.svg({ selection, muted, barres: stateBarres });
+  }
+
   function diagramForChord(symbol) {
     const generated = generateVoicing(symbol);
     if (!generated) return null;
-
-    // Reuse the exact Presentation renderer without permanently changing the
-    // interactive finder's state. values are low→high; State is high→low.
-    const savedSelection = State.selection.slice();
-    const savedMuted = State.muted.slice();
-    const savedBarre = State.barreFret;
-    try {
-      const nextSelection = CONFIG.strings.map(() => null);
-      const nextMuted = CONFIG.strings.map(() => false);
-      generated.values.forEach((v, lowIndex) => {
-        const stateIndex = CONFIG.strings.length - 1 - lowIndex;
-        if (v < 0) {
-          nextSelection[stateIndex] = null;
-          nextMuted[stateIndex] = true;
-        } else if (v === 0) {
-          nextSelection[stateIndex] = null;
-          nextMuted[stateIndex] = false;
-        } else {
-          nextSelection[stateIndex] = v;
-          nextMuted[stateIndex] = false;
-        }
-      });
-      State.selection = nextSelection;
-      State.muted = nextMuted;
-      State.barreFret = generated.barreFret;
-      return {
-        svg: Presentation.svg(),
-        values: generated.values.slice(),
-        barreFret: generated.barreFret,
-      };
-    } finally {
-      State.selection = savedSelection;
-      State.muted = savedMuted;
-      State.barreFret = savedBarre;
-    }
+    const svg = renderDiagram({ values: generated.values, barres: generated.barres || [] });
+    if (!svg) return null;
+    return {
+      svg,
+      values: generated.values.slice(),
+      barres: (generated.barres || []).map(barre => ({ ...barre })),
+      // Compatibility for any older caller that only inspected one barre.
+      barreFret: generated.barres && generated.barres[0] ? generated.barres[0].fret : null,
+      source: generated.source || 'generated',
+    };
   }
 
   /* ---------- MODULE 7 — EVENTS & INIT ---------- */
@@ -1197,5 +1136,5 @@
 
   function isPresenting() { return Presentation.active; }
 
-  window.ChordFinder = { init, refreshLanguage, exitPresentation, isPresenting, diagramForChord, _theory: Theory, _presentation: Presentation, _parseChordSymbol: parseChordSymbol, _generateVoicing: generateVoicing };
+  window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord });
 })();

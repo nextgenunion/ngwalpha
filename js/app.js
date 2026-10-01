@@ -19,6 +19,17 @@
 const APP_VERSION = window.SONGBOOK_APP_VERSION;
 const SEEN_VERSION_KEY = 'ngw_seen_version';
 
+// Shipped song databases, their UI grouping, runtime-state factory, and
+// IndexedDB store names all come from one registry module. Keeping this outside
+// app.js removes the old three-way duplication between DB_SOURCES,
+// state.sources, and SONGDB_STORES.
+const SOURCE_REGISTRY = window.SongSourceRegistry;
+if (!SOURCE_REGISTRY) throw new Error('SongSourceRegistry failed to load');
+const DB_SOURCES = SOURCE_REGISTRY.databases;
+const DB_GROUP_ORDER = SOURCE_REGISTRY.groupOrder;
+const DB_GROUP_LABELS = SOURCE_REGISTRY.groupLabels;
+const DEFAULT_DB_SOURCE = SOURCE_REGISTRY.defaultSource;
+
 // Marks the version we're about to reload into as "already seen", so that
 // when app.js re-executes after the reload, hardUpdateBackstop() below
 // sees no mismatch and stays quiet. Called by every code path that already
@@ -78,17 +89,7 @@ function markVersionSeen() {
 // 'user' source (v2's User Songs) can reuse it — add its loader, its own
 // page, and a call site — without rewriting any of this.
 const state = {
-  sources: {
-    official: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
-    english: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
-    sda: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
-    mongolian2: { songs: [], loadFailed: false, loaded: false, loadPromise: null, syncPromise: null, syncAttempted: false, syncController: null },
-    // User Songs (v3): not fetched from a manifest like official/english —
-    // loaded from IndexedDB via UserSongStorage (see loadUserSongs()) —
-    // but shaped identically otherwise, so every list/search/sort/song-view
-    // function below works against it with no source-specific branches.
-    user: { songs: [], loadFailed: false },
-  },
+  sources: SOURCE_REGISTRY.createRuntimeSources(),
   // Which entry in `sources` (and which folder under data/) the Songs
   // page, search, sort, and the playlist song-picker all currently browse.
   // Driven by Settings → Song database (see openDbPickerModal() and
@@ -96,7 +97,7 @@ const state = {
   // activeSourceKey below, which instead remembers where an *already
   // open* song came from, since a person can switch databases while a
   // song from the other one is still open in the song view.
-  activeDbSource: 'official',
+  activeDbSource: DEFAULT_DB_SOURCE,
   sortBy: 'num',       // 'alpha' | 'num'
   sortOrder: 'asc',     // 'asc' | 'desc'
   query: '',
@@ -124,7 +125,7 @@ const state = {
   editorLabelsDraft: [], // Song Editor's held-until-Save label list — see
                           // openSongEditor()/saveSongFromEditor()
   activeSong: null,
-  activeSourceKey: 'official', // which source the open song view came from
+  activeSourceKey: DEFAULT_DB_SOURCE, // which source the open song view came from
   editorSongId: null, // set while the editor is open for an EXISTING user
                        // song (its id); null means "New song" — see
                        // openSongEditor(). Read by saveSongFromEditor() to
@@ -528,70 +529,20 @@ async function requestPersistentStorage() {
 }
 
 // ---------------------------------------------------------
-// Song databases — each is its own folder under data/, with its own
-// manifest.json listing that folder's song files. Registered here in one
-// place (DB_SOURCES), which every list/search/sort/song-view function
-// below reads a source's folder/hasNumbers from rather than assuming
-// 'data/songs/' or that every song has a number — so none of THAT code
-// needs to change for a new database. Adding one (the sda database is
-// the worked example) does still touch a small, fixed set of spots
-// elsewhere, each a small fixed addition:
-//   1. A new folder + manifest.json + song files under data/. Optionally run
-//      tools/build_song_bundles.py to create a fast bootstrap database.json.
-//   2. One entry here in DB_SOURCES (folder + hasNumbers + group + label).
-//   3. One entry in state.sources, above (just above this block).
-//   4. One entry in SONGDB_STORES (the source's IndexedDB backup store),
-//      further below — AND a SONGDB_VERSION bump so existing installs
-//      create the new store in onupgradeneeded.
-// That's it — no index.html edit needed. The Settings → Song database row
-// opens the database-picker modal (see openDbPickerModal()), which reads
-// DB_SOURCES itself and sorts each entry into its group's tab, so a new
-// source just appears there once it's registered here. A brand-new group
-// value picks up its own tab automatically too — see DB_GROUP_ORDER below.
+// Song databases.
 //
-// service-worker.js no longer needs a per-database registry: /data/
-// requests are handled generically, and databases are cached only when
-// app.js actually asks for them.
+// The shipped-database metadata now lives in js/song-sources.js. That one
+// registry owns each source's data folder, number behavior, picker group,
+// display label, and IndexedDB store. Runtime source state is generated from
+// the same registry at startup, so adding a database no longer requires
+// parallel edits to state.sources and SONGDB_STORES.
 //
-//   folder     — the data/ subfolder this source's songs and
-//                manifest.json live in.
-//   hasNumbers — false means this source's songs have no `number` field
-//                (see the English database) — see applySongNumberUI() for
-//                what that changes in the Songs page (hides "Sort by
-//                number" and the number badges) once this source is the
-//                active one.
-//   group      — which tab of the database-picker modal this source is
-//                sorted into. Any value works as long as it also has an
-//                entry in DB_GROUP_ORDER/DB_GROUP_LABELS below; sources
-//                sharing a group are listed together, in DB_SOURCES'
-//                own key order, under that one tab.
-//   label      — the fixed, never-translated display name shown for this
-//                source in the picker (a proper name for that specific
-//                songbook, e.g. "Монгол (ДАС)"). Use labelKey instead (see
-//                'english' below) for the one case where the name itself
-//                should follow the app's interface language.
-//   labelKey   — a lang-file key (see lang/*.js) to look up via t() for a
-//                display name that changes with the interface language,
-//                instead of a fixed `label`.
+// To add a shipped database: add its data/ folder + manifest/song files and
+// one entry in js/song-sources.js. If the entry introduces a new IndexedDB
+// store, increment indexedDbVersion there as part of the same schema change.
+// The database picker reads the registry dynamically; the service worker
+// handles /data/ requests generically.
 // ---------------------------------------------------------
-const DB_SOURCES = {
-  official: { folder: 'mongolian', hasNumbers: true,  group: 'sda', label: 'Монгол (ДАС)' },
-  english:  { folder: 'english',   hasNumbers: false, group: 'all', labelKey: 'dbOptionEnglish' },
-  sda:      { folder: 'hymn',      hasNumbers: true,  group: 'sda', label: 'English (SDA)' },
-  // Second Mongolian-language database ("Монгол" in the picker, no "(ДАС)"
-  // qualifier since it isn't the ДАС songbook the 'official' source is).
-  // Its source files have no `number` field, same situation as 'english'.
-  mongolian2: { folder: 'mongolian2', hasNumbers: false, group: 'all', label: 'Монгол' },
-};
-
-// Tabs for the database-picker modal (see openDbPickerModal()), in display
-// order — 'sda' for the denomination's own official songbooks, 'all' for
-// every other database. A new group only needs an entry here (order) and
-// in DB_GROUP_LABELS (its tab's label) — every DB_SOURCES entry tagged with
-// that group value then shows up under it automatically.
-const DB_GROUP_ORDER = ['sda', 'all'];
-const DB_GROUP_LABELS = { sda: 'dbGroupSda', all: 'dbGroupAll' };
-
 // The display name for a DB_SOURCES entry — its fixed `label`, or t() of
 // its `labelKey` when the name itself should follow the interface
 // language (see 'english' in DB_SOURCES above).
@@ -781,15 +732,8 @@ const SONGDB_NAME = 'songbook-db';
 // 3 -> 4 to add 'sda-songs', 4 -> 5 to add trash, and 5 -> 6 to add
 // 'mongolian2-songs'. No schema change is needed for the bootstrap/sync
 // architecture: each fetched source still stores one array under 'all-songs'.
-const SONGDB_VERSION = 6;
-const SONGDB_STORES = {
-  official: 'songs',
-  english: 'english-songs',
-  sda: 'sda-songs',
-  mongolian2: 'mongolian2-songs',
-  user: 'user-songs',
-  trash: 'user-songs-trash',
-};
+const SONGDB_VERSION = SOURCE_REGISTRY.indexedDbVersion;
+const SONGDB_STORES = SOURCE_REGISTRY.stores;
 
 function openSongDb() {
   return new Promise((resolve, reject) => {
@@ -2019,7 +1963,7 @@ function initHistoryNav() {
     }
     if (st && st.page) {
       if (st.page === 'song-view' && st.songId) {
-        const sourceKey = st.sourceKey || 'official';
+        const sourceKey = st.sourceKey || DEFAULT_DB_SOURCE;
         const source = state.sources[sourceKey];
         const song = source && source.songs.find(s => s.id === st.songId);
         if (song) { openSong(song, { pushHistory: false, sourceKey }); return; }
@@ -2230,7 +2174,7 @@ function loadPrefs() {
   // source active.
   const savedDb = localStorage.getItem('sb-db');
   const legacyDbKeys = { mn: 'official', en: 'english' };
-  const resolvedDb = legacyDbKeys[savedDb] || (DB_SOURCES[savedDb] ? savedDb : 'official');
+  const resolvedDb = legacyDbKeys[savedDb] || (DB_SOURCES[savedDb] ? savedDb : DEFAULT_DB_SOURCE);
   applyDbSource(resolvedDb);
 }
 
@@ -2461,7 +2405,7 @@ function renderSongLoadingState() {
 }
 
 function applyDbSource(sourceKey) {
-  if (!DB_SOURCES[sourceKey]) sourceKey = 'official';
+  if (!DB_SOURCES[sourceKey]) sourceKey = DEFAULT_DB_SOURCE;
   const previousSourceKey = state.activeDbSource;
   if (previousSourceKey !== sourceKey) {
     const previousSource = state.sources[previousSourceKey];
@@ -4932,49 +4876,17 @@ function renderLyrics(opts = {}) {
 // ---------------------------------------------------------
 // Chord viewer popup.
 //
-// Tapping a chord above the lyrics opens the SAME generated SVG diagram used
-// by Chord Finder Presentation Mode. No per-chord images are stored and the
-// popup automatically follows theme colors / barre / start-fret conventions.
+// Interaction lives in js/chord-viewer.js. app.js only injects the modal,
+// translation, and Chord Finder renderer so this feature stays independent of
+// the main application state while still reusing the exact Presentation SVG.
 // ---------------------------------------------------------
-function openChordViewer(chordName) {
-  const symbol = String(chordName || '').trim();
-  if (!symbol) return;
-
-  const body = document.createElement('div');
-  body.className = 'song-chord-viewer';
-  const rendered = window.ChordFinder && typeof window.ChordFinder.diagramForChord === 'function'
-    ? window.ChordFinder.diagramForChord(symbol)
-    : null;
-
-  if (rendered && rendered.svg) {
-    const diagram = document.createElement('div');
-    diagram.className = 'song-chord-viewer-diagram';
-    diagram.innerHTML = rendered.svg;
-    body.appendChild(diagram);
-  } else {
-    const empty = document.createElement('p');
-    empty.className = 'song-chord-viewer-empty';
-    empty.textContent = t('chordViewerUnavailable');
-    body.appendChild(empty);
-  }
-  openModal(symbol, body);
-}
-
 function bindChordViewer() {
-  const lyrics = document.getElementById('lyrics-container');
-  if (!lyrics) return;
-
-  const activate = (target) => {
-    const chord = target && target.closest && target.closest('.chord-tag[data-chord]');
-    if (!chord || !lyrics.contains(chord)) return false;
-    openChordViewer(chord.dataset.chord || chord.textContent);
-    return true;
-  };
-
-  lyrics.addEventListener('click', e => { activate(e.target); });
-  lyrics.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    if (activate(e.target)) e.preventDefault();
+  if (!window.SongChordViewer || !window.ChordFinder) return;
+  window.SongChordViewer.bind({
+    rootId: 'lyrics-container',
+    openModal,
+    renderChord: symbol => window.ChordFinder.diagramForChord(symbol),
+    unavailableText: () => t('chordViewerUnavailable'),
   });
 }
 
@@ -6752,13 +6664,21 @@ function commitPlaylistOrderFromDom() {
 // ---------------------------------------------------------
 // This one overlay/card pair is reused for every modal in the app (Add
 // Songs, rename/create playlist, etc.) — see bindModalShell() below.
-function openModal(title, bodyEl) {
+function openModal(title, bodyEl, options = {}) {
   document.getElementById('modal-title').textContent = title;
   const body = document.getElementById('modal-body');
   body.innerHTML = '';
   body.appendChild(bodyEl);
   const overlay = document.getElementById('modal-overlay');
   const card = overlay.querySelector('.modal-card');
+  // Modal variants keep feature-specific sizing/presentation in CSS without
+  // creating a second modal implementation. Every open resets the variant so
+  // a compact chord viewer can never leak its dimensions into the next modal.
+  if (card) {
+    const variant = options && typeof options.variant === 'string' ? options.variant.trim() : '';
+    if (variant) card.dataset.modalVariant = variant;
+    else delete card.dataset.modalVariant;
+  }
 
   // A previous modal's close animation may still be in flight (e.g. this
   // one was opened immediately after closing another) — cancel it rather

@@ -4323,7 +4323,7 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 .cf-inlay-slot[data-inlay="double"] i:first-child { top: 43%; }
 .cf-inlay-slot[data-inlay="double"] i:last-child  { top: 57%; }
 
-/* A full barre is a subtle accent capsule behind the selected-note circles. */
+/* Full or partial barres are subtle accent capsules behind selected-note circles. */
 .cf-barre-layer { z-index: 2; }
 .cf-barre-slot {
   position: relative;
@@ -4332,8 +4332,8 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 .cf-barre-marker {
   position: absolute;
   left: 50%;
-  top: 5px;
-  bottom: 5px;
+  top: calc(var(--cf-barre-from, 0) * var(--cf-row-h) + 5px);
+  bottom: calc((5 - var(--cf-barre-to, 5)) * var(--cf-row-h) + 5px);
   width: clamp(8px, 1.2vw, 12px);
   transform: translateX(-50%);
   border-radius: 999px;
@@ -4504,7 +4504,8 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   flex-wrap: wrap;
   gap: 6px;
   color: var(--ink-faint);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  opacity: .82;
 }
 .cf-alts:empty { margin-top: 0; }
 .cf-alts-label { margin-right: 1px; }
@@ -4514,7 +4515,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   background: color-mix(in srgb, var(--ink) 4%, var(--surface));
   border: 1px solid var(--line);
   color: var(--ink-soft);
-  font-weight: 650;
+  font-weight: 620;
 }
 
 @media (max-width: 560px) {
@@ -4653,12 +4654,45 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   filter: brightness(.96);
 }
 
+/* Chord taps use the shared modal shell, but deliberately as a compact
+   instrument helper rather than a full-size app sheet. */
+.modal-card[data-modal-variant="chord-viewer"] {
+  width: min(calc(100% - 24px), 360px);
+  max-width: 360px;
+  max-height: min(58dvh, 500px);
+  margin: 0 12px max(12px, env(safe-area-inset-bottom));
+  border-radius: var(--radius-l);
+  padding-bottom: 0;
+}
+.modal-card[data-modal-variant="chord-viewer"] .modal-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  padding: 12px 12px 4px;
+}
+.modal-card[data-modal-variant="chord-viewer"] .modal-header h3 {
+  grid-column: 2;
+  margin: 0;
+  text-align: center;
+  font-size: 1.42rem;
+  font-weight: 750;
+  letter-spacing: -.025em;
+}
+.modal-card[data-modal-variant="chord-viewer"] .modal-header .icon-btn {
+  grid-column: 3;
+  width: 32px;
+  height: 32px;
+}
+.modal-card[data-modal-variant="chord-viewer"] .modal-body {
+  padding: 0 12px 14px;
+  overflow: hidden;
+}
 .song-chord-viewer {
   display: flex;
-  min-height: 250px;
+  min-height: 180px;
   align-items: center;
   justify-content: center;
-  padding: 2px 0 8px;
+  padding: 0;
 }
 .song-chord-viewer-diagram {
   width: 100%;
@@ -4667,12 +4701,15 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   justify-content: center;
 }
 .song-chord-viewer-diagram .cf-diagram {
-  width: min(100%, 390px);
-  max-height: min(58dvh, 470px);
+  width: min(100%, 270px);
+  max-height: min(40dvh, 330px);
 }
 .song-chord-viewer-empty {
   margin: 24px 0 30px;
   color: var(--ink-faint);
   font-size: .92rem;
   text-align: center;
+}
+@media (min-width: 560px) {
+  .modal-card[data-modal-variant="chord-viewer"] { margin: 12px; }
 }

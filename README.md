@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.7-alpha)
+# Next Gen Worship — Worship Song App (v5.0.9-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,23 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.9-alpha
+
+- **Barre cleanup fixed:** editing or muting notes now shrinks a barre to its remaining contiguous held span and removes it completely when no valid barre remains. The normal fretboard's accent capsule is resynced on every edit, eliminating the stale/ghost barre background.
+- **Canonical chord core:** added `js/chord-core.js`, an instrument-neutral parser/model and naming engine shared by the guitar system. It normalizes common aliases/accidentals, distinguishes a final slash bass from qualities such as `6/9`, and rejects malformed multi-chord/non-chord tokens instead of guessing.
+- **Chord naming priority refined:** the actual bass note, root-position reading, formula completeness, and common chord complexity now determine the primary result. The main chord remains visually dominant while alternatives are fewer and more subdued.
+- **Compact song chord viewer:** tapping a chord still reuses the shared Presentation SVG, but the shared modal now supports a chord-viewer variant so this helper opens as a small, focused card rather than a large sheet. Other modals automatically reset to their normal dimensions.
+- **Curated guitar voicings:** added `js/guitar-voicings.js` with 60 familiar major/minor/7/maj7/m7 shapes. Common chords use these predictable human shapes first; slash chords and everything outside the small library continue through the existing algorithmic generator.
+- **Partial barres:** the chord diagram model now carries explicit barre spans (`fret`, `fromString`, `toString`, `finger`) instead of assuming one full-neck barre. Presentation/song diagrams render five-string and smaller barres correctly, while the interactive finder can shrink a full barre as strings are edited.
+- Added regression scripts under `tools/` for parser normalization, chord naming, curated-shape validity, barre cleanup/partial rendering, and full song-database chord coverage.
+
+## v5.0.8-alpha
+
+- **Architecture cleanup without feature changes:** shipped song-database metadata now lives in `js/song-sources.js`, which is the single source of truth for data folders, number behavior, picker groups/labels, runtime source creation, IndexedDB store names, and the song DB schema version.
+- **Main app modularity:** the song-page chord popup interaction moved out of `js/app.js` into `js/chord-viewer.js`. `app.js` only injects the modal, translation, and shared chord renderer, keeping the feature isolated from app state.
+- **Pure chord-diagram API:** `ChordFinder.renderDiagram()` now renders from supplied voicing data without mutating the interactive Chord Finder state. `diagramForChord()` uses that pure renderer, and the old private/debug globals are no longer exported.
+- **PWA consistency:** the two new JS modules are part of the core app shell, and `icons/svg/chord-finder.svg` is explicitly included in best-effort precaching so the Settings tool icon is available offline on a fresh install.
 
 ## v5.0.7-alpha
 
@@ -518,21 +535,25 @@ calls it.
 index.html          App shell — every page lives here, toggled by JS
 offline.html         Self-contained offline fallback page (see "Offline screen" below)
 css/style.css        Design tokens + styles (light & dark themes)
-js/app.js            All app logic: search, sort, transpose, language switching, install
-app.js               Mirror of js/app.js — not loaded by index.html; kept in
-                     sync as a convenience copy at the repo root
+js/app.js            Main application orchestration and feature logic
+js/song-sources.js   Single registry for shipped song sources + IndexedDB stores
+js/chord-core.js     Instrument-neutral chord parser/model + naming engine
+js/guitar-voicings.js Curated familiar guitar shapes (generator fallback stays in finder)
+js/chord-finder.js   Guitar fretboard, voicing generator, and shared diagram renderer
+js/chord-viewer.js   Song-page tappable-chord popup adapter
 data/                One folder per song database: editable per-song JSON +
                      manifest.json, plus optional generated database.json bootstrap snapshot
-                     (see DB_SOURCES in js/app.js for the registry)
+                     (see js/song-sources.js for the registry)
 lang/*.js         Interface text — one file per language (config.js + eng.js/mn.js/kr.js)
 manifest.json         PWA manifest
 service-worker.js     Offline caching (lazy song DB cache + offline app shell)
 icons/                App icons, logos, and icons/svg/ — one SVG file per UI icon
 ```
 
-`index.html` only ever loads `js/app.js` — if you edit app logic, edit
-`js/app.js` and copy the same change into the root `app.js` (or just remove
-the root copy if it isn't needed; it's not referenced anywhere).
+`index.html` loads the small registry/feature modules before `js/app.js`.
+Keep source-specific metadata in `js/song-sources.js`; keep instrument-neutral chord
+meaning in `js/chord-core.js`, guitar-specific shapes/rendering in the guitar modules,
+and app orchestration in `js/app.js`.
 
 ## Multiple song databases
 
@@ -550,16 +571,11 @@ Ordinary one-song edits therefore do **not** require rebuilding `database.json`;
 run `python tools/build_song_bundles.py` whenever you want to refresh the
 bootstrap snapshot itself (for example before a larger release).
 
-The folders are registered in one place, `DB_SOURCES` in `js/app.js`:
-
-```js
-const DB_SOURCES = {
-  official:   { folder: 'mongolian',  hasNumbers: true },
-  english:    { folder: 'english',    hasNumbers: false },
-  sda:        { folder: 'hymn',       hasNumbers: true },
-  mongolian2: { folder: 'mongolian2', hasNumbers: false },
-};
-```
+The folders are registered in one place, `databases` in
+`js/song-sources.js`. Each entry carries its data folder, song-number behavior,
+database-picker group/label, and IndexedDB store name. `js/app.js` derives both
+its runtime source state and `SONGDB_STORES` from this registry rather than
+repeating the same source list in multiple places.
 
 `data/mongolian2/` currently contains 1,433 songs in this build. Add or
 edit songs through the individual JSON files + `manifest.json`; those files
@@ -569,12 +585,11 @@ to refresh the fast bootstrap snapshot.
 Adding a database (a next-gen version of this app, a different language,
 a different congregation's songbook) is: create the folder + its
 `manifest.json` + song files, optionally run `python tools/build_song_bundles.py`
-to create its bootstrap snapshot, add one entry here, add one `<option>` to
-`#db-select` in `index.html` (its
-`value` is this registry's key), and add one `SONGDB_STORES` entry plus a
-`SONGDB_VERSION` bump for the IndexedDB offline backup. The service worker
-handles `/data/` generically now, so there is no second database registry
-there and no all-database background precache.
+to create its bootstrap snapshot, then add one entry to `databases` in
+`js/song-sources.js`. The picker is generated from that registry automatically.
+If the new entry introduces a new IndexedDB store, increment
+`indexedDbVersion` in the same registry file. The service worker handles
+`/data/` generically, so there is no second per-database registry there.
 
 `hasNumbers: false` (as set for the English database) means that
 database's songs have no `number` field at all — the app hides the
@@ -582,7 +597,7 @@ number badge next to each song and the "Sort by number" button whenever
 that database is the active one, falling back to alphabetical sort
 instead. Set it to `true` for a database whose songs do have numbers.
 
-**User Songs are deliberately not in `DB_SOURCES`.** Every entry here is a
+**User Songs are deliberately not in the shipped `databases` registry.** Every entry there is a
 `fetch()`-loaded, read-only database shipped with the app; User Songs are
 the opposite — locally authored/imported and read-write, with no
 `manifest.json` or folder of their own (see "What's new in this version"

@@ -961,8 +961,12 @@
      refreshLangPicker() in app.js. -->
 <script src="lang/mn2.js"></script>
 <script src="lang/kr.js"></script>
-<!-- Song data loads at runtime from each configured source folder under data/ (see js/app.js DB_SOURCES/loadSongDataFor) -->
+<!-- Song source metadata is registered once in song-sources.js; app.js derives runtime state/storage from it. -->
+<script src="js/song-sources.js" defer></script>
+<script src="js/chord-core.js" defer></script>
+<script src="js/guitar-voicings.js" defer></script>
 <script src="js/chord-finder.js" defer></script>
+<script src="js/chord-viewer.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>
