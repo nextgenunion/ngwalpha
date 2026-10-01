@@ -219,7 +219,7 @@ const PAGES = {
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
   // Built-in tool, opened from Settings → Tools. ChordFinder.init() builds
   // the fretboard once, the first time the page is shown (see js/chord-finder.js).
-  'chord-finder':   { elId: 'page-chord-finder',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => { if (window.ChordFinder) window.ChordFinder.init(); } },
+  'chord-finder':   { elId: 'page-chord-finder',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => { if (window.ChordFinder) window.ChordFinder.init(); updateAllSegToggleThumbs({ instant: true }); } },
   'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through
   // history/deep-linking before that, since showPage() itself doesn't
@@ -4877,7 +4877,7 @@ function renderLyrics(opts = {}) {
 // Chord viewer popup.
 //
 // Interaction lives in js/chord-viewer.js. app.js only injects the modal,
-// translation, and Chord Finder renderer so this feature stays independent of
+// translation, and Chord Finder voicing renderer so this feature stays independent of
 // the main application state while still reusing the exact Presentation SVG.
 // ---------------------------------------------------------
 function bindChordViewer() {
@@ -4885,8 +4885,10 @@ function bindChordViewer() {
   window.SongChordViewer.bind({
     rootId: 'lyrics-container',
     openModal,
-    renderChord: symbol => window.ChordFinder.diagramForChord(symbol),
+    renderVoicings: symbol => window.ChordFinder.getChordVoicings(symbol, 5),
     unavailableText: () => t('chordViewerUnavailable'),
+    previousVoicingText: () => t('cfPreviousVoicing'),
+    nextVoicingText: () => t('cfNextVoicing'),
   });
 }
 

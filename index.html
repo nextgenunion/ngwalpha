@@ -467,7 +467,7 @@
       <svg class="settings-row-icon" data-icon="chord-finder" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
         <span class="settings-row-title" id="t-chordFinderTitle">Chord Finder</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-chordFinderSub">Tap frets on a guitar neck to name the chord</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-chordFinderSub">Tap guitar frets or piano keys to name the chord</span>
       </div>
       <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
     </button>
@@ -641,31 +641,31 @@
   </header>
 
   <section class="cf-panel" aria-label="Guitar fretboard">
-    <div class="cf-controls" aria-label="Chord finder display options">
-      <div class="cf-control-group cf-range-control">
-        <span class="cf-control-label" id="cf-range-label">Frets</span>
-        <label class="cf-select-wrap">
-          <span class="sr-only">First fret</span>
-          <select id="cf-range-start" aria-label="First visible fret"></select>
-        </label>
-        <span class="cf-range-dash" aria-hidden="true">–</span>
-        <label class="cf-select-wrap">
-          <span class="sr-only">Last fret</span>
-          <select id="cf-range-end" aria-label="Last visible fret"></select>
-        </label>
-      </div>
-
-      <div class="cf-control-group cf-marker-control">
-        <span class="cf-control-label" id="cf-marker-label">Marker</span>
-        <div class="cf-segment" role="group" aria-label="Selected-note labels">
-          <button type="button" data-cf-label-mode="note" aria-pressed="true">Note</button>
-          <button type="button" data-cf-label-mode="finger" aria-pressed="false">Finger</button>
-          <button type="button" data-cf-label-mode="hide" aria-pressed="false">Hide</button>
-        </div>
+    <!-- Instrument switch (Guitar | Piano). Buttons are filled/translated by
+         ChordFinder.applyInstrument(); the thumb is positioned by app.js. -->
+    <div class="cf-instrument">
+      <div class="seg-toggle" role="group" id="cf-instrument-toggle" aria-label="Instrument">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button type="button" class="seg-toggle-btn" data-cf-instrument="guitar" aria-pressed="true">Guitar</button>
+        <button type="button" class="seg-toggle-btn" data-cf-instrument="piano" aria-pressed="false">Piano</button>
       </div>
     </div>
-
+    <form class="cf-search" id="cf-search-form" role="search" autocomplete="off">
+      <div class="cf-search-main">
+        <input id="cf-search-input" class="cf-search-input" type="text" inputmode="text" spellcheck="false" autocapitalize="off" placeholder="Search chord (e.g. Am7)">
+        <button id="cf-search-submit" class="cf-search-submit" type="submit" aria-label="Search chord">
+          <svg data-icon="search" viewBox="0 0 24 24"></svg>
+        </button>
+      </div>
+      <div class="cf-search-nav" id="cf-search-nav" hidden>
+        <button id="cf-search-prev" type="button" class="cf-search-arrow" aria-label="Previous voicing">‹</button>
+        <span id="cf-search-count" class="cf-search-count" aria-live="polite"></span>
+        <button id="cf-search-next" type="button" class="cf-search-arrow" aria-label="Next voicing">›</button>
+      </div>
+      <div class="cf-search-status" id="cf-search-status" aria-live="polite"></div>
+    </form>
     <div class="cf-board" id="cf-board"></div>
+    <div class="cf-board cf-piano" id="cf-piano-board" hidden></div>
     <div class="cf-toolbar">
       <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
     </div>
@@ -965,6 +965,7 @@
 <script src="js/song-sources.js" defer></script>
 <script src="js/chord-core.js" defer></script>
 <script src="js/guitar-voicings.js" defer></script>
+<script src="js/piano-chords.js" defer></script>
 <script src="js/chord-finder.js" defer></script>
 <script src="js/chord-viewer.js" defer></script>
 <script src="js/app.js" defer></script>

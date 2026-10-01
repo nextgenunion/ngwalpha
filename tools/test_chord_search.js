@@ -1,0 +1,24 @@
+const fs=require('fs'),vm=require('vm');
+const ctx={console,localStorage:{getItem(){return null},setItem(){}},matchMedia(){return {matches:true}}};
+ctx.window=ctx;ctx.window.t=k=>k;
+ctx.document={getElementById(){return null},querySelectorAll(){return []},createElement(){return {}}};
+for(const f of ['chord-core.js','guitar-voicings.js']) vm.runInNewContext(fs.readFileSync(__dirname+'/../js/'+f,'utf8'),ctx);
+let src=fs.readFileSync(__dirname+'/../js/chord-finder.js','utf8');
+const marker='window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings });';
+src=src.replace(marker, 'window.__CF_SEARCH=Search;window.__CF_STATE=State;window.__CF_PREFS=Prefs;window.__CF_VIEW=View;window.__CF_MENU=Menu;'+marker);
+vm.runInNewContext(src,ctx);
+const S=ctx.__CF_SEARCH,State=ctx.__CF_STATE,V=ctx.__CF_VIEW,M=ctx.__CF_MENU;
+V.buildBoard=()=>{};V.renderBoard=()=>{};V.renderResult=()=>{};M.syncControls=()=>{};
+let failed=0;
+S.run('Am');
+const first=State.selection.join(',');
+const ok1=S.results.length>=2 && first===',1,2,2,,' && State.muted.join(',')==='false,false,false,false,false,true'; // high e -> low E; open/mute are null and stringify empty
+console.log(ok1?'PASS':'FAIL','search loads preferred Am voicing',S.results.length,first); if(!ok1)failed++;
+S.move(1);
+const second=State.selection.join(',');
+const ok2=S.index===1 && second!==first;
+console.log(ok2?'PASS':'FAIL','search arrows load alternate position',S.index,second); if(!ok2)failed++;
+S.run('not-a-chord');
+const ok3=S.results.length===0;
+console.log(ok3?'PASS':'FAIL','invalid search does not leave stale results'); if(!ok3)failed++;
+if(failed)process.exit(1);

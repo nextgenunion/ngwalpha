@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.9-alpha)
+# Next Gen Worship — Worship Song App (v5.0.13-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,34 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.13-alpha
+
+- Added **Piano** to Settings → Tools → Chord Finder. A new Guitar | Piano switch at the top of the tool swaps the fretboard for a two-octave keyboard (C3–B4). Tap keys and the chord is named from the pressed notes; the lowest key is the bass, so inversions are named as slash chords (E-G-C reads `C/E`). The result card shows the same note pills (root/3rd/5th…) and "Also:" alternatives as guitar. The chosen instrument is remembered.
+- **Chord Search works for piano too.** With Piano selected, searching `Am7`, `C/E`, `Cmaj7` etc. presses the chord on the keyboard in root position, and the ‹ › arrows cycle its inversions (slash chords lead with the requested bass note lowest; large extended chords stay single instead of becoming clusters). Extensions (9/11/13) are voiced an octave up.
+- **Presentation Mode** shows a clean keyboard diagram for piano (pressed keys highlighted, optional note names) in place of the guitar chart.
+- The kebab menu adapts: for piano it offers only the Note | Hide marker choice (no fret range or finger numbers). Unpressed C keys carry a faint C3/C4 marker for orientation.
+- New `js/piano-chords.js` holds the pure keyboard model, detection and voicing logic on top of `ChordCore` (no DOM), mirroring `guitar-voicings.js`; it is part of the precached core shell. Added strings for all four language packs and `tools/test_piano_chords.js` (geometry, detection incl. inversions, 192-chord voicing/round-trip check, slash bass, search wiring, presentation SVG).
+- Guitar behavior, the song-view chord popup and all existing tests are unchanged.
+
+## v5.0.12-alpha
+
+- Added **alternate guitar voicings** to the song chord popup. When a chord has more than one useful playable position, small left/right arrows cycle up to five distinct shapes while reusing the same shared Presentation SVG renderer. The familiar curated shape stays first when one exists.
+- Added a compact **Chord Search** to Settings → Tools → Chord Finder. Enter a symbol such as `Am7`, `F#m7/C#`, or `Cadd9`; the preferred voicing is loaded directly into the interactive fretboard and small arrows cycle other playable neck positions. Higher-position results automatically bring the relevant seven-fret window into view.
+- Extended the existing voicing generator to retain the best candidate from different neck positions instead of only one global winner. Exact duplicate grips are removed, generated results are cached per canonical chord symbol, and curated first-choice shapes remain the primary result.
+- Added localized search/voicing-navigation strings to all four interface language packs and a regression test validating multiple distinct, musically correct voicings for common/open/barre/slash/extended chord examples.
+
+## v5.0.11-alpha
+
+- Moved the Chord Finder **visible fret range** and **selected-note marker** controls out of the main fretboard panel and into the existing kebab menu, keeping the normal tool visually focused on the neck itself.
+- Changed the default selected-note marker mode from **Note** to **Hide**. Existing installs that only inherited the old default `Note` value migrate once to `Hide`; explicit `Finger`/`Hide` choices are preserved.
+- Fret-range and marker changes still apply immediately while the kebab remains open, and all previous range/barre/chord behavior is unchanged.
+
+## v5.0.10-alpha
+
+- **Barre re-expansion regression fixed:** an explicitly selected barre now remembers its original intended string span separately from the temporarily drawable span. If an endpoint is removed while editing, the visible barre may shrink, but restoring that endpoint expands the same barre again instead of permanently losing part (or all) of the F/Bm-style barre in the finder and Presentation Mode.
+- The previous ghost-barre fix remains intact: once no note is physically held by the barre at its fret, the active barre is removed and no stale background capsule is rendered.
+- Added a dedicated regression test covering full F-barre shaping, temporary endpoint removal/restoration from both sides, Presentation Mode full-span rendering, and final ghost-state cleanup.
 
 ## v5.0.9-alpha
 

@@ -55,6 +55,7 @@ const CORE_SHELL = [
   './js/song-sources.js',
   './js/chord-core.js',
   './js/guitar-voicings.js',
+  './js/piano-chords.js',
   './js/chord-finder.js',
   './js/chord-viewer.js',
   './config.js',

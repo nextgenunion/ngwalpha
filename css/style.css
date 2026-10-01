@@ -4110,80 +4110,12 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   box-shadow: var(--shadow-1);
 }
 
-/* Compact normal-view controls. These are intentionally outside presentation
-   mode and use the app's own neutral/accent tokens rather than a new visual
-   language. */
-.cf-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 14px;
-  flex-wrap: wrap;
-  padding: 0 2px 12px;
-}
-.cf-control-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-}
-.cf-control-label {
-  color: var(--ink-faint);
-  font-size: 0.76rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-.cf-range-dash { color: var(--ink-faint); }
-.cf-select-wrap {
-  display: inline-flex;
-  align-items: center;
-}
-.cf-select-wrap select {
-  min-width: 50px;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 0 22px 0 9px;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.cf-select-wrap select:focus-visible,
-.cf-segment button:focus-visible,
+/* Display preferences moved to the Chord Finder kebab menu in v5.0.11. */
 .cf-fret-number:focus-visible,
 .cf-cell:focus-visible,
 .cf-string-toggle:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.cf-segment {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
-}
-.cf-segment button {
-  border: 0;
-  border-radius: 7px;
-  min-height: 27px;
-  padding: 0 9px;
-  background: transparent;
-  color: var(--ink-faint);
-  font: inherit;
-  font-size: 0.74rem;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background-color 0.14s ease, color 0.14s ease;
-}
-.cf-segment button.is-active {
-  background: var(--accent-tint);
-  color: var(--accent-strong);
 }
 
 /* All visible frets always fit inside the panel. No horizontal scrollbar is
@@ -4521,16 +4453,12 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 @media (max-width: 560px) {
   #page-chord-finder { --cf-label-w: 27px; --cf-row-h: 39px; }
   .cf-panel { padding-left: 7px; padding-right: 7px; }
-  .cf-controls { gap: 7px 10px; padding-left: 0; padding-right: 0; }
-  .cf-control-label { display: none; }
-  .cf-select-wrap select { min-width: 45px; height: 30px; padding-left: 7px; padding-right: 18px; }
-  .cf-segment button { padding-left: 7px; padding-right: 7px; }
   .cf-string-toggle { font-size: 0.70rem; }
   .cf-toolbar { align-items: center; }
   .cf-result { min-height: 150px; padding-left: 10px; padding-right: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cf-dot, .cf-segment button { transition: none; }
+  .cf-dot { transition: none; }
 }
 
 /* ----------------------------------------------------------
@@ -4713,3 +4641,308 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 @media (min-width: 560px) {
   .modal-card[data-modal-variant="chord-viewer"] { margin: 12px; }
 }
+
+/* v5.0.11 — Chord Finder display controls live in the kebab menu so the
+   normal tool stays focused on the fretboard. These override the generic
+   kebab button rules only inside this one menu. */
+#cf-kebab-dropdown { min-width: 232px; }
+#cf-kebab-dropdown .cf-menu-primary { border-bottom: 1px solid var(--line); }
+#cf-kebab-dropdown .cf-menu-settings {
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 11px;
+}
+#cf-kebab-dropdown .cf-menu-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+#cf-kebab-dropdown .cf-menu-label {
+  color: var(--ink-faint);
+  font-size: .76rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#cf-kebab-dropdown .cf-menu-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-faint);
+}
+#cf-kebab-dropdown .cf-menu-range select {
+  width: 50px;
+  height: 31px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+}
+#cf-kebab-dropdown .cf-menu-range select:focus-visible,
+#cf-kebab-dropdown .cf-menu-segment button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#cf-kebab-dropdown .cf-menu-segment {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+}
+#cf-kebab-dropdown .cf-menu-segment button {
+  display: block;
+  width: auto;
+  min-height: 27px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: .72rem;
+  font-weight: 650;
+  color: var(--ink-faint);
+  text-align: center;
+}
+#cf-kebab-dropdown .cf-menu-segment button.is-active {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+
+/* v5.0.12 — compact chord search + alternate voicing navigation. */
+.cf-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0 0 12px;
+}
+.cf-search-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--ink) 6%);
+  overflow: hidden;
+}
+.cf-search-main:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 66%, var(--line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.cf-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  padding: 0 11px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: .88rem;
+}
+.cf-search-input::placeholder { color: var(--ink-faint); }
+.cf-search-submit {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.cf-search-submit svg { width: 17px; height: 17px; }
+.cf-search-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.cf-search-nav[hidden] { display: none; }
+.cf-search-arrow,
+.song-chord-viewer-arrow {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.cf-search-arrow:hover,
+.song-chord-viewer-arrow:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cf-search-arrow:disabled { opacity: .3; cursor: default; }
+.cf-search-count,
+.song-chord-viewer-count {
+  min-width: 34px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.cf-search-status {
+  grid-column: 1 / -1;
+  min-height: 1em;
+  margin-top: -2px;
+  color: var(--ink-faint);
+  font-size: .72rem;
+  line-height: 1.2;
+}
+.cf-search-status:empty { display: none; }
+
+.song-chord-viewer {
+  flex-direction: column;
+  gap: 2px;
+}
+.song-chord-viewer-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: -2px;
+  padding: 1px 3px;
+  border-radius: 999px;
+}
+.song-chord-viewer-arrow {
+  width: 28px;
+  height: 28px;
+  font-size: 1.28rem;
+}
+.song-chord-viewer-count { min-width: 30px; font-size: .69rem; }
+
+@media (max-width: 520px) {
+  .cf-search { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .cf-search-main { grid-template-columns: minmax(0, 1fr) 36px; }
+  .cf-search-input { height: 36px; font-size: .84rem; }
+  .cf-search-submit { width: 36px; height: 36px; }
+  .cf-search-nav { min-height: 36px; }
+}
+
+/* ==========================================================
+   v5.0.13 — Chord Finder piano mode
+   Instrument switch + two-octave keyboard (interactive + Presentation).
+   Keys use fixed ivory/ebony colours so the keyboard reads as a piano in
+   both themes; only the pressed state follows the chosen accent.
+   ========================================================== */
+.cf-instrument {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.cf-instrument[hidden] { display: none; }
+.cf-instrument .seg-toggle-btn {
+  padding: 6px 18px;
+  font-size: .8rem;
+}
+
+.cf-piano {
+  /* One black key is ~62% of a white key; the unit is the keys' own width. */
+  --cf-black-w: calc(100% / var(--cf-white-count, 14) * 0.62);
+  padding: 2px 0 0;
+}
+.cf-keys {
+  position: relative;
+  display: flex;
+  height: clamp(150px, 42vw, 200px);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.cf-key {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0;
+  padding: 0 0 8px;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .12s ease, transform .12s var(--press-ease-soft, ease);
+}
+.cf-key:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  z-index: 4;
+}
+.cf-key-label {
+  font-size: clamp(.58rem, 1.6vw, .72rem);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -.02em;
+  pointer-events: none;
+}
+.cf-key-label.cf-key-hint { font-weight: 600; opacity: .55; }
+
+.cf-key-white {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  background: #fbfaf7;
+  border: 1px solid #c4bfc8;
+  border-radius: 0 0 7px 7px;
+  color: #7d7884;
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .05);
+}
+.cf-key-white + .cf-key-white { margin-left: -1px; }
+.cf-key-white.cf-on {
+  z-index: 1;
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  color: var(--paper);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12);
+}
+
+.cf-key-black {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  width: var(--cf-black-w);
+  height: 62%;
+  padding-bottom: 7px;
+  border: 0;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(#34303a, #242128);
+  color: #cfcad4;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .35), inset 0 -4px 0 rgba(255, 255, 255, .07);
+}
+.cf-key-black .cf-key-label { font-size: clamp(.5rem, 1.4vw, .62rem); }
+.cf-key-black.cf-on {
+  background: color-mix(in srgb, var(--accent) 78%, #000);
+  color: #fff;
+}
+.cf-key:active { transform: translateY(1px); }
+@media (hover: hover) {
+  .cf-key-white:not(.cf-on):hover { background: color-mix(in srgb, var(--accent) 12%, #fbfaf7); }
+}
+
+/* Presentation Mode keyboard (SVG). */
+.cf-present-stage.is-piano { width: min(100%, 760px); }
+.cf-piano-diagram { width: min(100%, 760px); }
+.cf-pd-white { fill: #fbfaf7; stroke: #2b2830; stroke-width: 2; }
+.cf-pd-white.is-on { fill: var(--accent); }
+.cf-pd-black { fill: #2b2830; stroke: #2b2830; stroke-width: 2; }
+.cf-pd-black.is-on { fill: color-mix(in srgb, var(--accent) 78%, #000); }
+.cf-pd-label {
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+.cf-pd-label.is-white { fill: var(--paper); }
+.cf-pd-label.is-black { fill: #fff; }
