@@ -59,7 +59,7 @@
      is built for continuous multi-script paragraph reading (including
      Cyrillic from the ground up, not bolted on) — closer to what a full
      screen of Mongolian Cyrillic lyric text actually is. See .lyric-word
-     below for the variable weight choice (430 for Normal). */
+     below for the variable weight choice (420 for Normal). */
   --font-lyrics: 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
@@ -728,7 +728,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
 #search-input:focus, .search-field:focus,
 #search-input:focus-visible, .search-field:focus-visible { outline: none; box-shadow: none; }
 
-/* Quiet frosted track beneath search; fixed space prevents layout shifts. */
+/* Quiet progress track beneath search; fixed space prevents layout shifts. */
 .song-sync-progress {
   position: relative;
   height: 3px;
@@ -742,10 +742,8 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
 }
 .song-sync-progress.is-active {
   opacity: .68;
-  background: color-mix(in srgb, var(--paper) 44%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-strong) 11%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .song-sync-progress-bar {
   position: absolute;
@@ -1461,140 +1459,17 @@ html[data-theme="dark"] .scroll-index-bubble {
 #sv-favorite-btn, #sv-menu-btn { width: 34px; height: 34px; }
 #sv-favorite-btn svg, #sv-menu-btn svg { width: 18px; height: 18px; }
 
-/* Immersive song-view header (see index.html: .sv-header-immersive) — a
-   tinted card instead of a plain bar. Back/heart/kebab float as their own
-   circles in a top row; title/artist/number sit inside the tint below,
-   full width and centered. Scoped to this modifier class only, so the
-   plain .song-view-header used by playlist-view, dev-options, the song
-   editor, etc. is untouched. */
-/* No flat card background/border-radius here on purpose: .page already
-   paints its own radial-gradient wash behind this header (see .page
-   above), and that gradient varies smoothly across the screen. A flat
-   --accent-tint fill on this header used to sit on top of it as its own
-   separate block, so the header's edges showed up as a visible seam
-   against the page's gradient instead of blending into it. What replaces
-   it is a soft glass wash (see ::before below) that fades to fully
-   transparent by the title, rather than a solid tint with a hard edge. */
+/* Immersive song-view header. The page background itself provides the
+   visual continuity; the header intentionally has no translucent/glass
+   layer so controls and title sit directly on the app surface. */
 .sv-header-immersive {
   position: relative;
-  /* Own stacking context so ::before below (z-index: -1) is guaranteed to
-     paint above .page's gradient but below the icon buttons/title, which
-     are ordinary in-flow children with the default z-index: auto. */
-  /* Higher than the lyrics card below so the song-view kebab menu can
-     fully overlay the page content instead of slipping underneath the
-     chord sheet on long menus. Still non-zero, so this remains its own
-     stacking context for the ::before glass wash. */
   z-index: 20;
   flex-direction: column;
   align-items: stretch;
   gap: 0;
   padding: calc(env(safe-area-inset-top) + 14px) 2px 18px;
   margin: 0;
-}
-/* Cinematic glass wash behind the back/heart/kebab row, standing in for
-   the plain "Дууны ном" bar that used to live here. Two things have to
-   fade together, not just one, or this reads as a bar with an edge again
-   instead of a dissolve:
-     - the tint (background: a gradient going to fully transparent) —
-       without this the frosted color itself would stop with a visible
-       line
-     - the blur strength itself (mask-image, same gradient shape) — glass
-       effects apply backdrop-filter across their whole box uniformly, so
-       even with a transparent tint at the bottom, the *blur* would still
-       cut off exactly at this box's bottom edge and read as a seam.
-       Masking the element with the same top-to-bottom fade tapers the
-       blur intensity along with the tint, so both hit zero together and
-       the effect genuinely dissolves into .page's own gradient rather
-       than stopping.
-   Tinted with var(--paper) here — the default, subtler look (a plain
-   frosted-white glass). A colored variant tried in its place (mixing in
-   --accent-tint) turned out invisible in practice: even leaned heavily
-   toward --paper it stayed close in lightness to .page's own
-   top-of-screen gradient, so one pale wash sat on another with no
-   visible edge. Rather than keep chasing a colored blend that reads at
-   every accent color, the vivid alternative below goes back to raw
-   --accent instead (unmistakably visible, just tuned down from its first
-   pass) and is offered as an opt-in toggle rather than forced on
-   everyone — see the [data-vivid-glass] rule and Developer options'
-   "Vivid song header glass" switch. Dark mode has its own override
-   further down either way: --accent-tint there is a dark, muted color
-   (right for the old flat card, wrong for a glow), so dark mode always
-   tints with a low-strength raw --accent wash regardless of the vivid
-   toggle, which only affects light mode.
-   Tall and slow to fade on purpose: this stands in for the app's actual
-   top bar now, so it should read as one continuous surface that carries
-   past the icon row and only finishes dissolving right around the title —
-   not a small blur confined to the icons with a hard gap of plain
-   background before the title starts. Sized off
-   env(safe-area-inset-top) so it scales with the notch/status-bar height
-   instead of a fixed guess. Purely decorative (pointer-events: none) so
-   it never intercepts taps meant for the back/heart/kebab buttons
-   floating in front of it. */
-.sv-header-immersive::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
-  height: calc(env(safe-area-inset-top) + 210px);
-  z-index: -1;
-  pointer-events: none;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--paper) 55%, transparent) 0%,
-    color-mix(in srgb, var(--paper) 32%, transparent) 32%,
-    color-mix(in srgb, var(--paper) 10%, transparent) 60%,
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
-  mask-image: linear-gradient(to bottom, black 0%, black 30%, transparent 78%);
-}
-/* Vivid variant (light mode only — see the comment above and Developer
-   options' "Vivid song header glass" switch, off/--paper by default).
-   This is the original raw-accent recipe, carried over unchanged, with
-   one adjustment: a `filter` (not part of the original) nudges it down
-   in saturation and up in brightness slightly, so the colored wash reads
-   as a little softer/lighter without going back to redoing the color-mix
-   percentages by hand. `filter` here applies to this element's own
-   rendered output (gradient + blur together), which is the right tool
-   for a blanket saturation/brightness nudge — unlike `backdrop-filter`,
-   which would only affect what's blurred *behind* the element, not the
-   tint painted on top of it.
-   Scoped with html[data-theme="light"] (not just a bare attribute
-   selector) so it can never end up competing with the dark-mode override
-   below on specificity/source order — the two are mutually exclusive by
-   theme, so whichever theme is active is unambiguous regardless of which
-   rule appears later in the file. */
-html[data-theme="light"][data-vivid-glass] .sv-header-immersive::before {
-  filter: saturate(88%) brightness(1.08);
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--accent) 40%, transparent) 0%,
-    color-mix(in srgb, var(--accent) 24%, transparent) 32%,
-    color-mix(in srgb, var(--accent) 9%, transparent) 60%,
-    transparent 100%
-  );
-}
-/* Dark mode override: low-strength --accent tint instead of --paper (see
-   comment above), and deliberately kept faint — an earlier pass at this
-   used the same percentages as the light-mode --paper recipe just above,
-   which came through as a glowing, oversaturated wash against dark
-   mode's near-black page. These percentages are roughly half that, tuned
-   down until the color reads as a subtle theme-matching cast rather than
-   a bright highlight. Applies regardless of the vivid toggle — that
-   switch only affects light mode (see the [data-vivid-glass] rule
-   above), since dark mode's tint already reads clearly on its own. */
-html[data-theme="dark"] .sv-header-immersive::before {
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--accent) 20%, transparent) 0%,
-    color-mix(in srgb, var(--accent) 12%, transparent) 32%,
-    color-mix(in srgb, var(--accent) 4%, transparent) 60%,
-    transparent 100%
-  );
 }
 .sv-header-top { display: flex; align-items: center; justify-content: space-between; }
 /* Presentation mode — toggled from the song view's "…" menu (see
@@ -2287,7 +2162,7 @@ html[data-hide-chords="true"] .lyric-line {
   font-size: var(--lyrics-size);
   color: var(--ink);
   font-family: var(--font-lyrics);
-  font-weight: 430;
+  font-weight: 420;
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
@@ -2300,9 +2175,9 @@ html[data-hide-chords="true"] .lyric-line {
 }
 /* Lyrics style (Settings → Appearance → Lyrics style): exact weights are
    available because Noto Sans is loaded as a variable font. Chords, chrome,
-   and everything else are untouched. "Normal" is the 430 above. */
+   and everything else are untouched. "Normal" is the 420 above. */
 html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 500; }
-html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
+html[data-lyrics-weight="bold"] .lyric-word { font-weight: 600; }
 .lyric-md-italic { font-style: italic; }
 .lyric-md-bold { font-weight: 650; }
 .lyric-md-bold-italic { font-weight: 650; font-style: italic; }
@@ -2332,10 +2207,8 @@ html[data-lyrics-weight="bold"] .lyric-word { font-weight: 650; }
 /* ---------- settings ---------- */
 .settings-section {
   margin-top: 20px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   overflow: hidden;
   box-shadow: var(--shadow-1);
@@ -2474,9 +2347,7 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   z-index: 15;
   padding: 10px 18px calc(env(safe-area-inset-bottom) + 10px);
   text-align: center;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  background: var(--paper);
   border-top: 1px solid var(--line);
 }
 /* The page's own scrollable content needs its bottom padding increased by
@@ -2798,10 +2669,8 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   left: 0; right: 0; bottom: 0;
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--surface) 42%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
   z-index: 20;
 }
 .bottom-nav:not([hidden]) { display: flex; }
@@ -2958,10 +2827,8 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
   left: 50%;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--ink) 62%, transparent);
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-  border: 1px solid color-mix(in srgb, var(--paper) 16%, transparent);
+  background: var(--ink);
+  border: 1px solid var(--ink);
   color: var(--paper);
   font-size: 0.85rem;
   padding: 10px 18px;
@@ -3018,16 +2885,9 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   flex-shrink: 0;
 }
 html[data-theme="dark"] .toast {
-  background: color-mix(in srgb, var(--accent) 62%, transparent);
-  border-color: color-mix(in srgb, var(--paper-dim) 16%, transparent);
+  background: var(--accent);
+  border-color: var(--accent);
   color: var(--paper-dim);
-}
-/* backdrop-filter is unsupported on a handful of old Android WebViews —
-   fall back to the flat solid fill (still fully legible) in that case
-   rather than a broken half-transparent look. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .toast { background: var(--ink); }
-  html[data-theme="dark"] .toast { background: var(--accent); }
 }
 
 /* ---------- focus & motion ---------- */
@@ -3415,9 +3275,7 @@ html[data-theme="dark"] .btn-pill-done {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 18px calc(env(safe-area-inset-bottom) + 12px);
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  background: var(--paper);
   border-top: 1px solid var(--line);
 }
 .trash-select-bar[hidden] { display: none; }
@@ -4950,44 +4808,26 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .cf-pd-label.is-black { fill: #fff; }
 
 /* ==========================================================
-   v5.0.14 — Song chord popup instrument switch
-   Thin two-option selector matching the app's segmented-control language,
-   deliberately smaller than the full database picker. Piano diagrams reuse
-   the Chord Finder Presentation renderer and get a little more horizontal
-   room so fourteen white keys remain readable inside the compact card.
+   Song chord popup instrument switch
+   Reuses the same .seg-toggle + sliding .seg-toggle-thumb component as
+   the database selector and Chord Finder. Only the dimensions are
+   compacted for the small viewer card.
    ========================================================== */
-.song-chord-viewer-instrument {
+.song-chord-viewer-instrument.seg-toggle {
   width: min(100%, 188px);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
   margin: 0 auto 4px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  flex-shrink: 0;
 }
-.song-chord-viewer-instrument-btn {
+.song-chord-viewer-instrument .seg-toggle-btn {
+  flex: 1 1 0;
   min-width: 0;
   min-height: 27px;
-  border: 0;
-  border-radius: 7px;
-  padding: 3px 12px;
-  background: transparent;
-  color: var(--ink-soft);
-  font: inherit;
+  padding: 4px 10px;
   font-size: .72rem;
   font-weight: 650;
-  line-height: 1.1;
-  cursor: pointer;
-  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+  text-align: center;
 }
-.song-chord-viewer-instrument-btn[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--paper);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 28%, transparent);
-}
-.song-chord-viewer-instrument-btn:focus-visible {
+.song-chord-viewer-instrument .seg-toggle-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

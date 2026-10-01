@@ -56,23 +56,26 @@
       let pianoBtn = null;
       if (hasInstrumentSwitch) {
         const switcher = document.createElement('div');
-        switcher.className = 'song-chord-viewer-instrument';
+        switcher.className = 'song-chord-viewer-instrument seg-toggle';
         switcher.setAttribute('role', 'group');
         switcher.setAttribute('aria-label', typeof instrumentText === 'function' ? instrumentText() : 'Instrument');
 
         guitarBtn = document.createElement('button');
         guitarBtn.type = 'button';
-        guitarBtn.className = 'song-chord-viewer-instrument-btn';
+        guitarBtn.className = 'song-chord-viewer-instrument-btn seg-toggle-btn';
         guitarBtn.textContent = guitarText();
         guitarBtn.dataset.instrument = 'guitar';
 
         pianoBtn = document.createElement('button');
         pianoBtn.type = 'button';
-        pianoBtn.className = 'song-chord-viewer-instrument-btn';
+        pianoBtn.className = 'song-chord-viewer-instrument-btn seg-toggle-btn';
         pianoBtn.textContent = pianoText();
         pianoBtn.dataset.instrument = 'piano';
 
-        switcher.append(guitarBtn, pianoBtn);
+        const thumb = document.createElement('div');
+        thumb.className = 'seg-toggle-thumb';
+        thumb.setAttribute('aria-hidden', 'true');
+        switcher.append(guitarBtn, pianoBtn, thumb);
         body.appendChild(switcher);
       }
 
@@ -179,6 +182,9 @@
         body.className = `song-chord-viewer is-${instrument}`;
         if (guitarBtn) guitarBtn.setAttribute('aria-pressed', String(instrument === 'guitar'));
         if (pianoBtn) pianoBtn.setAttribute('aria-pressed', String(instrument === 'piano'));
+        if (hasInstrumentSwitch && typeof window.positionSegToggleThumb === 'function') {
+          window.positionSegToggleThumb(body.querySelector('.song-chord-viewer-instrument'));
+        }
         voicings = (getVoicings(symbol, instrument) || []).filter(v => v && v.svg);
         index = 0;
         paint({ animate });
@@ -195,6 +201,12 @@
 
       setInstrument(instrument, { animate: false });
       openModal(symbol, body, { variant: 'chord-viewer' });
+      if (hasInstrumentSwitch && typeof window.positionSegToggleThumb === 'function') {
+        requestAnimationFrame(() => window.positionSegToggleThumb(
+          body.querySelector('.song-chord-viewer-instrument'),
+          { instant: true }
+        ));
+      }
     }
 
     function activate(target) {

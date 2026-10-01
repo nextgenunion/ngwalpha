@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.16-alpha)
+# Next Gen Worship — Worship Song App (v5.0.20-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,25 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.20-alpha
+
+- Reduced the user-selectable **Bold lyrics weight from 650 to 600**. Default remains 420 and Semibold remains 500. Inline Markdown `**bold**` emphasis keeps its stronger 650 weight so authored emphasis is still visually distinct from the global lyrics-weight preference.
+
+## v5.0.19-alpha
+
+- Reduced the default **lyrics font weight from 430 to 420**. Semibold (500) and Bold (650) options are unchanged.
+
+## v5.0.18-alpha
+
+- The **Guitar / Piano switch in the song chord viewer now reuses the exact same segmented-control component as the song-database selector and Chord Finder**, including the shared sliding thumb, active fill colour, border geometry and motion timing. Only its height/padding remain intentionally more compact for the small popup.
+- Instrument switching still keeps the existing smooth diagram/height transition; the selector thumb now slides independently at the same time instead of abruptly swapping button backgrounds.
+
+## v5.0.17-alpha
+
+- Removed glassmorphism from the main application surfaces. Bottom navigation, Settings cards, the song header, About/legal footer, Trash selection bar, sync progress indicator, and toast now use solid theme surfaces instead of translucent blur.
+- The fast-scroll index bubble is intentionally the only remaining glass/`backdrop-filter` treatment, keeping the effect limited to the transient scrollbar feedback where seeing the list moving underneath is useful.
+- Removed the obsolete Developer option for the vivid song-header glass variant, including its markup, state, translations, and CSS.
 
 ## v5.0.16-alpha
 
