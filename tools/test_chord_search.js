@@ -4,7 +4,7 @@ ctx.window=ctx;ctx.window.t=k=>k;
 ctx.document={getElementById(){return null},querySelectorAll(){return []},createElement(){return {}}};
 for(const f of ['chord-core.js','guitar-voicings.js']) vm.runInNewContext(fs.readFileSync(__dirname+'/../js/'+f,'utf8'),ctx);
 let src=fs.readFileSync(__dirname+'/../js/chord-finder.js','utf8');
-const marker='window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings });';
+const marker='window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });';
 src=src.replace(marker, 'window.__CF_SEARCH=Search;window.__CF_STATE=State;window.__CF_PREFS=Prefs;window.__CF_VIEW=View;window.__CF_MENU=Menu;'+marker);
 vm.runInNewContext(src,ctx);
 const S=ctx.__CF_SEARCH,State=ctx.__CF_STATE,V=ctx.__CF_VIEW,M=ctx.__CF_MENU;

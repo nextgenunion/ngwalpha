@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.13-alpha)
+# Next Gen Worship — Worship Song App (v5.0.14-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,12 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+## v5.0.14-alpha
+
+- The **song chord popup now switches between Guitar and Piano** with a thin two-option segmented control that follows the app's existing selector design language without taking the height of the full database selector. Guitar remains the initial default; the musician's choice is remembered for later chord taps during the current app session.
+- Piano popup diagrams reuse the **same two-octave Presentation renderer and `PianoChords` voicing engine** already used by Chord Finder, so no duplicate chord-image library or second piano rendering system was introduced. The existing little ‹ › voicing arrows now cycle guitar positions or piano inversions depending on the selected instrument.
+- Added a pure `ChordFinder.getPianoChordVoicings()` popup API and extended the chord-viewer regression tests to cover instrument switching, voicing-counter reset, piano inversion navigation, and the shared Presentation-style SVG output.
 
 ## v5.0.13-alpha
 

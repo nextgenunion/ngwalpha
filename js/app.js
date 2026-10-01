@@ -4885,10 +4885,15 @@ function bindChordViewer() {
   window.SongChordViewer.bind({
     rootId: 'lyrics-container',
     openModal,
-    renderVoicings: symbol => window.ChordFinder.getChordVoicings(symbol, 5),
+    renderVoicings: (symbol, instrument) => instrument === 'piano'
+      ? window.ChordFinder.getPianoChordVoicings(symbol, 4)
+      : window.ChordFinder.getChordVoicings(symbol, 5),
     unavailableText: () => t('chordViewerUnavailable'),
     previousVoicingText: () => t('cfPreviousVoicing'),
     nextVoicingText: () => t('cfNextVoicing'),
+    guitarText: () => t('cfGuitar'),
+    pianoText: () => t('cfPiano'),
+    instrumentText: () => t('cfInstrument'),
   });
 }
 

@@ -69,7 +69,7 @@ check(P.voicings('not-a-chord').length === 0, 'invalid symbol => no voicings');
 
 // 6. Chord Finder wiring (analysis + search) for the piano instrument.
 let src = fs.readFileSync(__dirname + '/../js/chord-finder.js', 'utf8');
-const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings });';
+const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });';
 if (!src.includes(marker)) { console.log('FAIL export marker missing'); process.exit(1); }
 src = src.replace(marker, 'window.__CF={Search,Prefs,View,Menu,PianoState,analyze,Presentation};' + marker);
 vm.runInNewContext(src, ctx);
@@ -102,5 +102,9 @@ check(on === 4 && (svg.match(/<rect/g) || []).length === 24, 'presentation keybo
 check((svg.match(/cf-pd-label/g) || []).length === 4, 'presentation shows note names for pressed keys');
 CF.Prefs.pianoLabels = 'hide';
 check(!/cf-pd-label/.test(CF.Presentation.pianoSvg([0, 4, 7])), 'presentation hides names when marker is Hide');
+
+const popupPiano = ctx.ChordFinder.getPianoChordVoicings('C', 4);
+check(popupPiano.length === 3 && popupPiano.every(v => /cf-piano-diagram/.test(v.svg)), 'public piano popup API returns Presentation-style root + inversions');
+check(popupPiano[0].keys.join(',') === '0,4,7', 'piano popup API keeps root position first for C');
 
 if (failed) process.exit(1);

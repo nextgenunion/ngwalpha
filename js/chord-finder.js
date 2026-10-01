@@ -1406,6 +1406,18 @@
     }).filter(Boolean);
   }
 
+  function getPianoChordVoicings(symbol, limit = 4) {
+    if (!Piano) return [];
+    const parsed = Core.parse(symbol);
+    if (!parsed) return [];
+    return Piano.voicings(parsed, limit).map(voicing => ({
+      svg: Presentation.pianoSvg(voicing.keys),
+      keys: voicing.keys.slice(),
+      label: voicing.label || 'root',
+      source: 'piano',
+    })).filter(item => item.svg);
+  }
+
   function diagramForChord(symbol) {
     return getChordVoicings(symbol, 1)[0] || null;
   }
@@ -1672,5 +1684,5 @@
 
   function isPresenting() { return Presentation.active; }
 
-  window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings });
+  window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });
 })();

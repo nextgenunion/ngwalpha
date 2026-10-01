@@ -4946,3 +4946,50 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 }
 .cf-pd-label.is-white { fill: var(--paper); }
 .cf-pd-label.is-black { fill: #fff; }
+
+/* ==========================================================
+   v5.0.14 — Song chord popup instrument switch
+   Thin two-option selector matching the app's segmented-control language,
+   deliberately smaller than the full database picker. Piano diagrams reuse
+   the Chord Finder Presentation renderer and get a little more horizontal
+   room so fourteen white keys remain readable inside the compact card.
+   ========================================================== */
+.song-chord-viewer-instrument {
+  width: min(100%, 188px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 0 auto 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.song-chord-viewer-instrument-btn {
+  min-width: 0;
+  min-height: 27px;
+  border: 0;
+  border-radius: 7px;
+  padding: 3px 12px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 650;
+  line-height: 1.1;
+  cursor: pointer;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.song-chord-viewer-instrument-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--paper);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.song-chord-viewer-instrument-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.song-chord-viewer.is-piano .song-chord-viewer-diagram .cf-piano-diagram {
+  width: min(100%, 320px);
+  max-height: 150px;
+}
