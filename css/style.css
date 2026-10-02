@@ -93,6 +93,7 @@
   --radius-s: 8px;
   --radius-m: 14px;
   --radius-l: 22px;
+  --radius-pill: 999px; /* canonical capsule geometry */
 
   /* "Lip" press feedback for real buttons (icon buttons, the transpose
      +/- chips, primary CTA, the sort/segmented toggles): a solid
@@ -803,7 +804,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   font-size: 0.82rem;
   font-weight: 600;
   padding: 7px 13px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   transition: background .15s, color .15s, border-color .15s, transform .08s ease, box-shadow .08s ease;
 }
@@ -1806,7 +1807,7 @@ html[data-theme="dark"] .scroll-index-bubble {
   display: flex;
   position: relative; /* anchors .seg-toggle-thumb below */
   border: 1px solid var(--line);
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-pill);
   padding: 2px;
   background: var(--paper);
   flex-shrink: 0;
@@ -1838,7 +1839,7 @@ html[data-theme="dark"] .scroll-index-bubble {
   position: absolute;
   top: 2px; bottom: 2px; left: 2px;
   width: 0;
-  border-radius: calc(var(--radius-m) - 2px);
+  border-radius: var(--radius-pill);
   background: var(--accent-strong);
   z-index: 0;
   pointer-events: none;
@@ -1848,7 +1849,7 @@ html[data-theme="dark"] .scroll-index-bubble {
      here than the button lip mechanic). Low-contrast and close to the
      pill (small blur, small spread) so it reads as "gently raised
      pastel pill" rather than a heavy drop shadow. */
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent-strong) 35%, transparent);
+  box-shadow: none;
   transition: transform .32s var(--motion-settle), width .32s var(--motion-settle);
 }
 /* Dark mode inverts --accent-strong to a pale text-tint (readable as text
@@ -1868,7 +1869,7 @@ html[data-theme="dark"] .seg-toggle-thumb { background: var(--accent); }
   font-size: 0.72rem;
   font-weight: 600;
   padding: 5px 10px;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-pill);
   cursor: pointer;
   line-height: 1.2;
   transition: color .2s ease;
@@ -2527,7 +2528,7 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   background: var(--ink);
   color: var(--paper);
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 9px 18px;
   font-size: 0.86rem;
   font-weight: 600;
@@ -3099,7 +3100,7 @@ html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"]:active {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 9px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   /* Same lip-collapse family as .btn-primary (see that rule's comment) —
      this used to fall through to the universal scale-pop instead, which
@@ -4757,7 +4758,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   border: 1px solid #c4bfc8;
   border-radius: 0 0 7px 7px;
   color: #7d7884;
-  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .05);
+  box-shadow: none;
 }
 .cf-key-white + .cf-key-white { margin-left: -1px; }
 .cf-key-white.cf-on {
@@ -4765,7 +4766,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   background: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 70%, #000);
   color: var(--paper);
-  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12);
+  box-shadow: none;
 }
 
 .cf-key-black {
@@ -4777,16 +4778,16 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   padding-bottom: 7px;
   border: 0;
   border-radius: 0 0 6px 6px;
-  background: linear-gradient(#34303a, #242128);
+  background-color: #29262f;
   color: #cfcad4;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .35), inset 0 -4px 0 rgba(255, 255, 255, .07);
+  box-shadow: none;
 }
 .cf-key-black .cf-key-label { font-size: clamp(.5rem, 1.4vw, .62rem); }
 .cf-key-black.cf-on {
-  background: color-mix(in srgb, var(--accent) 78%, #000);
+  background-color: color-mix(in srgb, var(--accent) 78%, #000);
   color: #fff;
 }
-.cf-key:active { transform: translateY(1px); }
+.cf-key:active { transform: none; }
 @media (hover: hover) {
   .cf-key-white:not(.cf-on):hover { background: color-mix(in srgb, var(--accent) 12%, #fbfaf7); }
 }
@@ -4840,3 +4841,12 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   .song-chord-viewer-diagram { transition: none; }
   .song-chord-viewer-stage { transition: none; animation: none !important; }
 }
+
+/* v5.0.21 — unified flat pill treatment in dark mode. */
+html[data-theme="dark"] .seg-toggle-thumb,
+html[data-theme="dark"] .sort-btn[aria-pressed="true"],
+html[data-theme="dark"] .btn-primary,
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .btn-pill-done,
+html[data-theme="dark"] .chip-btn { box-shadow: none; }
+html[data-theme="dark"] .sort-btn-tap { animation: none; }

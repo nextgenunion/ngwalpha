@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.20-alpha)
+# Next Gen Worship — Worship Song App (v5.0.21-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -14,6 +14,14 @@ This is the **Version 4.2** line of the planning doc's roadmap, building on
 Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
+
+
+## v5.0.21-alpha
+
+- Audited Piano/Chord Finder UI against the current app design system. Piano keys are flatter while retaining conventional white/black-key recognition and the app accent for selected notes.
+- Fixed black-key click flicker by keeping ebony keys on a transitionable solid `background-color` instead of switching from a gradient background to a solid selected background; removed the overlaid black-key press translation.
+- Added one canonical `--radius-pill` token and applied it to the main pill and segmented-control families so capsule geometry stays consistent.
+- Removed colored/glowing pill shadows in dark mode; selected state now uses fill, border and text contrast.
 
 ## v5.0.20-alpha
 
