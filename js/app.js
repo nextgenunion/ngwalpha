@@ -2474,7 +2474,7 @@ function applyDbSource(sourceKey) {
 // The planning model is intentionally data-driven: the app owns the library,
 // routing, search, swipe viewer, attribution and song-link behavior; the
 // catalog owns only sourceKey + songId + page image URLs. Future scores are
-// added by editing data/sheet-music/manifest.json (and adding local images if
+// added by editing data/sheet-music/catalog.js (and adding local images if
 // desired), not by adding song-specific JS or HTML.
 function isSheetMusicProductionEnabled() {
   const cfg = window.SONGBOOK_APP_CONFIG || {};
@@ -2522,20 +2522,18 @@ function applySheetMusicFeatureUI() {
 
   const toggle = document.getElementById('dev-sheet-music-toggle');
   if (toggle) {
-    toggle.setAttribute('aria-checked', String(enabled));
+    // This switch represents only the separate developer preview toggle.
+    // Unlocking Developer Options never enables Sheet Music by itself.
+    toggle.setAttribute('aria-checked', String(state.devSheetMusic));
     toggle.disabled = production;
   }
 
   const wipBadge = document.getElementById('sheet-music-wip-badge');
   if (wipBadge) wipBadge.hidden = production;
-  const devNote = document.getElementById('sheet-music-dev-note');
-  if (devNote) {
-    devNote.hidden = production;
-    devNote.textContent = t('sheetMusicWipNote');
-  }
-
   if (enabled) {
     ensureSheetMusicCatalog().catch((err) => console.warn('Songbook: sheet music catalog load failed —', err));
+  } else if (state.currentPage === 'sheet-music' || state.currentPage === 'sheet-view') {
+    showPage('songs', { replaceHistory: true, resetScroll: false });
   }
   updateSongSheetMusicButton();
 }
@@ -2868,7 +2866,7 @@ function applyDevOptions() {
   }
 
   const sheetMusicToggle = document.getElementById('dev-sheet-music-toggle');
-  if (sheetMusicToggle) sheetMusicToggle.setAttribute('aria-checked', String(isSheetMusicFeatureEnabled()));
+  if (sheetMusicToggle) sheetMusicToggle.setAttribute('aria-checked', String(state.devSheetMusic));
   applySheetMusicFeatureUI();
 
   const mongolianToggle = document.getElementById('dev-trad-mongolian-toggle');

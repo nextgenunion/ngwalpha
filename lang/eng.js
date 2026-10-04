@@ -327,7 +327,6 @@ window.SONGBOOK_LANG.en = {
   sheetMusicLoadError: "Couldn't load the sheet music library.",
   sheetMusicUnavailable: "Sheet music isn't available for this song.",
   sheetMusicOpen: "Sheet music",
-  sheetMusicWipNote: "WIP preview. Sample scores are demo references, not SDA Hymnal scans. First open may need internet; opened pages are cached for later use.",
   sheetMusicPagePosition: (current, total) => `Page ${current} of ${total}`,
   sheetMusicPreviousPage: "Previous page",
   sheetMusicNextPage: "Next page",

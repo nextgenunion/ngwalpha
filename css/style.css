@@ -2688,6 +2688,11 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   justify-content: space-evenly;
   align-items: center;
 }
+
+/* Author display:flex rules otherwise override the browser's built-in
+   [hidden] display rule. Feature-gated nav/icon controls must stay truly hidden. */
+.nav-btn[hidden],
+.icon-btn[hidden] { display: none; }
 .nav-btn {
   flex: 1 1 0;
   min-width: 0;
@@ -4880,12 +4885,6 @@ html[data-theme="dark"] .sort-btn-tap { animation: none; }
   font-weight: 700;
   letter-spacing: .04em;
   line-height: 1;
-}
-.sheet-music-dev-note {
-  margin: -4px 0 14px;
-  color: var(--ink-soft);
-  font-size: .78rem;
-  line-height: 1.45;
 }
 .sheet-view-inner {
   width: min(100%, 900px);

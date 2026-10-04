@@ -161,7 +161,7 @@
 
 <!-- ===== SHEET MUSIC PAGE (WIP / future-ready) =====
      Hidden behind Settings → Developer options for now. The library itself
-     is data-driven by data/sheet-music/manifest.json; when the feature is
+     is data-driven by data/sheet-music/catalog.js; when the feature is
      production-ready, config.features.sheetMusic can expose this exact page
      without changing its routing/rendering code. -->
 <main id="page-sheet-music" class="page" data-page="sheet-music" hidden>
@@ -172,8 +172,6 @@
       <span id="sheet-music-wip-badge" class="wip-badge">WIP</span>
     </div>
   </header>
-
-  <p id="sheet-music-dev-note" class="sheet-music-dev-note"></p>
 
   <div class="search-bar">
     <svg class="search-icon" data-icon="search" viewBox="0 0 24 24" aria-hidden="true"></svg>
@@ -1029,6 +1027,7 @@
 <script src="js/piano-chords.js" defer></script>
 <script src="js/chord-finder.js" defer></script>
 <script src="js/chord-viewer.js" defer></script>
+<script src="data/sheet-music/catalog.js" defer></script>
 <script src="js/sheet-music.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>

@@ -68,6 +68,7 @@ const CORE_SHELL = [
   './js/piano-chords.js',
   './js/chord-finder.js',
   './js/chord-viewer.js',
+  './data/sheet-music/catalog.js',
   './js/sheet-music.js',
   './config.js',
   './lang/config.js',
@@ -186,16 +187,6 @@ self.addEventListener('install', (event) => {
           await offlineCache.add('./offline.html');
         } catch (err) {
           console.warn('Songbook SW: redundant offline fallback cache failed —', err);
-        }
-
-        // The tiny sheet-music catalog is data, not UI code, so seed it into
-        // the stable data cache. Runtime requests remain network-first and can
-        // update this copy without an app release.
-        try {
-          const dataCache = await caches.open(SONGDATA_CACHE);
-          await dataCache.add('./data/sheet-music/manifest.json');
-        } catch (err) {
-          console.warn('Songbook SW: could not seed Sheet Music catalog —', err);
         }
       })
       .then(() => self.skipWaiting())

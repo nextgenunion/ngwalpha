@@ -322,7 +322,6 @@ window.SONGBOOK_LANG.kr = {
   sheetMusicLoadError: "악보 라이브러리를 불러오지 못했습니다.",
   sheetMusicUnavailable: "이 곡의 악보가 없습니다.",
   sheetMusicOpen: "악보",
-  sheetMusicWipNote: "WIP 미리보기입니다. 샘플 악보는 SDA 찬미가 스캔본이 아닙니다. 처음 열 때 인터넷이 필요할 수 있습니다.",
   sheetMusicPagePosition: (current, total) => `${current} / ${total}`,
   sheetMusicPreviousPage: "이전 페이지",
   sheetMusicNextPage: "다음 페이지",

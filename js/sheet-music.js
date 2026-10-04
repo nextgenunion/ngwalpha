@@ -1,15 +1,13 @@
 // ============================================================================
 // Sheet Music catalog — data-only registry for the WIP/future sheet-music
 // feature. UI lives in app.js; adding songs/pages later only requires editing
-// data/sheet-music/manifest.json and adding/referencing page image assets.
+// data/sheet-music/catalog.js and adding/referencing page image assets.
 // ============================================================================
 (function () {
   'use strict';
 
-  const MANIFEST_URL = './data/sheet-music/manifest.json';
   const SUPPORTED_SCHEMA_VERSION = 1;
   let catalog = null;
-  let loadPromise = null;
 
   function asText(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -86,21 +84,12 @@
     return Object.freeze({ schemaVersion: raw.schemaVersion, entries: Object.freeze(entries) });
   }
 
-  async function load(opts = {}) {
-    const { force = false } = opts;
-    if (catalog && !force) return catalog;
-    if (loadPromise && !force) return loadPromise;
-    loadPromise = fetch(MANIFEST_URL, { cache: force ? 'reload' : 'default' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Sheet Music: catalog responded ${res.status}`);
-        return res.json();
-      })
-      .then((raw) => {
-        catalog = normalizeManifest(raw);
-        return catalog;
-      })
-      .finally(() => { loadPromise = null; });
-    return loadPromise;
+  async function load() {
+    if (catalog) return catalog;
+    const raw = window.NGW_SHEET_MUSIC_CATALOG;
+    if (!raw) throw new Error('Sheet Music: catalog data is unavailable');
+    catalog = normalizeManifest(raw);
+    return catalog;
   }
 
   function list(sourceKey) {
@@ -118,7 +107,6 @@
   }
 
   window.SheetMusicCatalog = Object.freeze({
-    manifestUrl: MANIFEST_URL,
     schemaVersion: SUPPORTED_SCHEMA_VERSION,
     load,
     list,

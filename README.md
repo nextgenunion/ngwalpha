@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.24-alpha)
+# Next Gen Worship — Worship Song App (v5.0.25-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -16,6 +16,15 @@ work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
 
 
+
+## v5.0.25-alpha
+
+- Fixed Sheet Music feature gating: the bottom-nav tab and song-view button now obey `[hidden]` even though their shared component classes use `display:flex`.
+- Sheet Music remains OFF when Developer Options is unlocked. It has its own independent `Sheet Music (WIP)` switch, OFF by default each session.
+- Replaced the runtime-fetched Sheet Music manifest with a static data registry (`data/sheet-music/catalog.js`), eliminating the catalog fetch failure while keeping score data separate from UI/routing code.
+- Removed the WIP preview/sample-network description from the Sheet Music page.
+- Song-view Sheet Music button now remains invisible for songs with no catalog entry; only catalog-backed songs expose it.
+- Disabling Sheet Music while inside its library/viewer immediately returns to Songs and closes the gated surface.
 
 ## v5.0.24-alpha
 

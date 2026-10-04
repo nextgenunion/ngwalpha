@@ -349,7 +349,6 @@ window.SONGBOOK_LANG.mn2 = {
   sheetMusicLoadError: "Нотны санг ачаалж чадсангүй.",
   sheetMusicUnavailable: "Энэ дуунд нот алга.",
   sheetMusicOpen: "Нот",
-  sheetMusicWipNote: "WIP туршилт. Жишээ нотууд SDA Hymnal-ийн скан биш. Анх нээхэд интернэт хэрэгтэй байж болно.",
   sheetMusicPagePosition: (current, total) => `${current} / ${total}`,
   sheetMusicPreviousPage: "Өмнөх хуудас",
   sheetMusicNextPage: "Дараах хуудас",

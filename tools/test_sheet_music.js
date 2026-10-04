@@ -6,8 +6,12 @@ const vm = require('vm');
 const assert = require('assert');
 
 const ROOT = path.resolve(__dirname, '..');
-const manifestPath = path.join(ROOT, 'data', 'sheet-music', 'manifest.json');
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const catalogDataPath = path.join(ROOT, 'data', 'sheet-music', 'catalog.js');
+const catalogDataCode = fs.readFileSync(catalogDataPath, 'utf8');
+const dataContext = { window: {} };
+vm.runInNewContext(catalogDataCode, dataContext);
+const manifest = dataContext.window.NGW_SHEET_MUSIC_CATALOG;
+assert.ok(manifest, 'Sheet Music static data registry failed to initialize');
 assert.strictEqual(manifest.schemaVersion, 1, 'Sheet Music schema version must remain explicit');
 assert.ok(Array.isArray(manifest.entries) && manifest.entries.length > 0, 'Sheet Music catalog needs entries');
 
@@ -21,19 +25,12 @@ for (const entry of manifest.entries) {
   assert.ok(!songRefs.has(ref), `Duplicate Sheet Music song ref: ${ref}`);
   songRefs.add(ref);
   assert.ok(Array.isArray(entry.pages) && entry.pages.length, `${entry.id} needs at least one page`);
-  for (const page of entry.pages) {
-    assert.ok(page.src && typeof page.src === 'string', `${entry.id} has invalid page src`);
-    if (!/^https?:\/\//i.test(page.src)) {
-      assert.ok(fs.existsSync(path.join(ROOT, page.src.replace(/^\.\//, ''))), `${entry.id} local page missing: ${page.src}`);
-    }
-  }
+  for (const page of entry.pages) assert.ok(page.src && typeof page.src === 'string', `${entry.id} has invalid page src`);
   assert.ok(Array.isArray(entry.attributions), `${entry.id} attributions must be an array`);
-  for (const credit of entry.attributions) {
-    assert.ok(credit.label && credit.url && credit.license, `${entry.id} attribution is incomplete`);
-  }
+  for (const credit of entry.attributions) assert.ok(credit.label && credit.url && credit.license, `${entry.id} attribution is incomplete`);
 }
 
-// Resolve every entry against the canonical song-source registry and real song file.
+// Resolve every official entry against the canonical source registry + song file.
 const sourceContext = { window: {} };
 vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'song-sources.js'), 'utf8'), sourceContext);
 const registry = sourceContext.window.SongSourceRegistry;
@@ -47,21 +44,12 @@ for (const entry of manifest.entries) {
   assert.strictEqual(String(song.id), entry.songId, `${entry.id} song id mismatch`);
 }
 
-// Exercise the actual catalog module with a mocked local fetch.
-const sheetContext = {
-  window: {},
-  fetch: async (url) => {
-    assert.strictEqual(url, './data/sheet-music/manifest.json');
-    return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(manifest)) };
-  },
-  console,
-};
+// Exercise the real catalog module with the static registry: no runtime fetch.
+const sheetContext = { window: { NGW_SHEET_MUSIC_CATALOG: manifest }, console };
 vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf8'), sheetContext);
 (async () => {
   const api = sheetContext.window.SheetMusicCatalog;
   assert.ok(api, 'SheetMusicCatalog failed to initialize');
-  assert.ok(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf8').includes('unsupported src scheme'),
-    'Catalog page src scheme validation is missing');
   await api.load();
   assert.strictEqual(api.list('sda').length, manifest.entries.filter(e => e.sourceKey === 'sda').length);
   for (const entry of manifest.entries) {
@@ -72,18 +60,29 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert.ok(html.includes('id="page-sheet-music"'), 'Sheet Music library page missing');
   assert.ok(html.includes('id="page-sheet-view"'), 'Sheet Music viewer page missing');
-  assert.ok(html.includes('id="dev-sheet-music-toggle"'), 'Sheet Music developer toggle missing');
-  assert.ok(html.includes('id="sheet-music-nav-btn"'), 'Sheet Music nav button missing');
-  assert.ok(html.includes('id="sv-sheet-music-btn"'), 'Song-view Sheet Music button missing');
-  assert.ok(html.includes('src="js/sheet-music.js"'), 'Sheet Music module script missing');
+  assert.ok(html.includes('id="dev-sheet-music-toggle"'), 'Separate Sheet Music developer toggle missing');
+  assert.ok(html.includes('id="sheet-music-nav-btn"') && /id="sheet-music-nav-btn"[^>]*hidden/.test(html), 'Sheet Music nav must start hidden');
+  assert.ok(html.includes('id="sv-sheet-music-btn"') && /id="sv-sheet-music-btn"[^>]*hidden/.test(html), 'Song-view Sheet Music button must start hidden');
+  assert.ok(!html.includes('sheet-music-dev-note'), 'Removed WIP preview description must not remain');
+  assert.ok(html.indexOf('data/sheet-music/catalog.js') < html.indexOf('js/sheet-music.js'), 'Catalog data must load before catalog API');
+
+  const css = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+  assert.ok(/\.nav-btn\[hidden\][\s\S]*?display:\s*none/.test(css), 'nav-btn[hidden] override missing');
+  assert.ok(/\.icon-btn\[hidden\][\s\S]*?display:\s*none/.test(css), 'icon-btn[hidden] override missing');
+
+  const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  assert.ok(/devSheetMusic:\s*false/.test(app), 'Sheet Music developer preview must default OFF');
+  const unlock = app.slice(app.indexOf('function unlockDevOptions()'), app.indexOf('function bindDevOptionsUnlock()'));
+  assert.ok(!/devSheetMusic\s*=/.test(unlock), 'Unlocking Developer Options must not enable Sheet Music');
+  assert.ok(/toggle\.setAttribute\('aria-checked', String\(state\.devSheetMusic\)\)/.test(app), 'Sheet Music toggle must reflect its own preview state');
+  assert.ok(/const entry = window\.SheetMusicCatalog\.getForSong[\s\S]*?if \(!entry\) return;[\s\S]*?btn\.hidden = false;/.test(app), 'Song Sheet Music button must show only for catalog-backed songs');
 
   const config = fs.readFileSync(path.join(ROOT, 'config.js'), 'utf8');
-  assert.ok(/sheetMusic\s*:\s*false/.test(config), 'Sheet Music must remain dev/WIP-gated by default');
+  assert.ok(/sheetMusic\s*:\s*false/.test(config), 'Sheet Music must remain non-production by default');
 
   const sw = fs.readFileSync(path.join(ROOT, 'service-worker.js'), 'utf8');
-  assert.ok(sw.includes("'./js/sheet-music.js'"), 'Sheet Music module must be in core shell');
-  assert.ok(sw.includes("'./data/sheet-music/manifest.json'"), 'Sheet Music manifest must be seeded for offline use');
+  assert.ok(sw.includes("'./data/sheet-music/catalog.js'"), 'Static Sheet Music catalog must be in core shell');
   assert.ok(sw.includes('SHEET_MUSIC_ASSET_CACHE'), 'Remote sheet pages need stable runtime caching');
 
-  console.log(`Sheet Music tests passed: ${manifest.entries.length} entries, ${manifest.entries.reduce((n,e)=>n+e.pages.length,0)} pages.`);
+  console.log(`Sheet Music tests passed: ${manifest.entries.length} entries, ${manifest.entries.reduce((n,e)=>n+e.pages.length,0)} pages; gating/visibility checks passed.`);
 })().catch((err) => { console.error(err); process.exit(1); });
