@@ -28,8 +28,18 @@ const OFFLINE_CACHE = 'songbook-offline-fallback';
 // source after the fast bootstrap is already visible.
 const SONGDATA_CACHE = 'songbook-data';
 
+// Sheet score images can be much larger than the shell and may be hosted on
+// a licensed external source during the WIP phase. Keep them in a stable
+// runtime cache, separate from app-version rotation. A future local asset path
+// uses the same viewer/catalog and will naturally use SONGDATA_CACHE instead.
+const SHEET_MUSIC_ASSET_CACHE = 'songbook-sheet-music-assets';
+
 function isSongDataRequest(url) {
   return url.pathname.includes('/data/');
+}
+
+function isRemoteSheetMusicAsset(url) {
+  return url.hostname === 'upload.wikimedia.org';
 }
 
 function isSongManifestRequest(url) {
@@ -58,6 +68,7 @@ const CORE_SHELL = [
   './js/piano-chords.js',
   './js/chord-finder.js',
   './js/chord-viewer.js',
+  './js/sheet-music.js',
   './config.js',
   './lang/config.js',
   './lang/eng.js',
@@ -176,6 +187,16 @@ self.addEventListener('install', (event) => {
         } catch (err) {
           console.warn('Songbook SW: redundant offline fallback cache failed —', err);
         }
+
+        // The tiny sheet-music catalog is data, not UI code, so seed it into
+        // the stable data cache. Runtime requests remain network-first and can
+        // update this copy without an app release.
+        try {
+          const dataCache = await caches.open(SONGDATA_CACHE);
+          await dataCache.add('./data/sheet-music/manifest.json');
+        } catch (err) {
+          console.warn('Songbook SW: could not seed Sheet Music catalog —', err);
+        }
       })
       .then(() => self.skipWaiting())
   );
@@ -190,7 +211,7 @@ self.addEventListener('activate', (event) => {
     Promise.all([
       caches.keys().then((keys) =>
         Promise.all(keys
-          .filter((k) => k !== CACHE_VERSION && k !== OFFLINE_CACHE && k !== SONGDATA_CACHE)
+          .filter((k) => k !== CACHE_VERSION && k !== OFFLINE_CACHE && k !== SONGDATA_CACHE && k !== SHEET_MUSIC_ASSET_CACHE)
           .map((k) => caches.delete(k)))
       ),
       caches.open(CACHE_VERSION).then((cache) => cacheBestEffort(cache, BEST_EFFORT_ASSETS)),
@@ -239,6 +260,20 @@ async function cacheFirst(request, cacheName, { ignoreSearchFallback = false } =
   return response;
 }
 
+// Runtime score images may be opaque cross-origin responses. `response.ok`
+// is false for opaque responses even when the image loaded successfully, so
+// this cache helper deliberately accepts `type === 'opaque'` as cacheable.
+async function cacheFirstSheetAsset(request) {
+  const cache = await caches.open(SHEET_MUSIC_ASSET_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response && (response.ok || response.type === 'opaque')) {
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
 async function appNavigationResponse(request) {
   const shellCache = await caches.open(CACHE_VERSION);
   // Always converge installed-PWA/root/query navigations onto the known-good
@@ -278,6 +313,11 @@ self.addEventListener('fetch', (event) => {
 
   if (isNavigation) {
     event.respondWith(appNavigationResponse(event.request));
+    return;
+  }
+
+  if (isRemoteSheetMusicAsset(url)) {
+    event.respondWith(cacheFirstSheetAsset(event.request));
     return;
   }
 

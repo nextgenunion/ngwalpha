@@ -4850,3 +4850,171 @@ html[data-theme="dark"] .btn-secondary,
 html[data-theme="dark"] .btn-pill-done,
 html[data-theme="dark"] .chip-btn { box-shadow: none; }
 html[data-theme="dark"] .sort-btn-tap { animation: none; }
+
+
+/* ==========================================================
+   SHEET MUSIC — WIP / future-ready
+   The library deliberately reuses the normal song-list/search primitives.
+   Only the viewer needs feature-specific layout.
+   ========================================================== */
+.sheet-music-page-header {
+  align-items: center;
+}
+.sheet-music-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.wip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+.sheet-music-dev-note {
+  margin: -4px 0 14px;
+  color: var(--ink-soft);
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.sheet-view-inner {
+  width: min(100%, 900px);
+  margin-inline: auto;
+}
+.sheet-view-header {
+  align-items: flex-start;
+}
+.sheet-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+.sheet-page-nav {
+  width: 38px;
+  min-width: 38px;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.sheet-page-nav:disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+.sheet-view-page-count {
+  min-width: 92px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sheet-view-pages {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.sheet-view-pages::-webkit-scrollbar { display: none; }
+.sheet-view-page {
+  position: relative;
+  display: flex;
+  flex: 0 0 100%;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 100%;
+  margin: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.sheet-page-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: #fff;
+  box-shadow: var(--shadow-1);
+}
+.sheet-page-status {
+  position: absolute;
+  inset: 18px 18px auto;
+  z-index: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: .72rem;
+  font-weight: 600;
+  text-align: center;
+}
+.sheet-view-page.is-error {
+  min-height: 260px;
+  align-items: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+}
+.sheet-view-page.is-error .sheet-page-image {
+  min-height: 258px;
+  opacity: .08;
+}
+.sheet-view-attribution {
+  margin-top: 16px;
+  padding: 14px 2px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+.sheet-view-attribution h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: .78rem;
+}
+.sheet-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 7px;
+}
+.sheet-source-row a {
+  color: var(--accent-strong);
+  text-underline-offset: 2px;
+}
+.sheet-license {
+  color: var(--ink-faint);
+  font-size: .7rem;
+}
+html[data-theme="dark"] .sheet-page-image {
+  /* Scores are documents, not dark-mode surfaces. Keep the page itself white. */
+  background: #fff;
+  box-shadow: none;
+}
+@media (min-width: 720px) {
+  .sheet-view-pages { gap: 18px; }
+  .sheet-page-image { width: min(100%, 760px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-view-pages { scroll-behavior: auto; }
+}

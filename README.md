@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.23-alpha)
+# Next Gen Worship — Worship Song App (v5.0.24-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -16,6 +16,15 @@ work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
 
 
+
+## v5.0.24-alpha
+
+- Added **Sheet Music as a Developer Options WIP feature**. It stays hidden by default and is not treated as an MVP/released navigation item. The same implementation can later be released by changing `config.features.sheetMusic` to `true`; no feature rewrite is required.
+- Added a versioned, validated `data/sheet-music/manifest.json` catalog keyed by the existing `sourceKey + songId` model. Future scores/pages are data additions rather than song-specific JavaScript.
+- Added the real Sheet Music library flow planned for the future release: source-aware library, search, real song metadata, a dedicated song-view Sheet Music button when a score exists, multi-page horizontal swipe/scroll-snap viewer, previous/next controls, attribution/license display, and localization.
+- Added two SDA Hymnal proof-of-concept entries: **108 — Amazing Grace** and **499 — What a Friend We Have in Jesus**. The WIP uses attributed Wikimedia-hosted score images; this is demo content, not an official SDA Hymnal scan set.
+- Added offline behavior for the feature architecture: the catalog is seeded into the stable data cache and external demo score pages are cached after their first successful load. Future local score assets work through the same data/viewer model.
+- Added `tools/test_sheet_music.js` to validate schema, duplicate IDs/references, source-registry linkage, real song-file linkage, module lookup behavior, feature gating, UI wiring, and service-worker integration.
 
 ## v5.0.23-alpha
 

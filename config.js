@@ -4,6 +4,12 @@
 // item; it simply won't appear until a real value is added.
 
 window.SONGBOOK_APP_CONFIG = {
+  // Feature flags. Sheet Music is fully wired but remains a WIP/dev-only
+  // feature for now. Set sheetMusic to true when it is ready for everyone;
+  // the same pages/catalog/UI are used, so release does not require a rewrite.
+  features: {
+    sheetMusic: false,
+  },
   orgName: "Next Gen Union",
   contactEmail: "nextgenunionmn@gmail.com",
 

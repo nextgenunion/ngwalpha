@@ -106,10 +106,12 @@ const state = {
   // still combines with this filter normally. Session-only by design so a
   // forgotten filter never makes a later app launch look mysteriously empty.
   songLabelFilters: [],
-  userSongQuery: '', // User Songs page's own search box — kept separate
-                      // from `query` (the Songs page's) so switching tabs
-                      // doesn't clobber whichever search the person was
-                      // mid-typing on the other page.
+  // Keep each library's search query independent so switching tabs does not
+  // clobber whichever search the person was mid-typing on another page.
+  userSongQuery: '',
+  sheetMusicQuery: '',
+  activeSheetMusicId: null, // current catalog entry shown in #page-sheet-view
+  sheetMusicPageIndex: 0,   // current horizontally-swiped page in the sheet viewer
   presentationMode: false, // toggled from the song view's "…" menu — see
                             // togglePresentationMode()/applyPresentationMode()
                             // below. Session-only (not persisted to
@@ -175,6 +177,7 @@ const state = {
   devSabbathForced: false,
   devChristmasForced: false,
   devPartyForced: false,
+  devSheetMusic: false,   // WIP Sheet Music feature gate; session-only
   devTradMongolian: false, // see refreshLangPicker()
   devCredits: false,       // see renderCredits()
   devHideDescriptions: false, // see applyDevOptions() — toggles .settings-desc-hideable
@@ -206,6 +209,8 @@ const PAGES = {
   'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true, onEnter: () => onSongsPageEnter() },
   'song-view':      { elId: 'page-song-view',      navKey: 'songs',     rememberScroll: false, hideNav: true },
   'user-songs':     { elId: 'page-user-songs',      navKey: 'user-songs', rememberScroll: true, onEnter: () => renderUserSongList() },
+  'sheet-music':    { elId: 'page-sheet-music',     navKey: 'sheet-music', rememberScroll: true, onEnter: () => renderSheetMusicLibrary() },
+  'sheet-view':     { elId: 'page-sheet-view',      navKey: 'sheet-music', rememberScroll: false, hideNav: true },
   'song-editor':    { elId: 'page-song-editor',    navKey: 'user-songs', rememberScroll: false, hideNav: true },
   'playlists':      { elId: 'page-playlists',      navKey: 'playlists', rememberScroll: true,  onEnter: () => renderPlaylistsList() },
   'playlist-view':  { elId: 'page-playlist-view',  navKey: 'playlists', rememberScroll: false, hideNav: true },
@@ -228,13 +233,13 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['song-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['song-view', 'sheet-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
 // in runTabFadeTransition() below instead of SLIDE_PAGES' push/pop slide.
 // See showPage()'s transitionType selection.
-const TAB_PAGES = new Set(['songs', 'user-songs', 'playlists', 'settings']);
+const TAB_PAGES = new Set(['songs', 'user-songs', 'sheet-music', 'playlists', 'settings']);
 
 // Remembers each rememberScroll page's scroll position (each .page
 // element's own scrollTop — see the CSS notes on .page for why it's no
@@ -439,6 +444,7 @@ async function init() {
   safe('bindChordViewer', bindChordViewer);
   safe('bindLyricsCopy', bindLyricsCopy);
   safe('bindUserSongsPage', bindUserSongsPage);
+  safe('bindSheetMusicPage', bindSheetMusicPage);
   safe('bindSongEditor', bindSongEditor);
   safe('bindPlaylistsPage', bindPlaylistsPage);
   safe('bindPlaylistView', bindPlaylistView);
@@ -1963,6 +1969,10 @@ function initHistoryNav() {
         const song = source && source.songs.find(s => s.id === st.songId);
         if (song) { openSong(song, { pushHistory: false, sourceKey }); return; }
       }
+      if (st.page === 'sheet-view' && st.sheetMusicId) {
+        openSheetMusicEntry(st.sheetMusicId, { pushHistory: false });
+        return;
+      }
       if (st.page === 'playlist-view' && st.playlistId) {
         if (state.playlists.byId[st.playlistId]) {
           openPlaylist(st.playlistId, { pushHistory: false });
@@ -2430,6 +2440,9 @@ function applyDbSource(sourceKey) {
 
   const source = state.sources[sourceKey];
   const listEl = document.getElementById('song-list');
+  if (state.currentPage === 'sheet-music' && isSheetMusicFeatureEnabled()) {
+    renderSheetMusicLibrary();
+  }
   if (source && source.loaded) {
     // Database changes are made from Settings, where #page-songs is hidden.
     // Don't spend a frame building thousands of invisible rows there; mark
@@ -2453,6 +2466,322 @@ function applyDbSource(sourceKey) {
     else if (listEl) listEl.dataset.renderSourceKey = '';
     scheduleSearchCacheWarmup(sourceKey);
   });
+}
+
+// ---------------------------------------------------------
+// Sheet Music (WIP / future-ready)
+// ---------------------------------------------------------
+// The planning model is intentionally data-driven: the app owns the library,
+// routing, search, swipe viewer, attribution and song-link behavior; the
+// catalog owns only sourceKey + songId + page image URLs. Future scores are
+// added by editing data/sheet-music/manifest.json (and adding local images if
+// desired), not by adding song-specific JS or HTML.
+function isSheetMusicProductionEnabled() {
+  const cfg = window.SONGBOOK_APP_CONFIG || {};
+  return !!(cfg.features && cfg.features.sheetMusic === true);
+}
+
+function isSheetMusicFeatureEnabled() {
+  return isSheetMusicProductionEnabled() || state.devSheetMusic;
+}
+
+async function ensureSheetMusicCatalog() {
+  if (!window.SheetMusicCatalog) throw new Error('Sheet Music catalog module is unavailable');
+  return window.SheetMusicCatalog.load();
+}
+
+async function updateSongSheetMusicButton(sourceKey = state.activeSourceKey, songId = state.activeSong && state.activeSong.id) {
+  const btn = document.getElementById('sv-sheet-music-btn');
+  if (!btn) return;
+  btn.hidden = true;
+  btn.dataset.sheetMusicId = '';
+  btn.setAttribute('aria-label', t('sheetMusicOpen'));
+  if (!songId || !isSheetMusicFeatureEnabled()) return;
+
+  try {
+    await ensureSheetMusicCatalog();
+  } catch (err) {
+    console.warn('Songbook: could not check Sheet Music for song —', err);
+    return;
+  }
+
+  // Catalog loading is asynchronous. Do not expose a button for a song that
+  // is no longer the one on screen if the person navigated meanwhile.
+  if (!state.activeSong || state.activeSong.id !== songId || state.activeSourceKey !== sourceKey) return;
+  const entry = window.SheetMusicCatalog.getForSong(sourceKey, songId);
+  if (!entry) return;
+  btn.dataset.sheetMusicId = entry.id;
+  btn.hidden = false;
+}
+
+function applySheetMusicFeatureUI() {
+  const enabled = isSheetMusicFeatureEnabled();
+  const production = isSheetMusicProductionEnabled();
+  const navBtn = document.getElementById('sheet-music-nav-btn');
+  if (navBtn) navBtn.hidden = !enabled;
+
+  const toggle = document.getElementById('dev-sheet-music-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-checked', String(enabled));
+    toggle.disabled = production;
+  }
+
+  const wipBadge = document.getElementById('sheet-music-wip-badge');
+  if (wipBadge) wipBadge.hidden = production;
+  const devNote = document.getElementById('sheet-music-dev-note');
+  if (devNote) {
+    devNote.hidden = production;
+    devNote.textContent = t('sheetMusicWipNote');
+  }
+
+  if (enabled) {
+    ensureSheetMusicCatalog().catch((err) => console.warn('Songbook: sheet music catalog load failed —', err));
+  }
+  updateSongSheetMusicButton();
+}
+
+function bindSheetMusicPage() {
+  const search = document.getElementById('sheet-music-search-input');
+  if (search) {
+    search.addEventListener('input', () => {
+      state.sheetMusicQuery = search.value;
+      renderSheetMusicLibrary();
+    });
+  }
+
+  const back = document.getElementById('sheet-view-back-btn');
+  if (back) back.addEventListener('click', () => history.back());
+
+  const prev = document.getElementById('sheet-view-prev');
+  const next = document.getElementById('sheet-view-next');
+  if (prev) prev.addEventListener('click', () => goToSheetMusicPage(state.sheetMusicPageIndex - 1));
+  if (next) next.addEventListener('click', () => goToSheetMusicPage(state.sheetMusicPageIndex + 1));
+
+  const pages = document.getElementById('sheet-view-pages');
+  if (pages) {
+    let raf = 0;
+    pages.addEventListener('scroll', () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        syncSheetMusicPageFromScroll();
+      });
+    }, { passive: true });
+  }
+}
+
+async function renderSheetMusicLibrary() {
+  if (!isSheetMusicFeatureEnabled()) return;
+  const sourceKey = state.activeDbSource;
+  const searchInput = document.getElementById('sheet-music-search-input');
+  if (searchInput && searchInput.value !== state.sheetMusicQuery) searchInput.value = state.sheetMusicQuery;
+  const list = document.getElementById('sheet-music-list');
+  const empty = document.getElementById('sheet-music-empty-state');
+  const count = document.getElementById('sheet-music-results-count');
+  if (!list || !empty || !count) return;
+
+  list.innerHTML = '';
+  empty.hidden = true;
+  count.textContent = '';
+
+  try {
+    await Promise.all([ensureSheetMusicCatalog(), loadSongDataFor(sourceKey)]);
+  } catch (err) {
+    console.warn('Songbook: could not render Sheet Music library —', err);
+    empty.textContent = t('sheetMusicLoadError');
+    empty.hidden = false;
+    return;
+  }
+  if (state.activeDbSource !== sourceKey || !isSheetMusicFeatureEnabled()) return;
+
+  const q = normalizeSearchText(state.sheetMusicQuery || '');
+  const all = window.SheetMusicCatalog.list(sourceKey)
+    .map((entry) => ({ entry, song: findSongByRef(sourceKey, entry.songId) }))
+    .filter((item) => !!item.song)
+    .sort((a, b) => {
+      const an = Number(a.song.number), bn = Number(b.song.number);
+      if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
+      return String(a.song.title || '').localeCompare(String(b.song.title || ''), undefined, { sensitivity: 'base' });
+    });
+
+  const filtered = q ? all.filter(({ song }) => {
+    const haystack = normalizeSearchText(`${song.number || ''} ${song.title || ''} ${song.artist || ''}`);
+    return haystack.includes(q);
+  }) : all;
+
+  filtered.forEach(({ entry, song }) => {
+    const li = document.createElement('li');
+    li.dataset.sheetMusicId = entry.id;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'song-row sheet-music-row';
+    row.innerHTML = `
+      ${song.number !== undefined && song.number !== null ? `<span class="song-badge">${escapeHtml(String(song.number))}</span>` : ''}
+      <span class="song-row-text">
+        <span class="song-row-title">${highlight(song.title || entry.songId, state.sheetMusicQuery || '')}</span>
+        <span class="song-row-sub">${escapeHtml(t('sheetMusicPages', entry.pages.length))}${entry.demo ? ` · ${escapeHtml(t('sheetMusicSampleBadge'))}` : ''}</span>
+      </span>`;
+    row.addEventListener('click', () => tapSongRowThenOpen(row, () => openSheetMusicEntry(entry.id)));
+    li.appendChild(row);
+    list.appendChild(li);
+  });
+
+  count.textContent = t('sheetMusicResults', filtered.length);
+  empty.textContent = all.length === 0 ? t('sheetMusicEmpty') : t('sheetMusicNoResults');
+  empty.hidden = filtered.length !== 0;
+}
+
+async function openSheetMusicEntry(entryOrId, opts = {}) {
+  const { pushHistory = true } = opts;
+  if (!isSheetMusicFeatureEnabled()) return;
+  try {
+    await ensureSheetMusicCatalog();
+  } catch (err) {
+    console.warn('Songbook: sheet music catalog unavailable —', err);
+    showToast(t('sheetMusicLoadError'));
+    return;
+  }
+  const entry = typeof entryOrId === 'string'
+    ? window.SheetMusicCatalog.getById(entryOrId)
+    : entryOrId;
+  if (!entry) {
+    showToast(t('sheetMusicUnavailable'));
+    return;
+  }
+  await loadSongDataFor(entry.sourceKey);
+  const song = findSongByRef(entry.sourceKey, entry.songId);
+  if (!song) {
+    showToast(t('sheetMusicUnavailable'));
+    return;
+  }
+
+  state.activeSheetMusicId = entry.id;
+  state.sheetMusicPageIndex = 0;
+  renderSheetMusicViewer(entry, song);
+  showPage('sheet-view', { resetScroll: true });
+  if (pushHistory) pushNavState({ page: 'sheet-view', sheetMusicId: entry.id });
+}
+
+function renderSheetMusicViewer(entry, song) {
+  const number = document.getElementById('sheet-view-number');
+  const title = document.getElementById('sheet-view-title');
+  const sub = document.getElementById('sheet-view-sub');
+  const pagesEl = document.getElementById('sheet-view-pages');
+  const attribution = document.getElementById('sheet-view-attribution');
+  if (!number || !title || !sub || !pagesEl || !attribution) return;
+
+  number.textContent = song.number !== undefined && song.number !== null ? String(song.number) : '';
+  number.hidden = !number.textContent;
+  title.textContent = song.title || entry.songId;
+  sub.textContent = dbSourceLabel(entry.sourceKey);
+
+  pagesEl.innerHTML = '';
+  entry.pages.forEach((page, index) => {
+    const figure = document.createElement('figure');
+    figure.className = 'sheet-view-page';
+    figure.dataset.pageIndex = String(index);
+    const status = document.createElement('div');
+    status.className = 'sheet-page-status';
+    status.textContent = t('sheetMusicLoadingPage');
+    const img = document.createElement('img');
+    img.className = 'sheet-page-image';
+    img.alt = `${song.title || entry.songId} — ${t('sheetMusicPagePosition', index + 1, entry.pages.length)}`;
+    img.loading = index === 0 ? 'eager' : 'lazy';
+    img.decoding = 'async';
+    img.addEventListener('load', () => { status.hidden = true; });
+    img.addEventListener('error', () => {
+      figure.classList.add('is-error');
+      status.hidden = false;
+      status.textContent = t('sheetMusicPageError');
+    });
+    // Bind load/error before assigning src: a score already in HTTP/Cache
+    // Storage can resolve extremely quickly on a later offline visit.
+    img.src = page.src;
+    figure.append(status, img);
+    pagesEl.appendChild(figure);
+  });
+  pagesEl.scrollLeft = 0;
+
+  attribution.innerHTML = '';
+  if (entry.attributions && entry.attributions.length) {
+    const heading = document.createElement('h3');
+    heading.textContent = t('sheetMusicSources');
+    attribution.appendChild(heading);
+    entry.attributions.forEach((credit) => {
+      const row = document.createElement('div');
+      row.className = 'sheet-source-row';
+      const sourceUrl = safeExternalHttpUrl(credit.url);
+      const licenseUrl = safeExternalHttpUrl(credit.licenseUrl);
+      const source = sourceUrl
+        ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(credit.label)}</a>`
+        : `<span>${escapeHtml(credit.label)}</span>`;
+      const license = credit.license
+        ? (licenseUrl
+          ? `<a class="sheet-license" href="${escapeHtml(licenseUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(credit.license)}</a>`
+          : `<span class="sheet-license">${escapeHtml(credit.license)}</span>`)
+        : '';
+      row.innerHTML = `${source}${license}`;
+      attribution.appendChild(row);
+    });
+  }
+
+  updateSheetMusicPageUI();
+}
+
+function getActiveSheetMusicEntry() {
+  return window.SheetMusicCatalog && state.activeSheetMusicId
+    ? window.SheetMusicCatalog.getById(state.activeSheetMusicId)
+    : null;
+}
+
+function syncSheetMusicPageFromScroll() {
+  const pagesEl = document.getElementById('sheet-view-pages');
+  const entry = getActiveSheetMusicEntry();
+  if (!pagesEl || !entry || !pagesEl.children.length) return;
+  const children = Array.from(pagesEl.children);
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  children.forEach((child, index) => {
+    const distance = Math.abs(child.offsetLeft - pagesEl.scrollLeft);
+    if (distance < bestDistance) { bestDistance = distance; bestIndex = index; }
+  });
+  if (bestIndex !== state.sheetMusicPageIndex) {
+    state.sheetMusicPageIndex = bestIndex;
+    updateSheetMusicPageUI();
+  }
+}
+
+function goToSheetMusicPage(index) {
+  const pagesEl = document.getElementById('sheet-view-pages');
+  const entry = getActiveSheetMusicEntry();
+  if (!pagesEl || !entry) return;
+  const clamped = Math.max(0, Math.min(entry.pages.length - 1, index));
+  const target = pagesEl.children[clamped];
+  if (!target) return;
+  state.sheetMusicPageIndex = clamped;
+  pagesEl.scrollTo({ left: target.offsetLeft, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  updateSheetMusicPageUI();
+}
+
+function updateSheetMusicPageUI() {
+  const entry = getActiveSheetMusicEntry();
+  if (!entry) return;
+  const total = entry.pages.length;
+  const current = Math.max(0, Math.min(total - 1, state.sheetMusicPageIndex));
+  const count = document.getElementById('sheet-view-page-count');
+  const prev = document.getElementById('sheet-view-prev');
+  const next = document.getElementById('sheet-view-next');
+  if (count) count.textContent = t('sheetMusicPagePosition', current + 1, total);
+  if (prev) {
+    prev.disabled = current === 0;
+    prev.setAttribute('aria-label', t('sheetMusicPreviousPage'));
+  }
+  if (next) {
+    next.disabled = current === total - 1;
+    next.setAttribute('aria-label', t('sheetMusicNextPage'));
+  }
+  const back = document.getElementById('sheet-view-back-btn');
+  if (back) back.setAttribute('aria-label', t('sheetMusicBackAria'));
 }
 
 // ---------------------------------------------------------
@@ -2538,6 +2867,10 @@ function applyDevOptions() {
     stopDiscoMode();
   }
 
+  const sheetMusicToggle = document.getElementById('dev-sheet-music-toggle');
+  if (sheetMusicToggle) sheetMusicToggle.setAttribute('aria-checked', String(isSheetMusicFeatureEnabled()));
+  applySheetMusicFeatureUI();
+
   const mongolianToggle = document.getElementById('dev-trad-mongolian-toggle');
   if (mongolianToggle) mongolianToggle.setAttribute('aria-checked', String(state.devTradMongolian));
   refreshLangPicker();
@@ -2577,6 +2910,11 @@ function initDevOptions() {
     state.devPartyForced = !state.devPartyForced;
     applyDevOptions();
   });
+  document.getElementById('dev-sheet-music-toggle').addEventListener('click', () => {
+    if (isSheetMusicProductionEnabled()) return;
+    state.devSheetMusic = !state.devSheetMusic;
+    applyDevOptions();
+  });
   document.getElementById('dev-trad-mongolian-toggle').addEventListener('click', () => {
     state.devTradMongolian = !state.devTradMongolian;
     applyDevOptions();
@@ -2589,6 +2927,7 @@ function initDevOptions() {
     state.devHideDescriptions = !state.devHideDescriptions;
     applyDevOptions();
   });
+  applySheetMusicFeatureUI();
 }
 
 // ---------------------------------------------------------
@@ -2604,6 +2943,10 @@ function applyLanguage() {
     't-navSettings': 'navSettings',
     't-navPlaylists': 'navPlaylists',
     't-navUserSongs': 'navUserSongs',
+    't-navSheetMusic': 'navSheetMusic',
+    't-sheetMusicTitle': 'sheetMusicTitle',
+    't-devSheetMusicTitle': 'devSheetMusicTitle',
+    't-devSheetMusicSub': 'devSheetMusicSub',
     't-userSongsTitle': 'userSongsTitle',
     't-playlistsTitle': 'playlistsTitle',
     't-playlistsBackupTitle': 'playlistsBackupTitle',
@@ -2709,6 +3052,7 @@ function applyLanguage() {
 
   document.getElementById('search-input').placeholder = t('searchPlaceholder');
   document.getElementById('user-song-search-input').placeholder = t('searchPlaceholder');
+  document.getElementById('sheet-music-search-input').placeholder = t('sheetMusicSearchPlaceholder');
   document.getElementById('editor-key').placeholder = t('editorKeyPlaceholder');
   document.getElementById('editor-link').placeholder = t('editorLinkPlaceholder');
   document.getElementById('editor-format-help-btn').setAttribute('aria-label', t('editorFormatHelpAria'));
@@ -2779,6 +3123,9 @@ function applyLanguage() {
   // pill themselves. No-ops harmlessly if Settings isn't the page on
   // screen right now (see positionSegToggleThumb's offsetParent guard).
   updateAllSegToggleThumbs({ instant: true });
+  applySheetMusicFeatureUI();
+  if (state.currentPage === 'sheet-music' && isSheetMusicFeatureEnabled()) renderSheetMusicLibrary();
+  if (state.currentPage === 'sheet-view') updateSheetMusicPageUI();
   if (window.ChordFinder) window.ChordFinder.refreshLanguage();
 }
 
@@ -2808,6 +3155,17 @@ function showPage(name, opts = {}) {
   if (!page) {
     console.error(`Songbook: showPage() called with unknown page "${name}"`);
     return;
+  }
+
+  // Sheet Music is intentionally WIP/dev-gated for now. The exact same
+  // pages can later be released by flipping config.features.sheetMusic;
+  // stale browser history cannot bypass the gate while it is disabled.
+  if ((name === 'sheet-music' || name === 'sheet-view') && !isSheetMusicFeatureEnabled()) {
+    name = 'songs';
+  }
+  const gatedPage = PAGES[name];
+  if (gatedPage !== page) {
+    return showPage(name, opts);
   }
 
   // Re-navigating to the page already on screen (e.g. tapping the "Songs"
@@ -4272,6 +4630,12 @@ function bindSongView() {
     });
   });
 
+  document.getElementById('sv-sheet-music-btn').addEventListener('click', () => {
+    const btn = document.getElementById('sv-sheet-music-btn');
+    const entryId = btn.dataset.sheetMusicId;
+    if (entryId) openSheetMusicEntry(entryId);
+  });
+
   document.getElementById('sv-favorite-btn').addEventListener('click', () => {
     const song = state.activeSong;
     if (!song) return;
@@ -4518,6 +4882,7 @@ function openSong(song, opts = {}) {
   updateTransposeUI();
   updateFavoriteButtonUI();
   updateSongViewMenuUI();
+  updateSongSheetMusicButton(sourceKey, song.id);
   showPage('song-view', { resetScroll: true });
   if (pushHistory) {
     pushNavState({ page: 'song-view', songId: song.id, sourceKey });

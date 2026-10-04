@@ -336,4 +336,28 @@ window.SONGBOOK_LANG.mn2 = {
   cfPianoBoardAria: "Төгөлдөр хуурын гар",
   cfPianoHintStart: "Товчийг дарж аккордын нэрийг олоорой",
   cfKeyAria: (n, o) => `${n}${o} товч`,
+  // Sheet Music WIP — traditional-script translation is still in progress.
+  // Keep these labels readable rather than inventing unreviewed script forms.
+  navSheetMusic: "Нот",
+  sheetMusicTitle: "Нот",
+  sheetMusicSearchPlaceholder: "Нот хайх…",
+  sheetMusicResults: (n) => `${n} нот`,
+  sheetMusicPages: (n) => `${n} хуудас`,
+  sheetMusicSampleBadge: "туршилт",
+  sheetMusicEmpty: "Энэ дууны санд одоогоор нот алга.",
+  sheetMusicNoResults: "Хайлтад тохирох нот олдсонгүй.",
+  sheetMusicLoadError: "Нотны санг ачаалж чадсангүй.",
+  sheetMusicUnavailable: "Энэ дуунд нот алга.",
+  sheetMusicOpen: "Нот",
+  sheetMusicWipNote: "WIP туршилт. Жишээ нотууд SDA Hymnal-ийн скан биш. Анх нээхэд интернэт хэрэгтэй байж болно.",
+  sheetMusicPagePosition: (current, total) => `${current} / ${total}`,
+  sheetMusicPreviousPage: "Өмнөх хуудас",
+  sheetMusicNextPage: "Дараах хуудас",
+  sheetMusicBackAria: "Буцах",
+  sheetMusicLoadingPage: "Нот ачаалж байна…",
+  sheetMusicPageError: "Хуудсыг ачаалж чадсангүй. Интернэтээ шалгана уу.",
+  sheetMusicSources: "Эх сурвалж ба лиценз",
+  devSheetMusicTitle: "Нот (WIP)",
+  devSheetMusicSub: "Туршилтын нотны сан болон дууны нотны холбоосыг харуулах",
+
 };
