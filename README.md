@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.21-alpha)
+# Next Gen Worship — Worship Song App (v5.0.23-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -15,6 +15,21 @@ Version 3's User Songs and Song Editor with backup/import and Trash Bin
 work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
 
+
+
+## v5.0.23-alpha
+
+- Mongolian presentation label simplified from **“Тайзны горим”** to **“Үзүүлэн”**; the exit action is now **“Үзүүлэнгээс гарах”**.
+- Mongolian **Accent Color** label simplified to **“Өнгө”** with the description **“Аппын өнгийг сонгох”**.
+- Restored the previous Mongolian playlist backup/import/export wording, including **“Жагсаалт хуулах”**, **“Хуулах”**, **“Татах”**, and the earlier playlist success/error messages. Because the Export/Import button labels are shared by Playlists and User Songs, those two button labels also return to **“Хуулах / Татах”** in Mongolian.
+
+## v5.0.22-alpha
+
+- Matched Piano Presentation/Stage rendering to the interactive piano: same flat ivory/ebony palette, key corner geometry, accent-selected notes, and selected-key border treatment.
+- Reworked Mongolian UI copy toward concise, native product language instead of polite word-for-word English phrasing. In particular, Presentation mode is localized as **Тайзны горим**, backup/import/export wording is clearer, and Settings descriptions are shorter.
+- Tightened several English and Korean descriptions for the same concise UI voice; Korean Presentation mode is now **무대 모드**.
+- Added a localized About-page app description instead of leaving that sentence permanently in English.
+- The traditional Mongolian-script pack is intentionally not machine-rewritten in this pass; it already contains mixed Cyrillic/script strings and needs a dedicated language review rather than guessed transliteration.
 
 ## v5.0.21-alpha
 

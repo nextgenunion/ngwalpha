@@ -4795,9 +4795,9 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 /* Presentation Mode keyboard (SVG). */
 .cf-present-stage.is-piano { width: min(100%, 760px); }
 .cf-piano-diagram { width: min(100%, 760px); }
-.cf-pd-white { fill: #fbfaf7; stroke: #2b2830; stroke-width: 2; }
-.cf-pd-white.is-on { fill: var(--accent); }
-.cf-pd-black { fill: #2b2830; stroke: #2b2830; stroke-width: 2; }
+.cf-pd-white { fill: #fbfaf7; stroke: #c4bfc8; stroke-width: 2; }
+.cf-pd-white.is-on { fill: var(--accent); stroke: color-mix(in srgb, var(--accent) 70%, #000); }
+.cf-pd-black { fill: #29262f; stroke: #29262f; stroke-width: 2; }
 .cf-pd-black.is-on { fill: color-mix(in srgb, var(--accent) 78%, #000); }
 .cf-pd-label {
   font-family: var(--font-body);

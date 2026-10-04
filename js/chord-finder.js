@@ -795,13 +795,13 @@
         const pos = Piano.layout(i);
         if (info.black) { blacks.push({ i, info, pos }); continue; }
         const x = pad + pos.ordinal * wW;
-        out += `<rect class="cf-pd-white${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${wW}" height="${wH}" rx="5" ry="5"/>`;
+        out += `<rect class="cf-pd-white${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${wW}" height="${wH}" rx="7" ry="7"/>`;
         if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-white" x="${x + wW / 2}" y="${pad + wH - 18}" text-anchor="middle" dominant-baseline="central">${info.name}</text>`);
       }
       // Black keys are drawn after every white key so they sit on top.
       for (const { i, info, pos } of blacks) {
         const x = pad + pos.center * wW - bW / 2;
-        out += `<rect class="cf-pd-black${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${bW}" height="${bH}" rx="4" ry="4"/>`;
+        out += `<rect class="cf-pd-black${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${bW}" height="${bH}" rx="6" ry="6"/>`;
         if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-black" x="${x + bW / 2}" y="${pad + bH - 16}" text-anchor="middle" dominant-baseline="central">${info.name}</text>`);
       }
       return out + labels.join('') + '</svg>';

@@ -2730,6 +2730,12 @@ function applyLanguage() {
   document.getElementById('empty-state').textContent = t('emptyState');
   document.getElementById('about-version-line').textContent = t('versionSub', APP_VERSION);
   document.getElementById('about-nav-title').textContent = t('appName');
+  const aboutDescription = document.getElementById('about-description');
+  if (aboutDescription) {
+    const langDict = (window.SONGBOOK_LANG && window.SONGBOOK_LANG[state.lang]) || {};
+    const enDict = (window.SONGBOOK_LANG && window.SONGBOOK_LANG.en) || {};
+    aboutDescription.textContent = langDict.appDescription || enDict.appDescription || 'Offline worship songbook.';
+  }
   document.getElementById('scripture-verse-text').textContent = `«${t('scriptureVerse')}»`;
   document.getElementById('scripture-verse-ref').textContent = t('scriptureRef');
 
