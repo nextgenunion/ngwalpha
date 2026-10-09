@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.25-alpha)
+# Next Gen Worship — Worship Song App (v5.0.33-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -16,6 +16,60 @@ work while retaining Version 2's Playlists/Favorites and Version 1's core
 songbook, settings, theme, search, and transpose features.
 
 
+
+
+## v5.0.33-alpha
+
+- Added a **note-name display** preference under Settings → Songs → Display settings: letters (C D E…), fixed-do solfège (Do Re Mi…), and Mongolian fixed-do (До Ре Ми…). Letters remain the default.
+- Applies across the Chord Finder's guitar note dots, guitar string names, piano selected keys and octave hints, note summary pills, piano Presentation SVG and piano diagrams opened from song chords. Sharp pitches use `♯` in solfège. Chord symbols such as `Am7` and stored song data are **not translated**, ensuring search, transposition and song compatibility stay intact.
+- Reuses a standard select rather than squeezing long names into tiny segmented pills. Saves the preference independently of UI language and adjusts long note labels for narrow instrument controls.
+
+## v5.0.32-alpha
+
+- Used the supplied v5.0.30 application baseline (self-hosted font caching, keyboard-safe modal positioning, and motion refinements all preserved).
+- Merged the vetted v5.0.31 **song data only**: 3,143 English songs (the six original songs plus 3,137 imported ones), with notation/heading cleanup, plus corrections in SDA Hymnal and Mongolian2. No older runtime modules, styles or service-worker code were copied over.
+- Added the necessary narrowly scoped English bundle-primary handling, so the installed `data/english/database.json` replaces an older six-song local cache and English no longer triggers 3,137 background song requests. Other databases retain their existing refresh behavior.
+- Fixed song-database segmented-pill geometry: its 3px inset now applies consistently to both the track and sliding thumb, avoiding misaligned gaps on either selection. Other segmented controls retain their original 2px inset.
+
+## v5.0.30-alpha
+
+- **Self-hosted fonts, cached for offline.** Noto Sans (Cyrillic + Cyrillic Extended), Inter (Cyrillic) and Fraunces (Latin) now ship in `/fonts` and are listed in the service worker's `REQUIRED_OFFLINE`, so they install atomically with the app. Mongolian Ө/ө and Ү/ү live in the Cyrillic Extended subset, which is why Noto Sans ships both. `tools/test_fonts.js` checks every referenced file exists, is valid WOFF2 and is cached.
+- Not shipped yet (still served by the Google Fonts link online, system fonts offline): Latin/Latin Extended for Noto Sans and Inter, Inter Cyrillic Extended, IBM Plex Mono 500/600, Noto Sans italics, Fraunces Latin Extended. The Google link in `index.html` stays until these are added. Fraunces has no Cyrillic, so Mongolian text in headings uses the Georgia/serif fallback.
+- **Mobile keyboard no longer jolts the layout.** The centered modal now stays where it was when the keyboard opens (moving up only as far as needed to stay visible) instead of re-centering in the shorter area; the bottom nav slides away while typing; focusing a field no longer triggers a third scroll movement. Touch-device inputs are 16px so iOS Safari does not zoom the page on focus.
+- Motion: transition durations are now three tokens (`--dur-fast/base/slow`) plus `--dur-press`, replacing about a dozen ad-hoc values. Removed 12 per-component `prefers-reduced-motion` blocks that were already overridden by the global `!important` rule. No change to button sizes, colors, shadows or class names.
+- New `tools/test_keyboard_viewport.js` and `tools/button_style_snapshot.js` (browser-console before/after computed-style check).
+
+## v5.0.29-alpha
+
+- Renamed **Presentation mode** to **Display mode** everywhere (song view and Chord Finder), because "presentation" is reserved for a different, future feature. Behavior is unchanged.
+- User-facing labels: English "Display mode" / "Exit display mode" (was "Stage mode"), Korean "화면 모드", Mongolian "Дэлгэцийн горим" in both Mongolian packs.
+- Internal names renamed to match: `.display-mode` CSS class, `state.displayMode`, `toggleDisplayMode()` / `applyDisplayMode()`, `#sv-kebab-display-mode`, the Chord Finder `Display` module, `ChordFinder.exitDisplay()` / `isDisplaying()`, `.cf-display*` styles, and `icons/svg/display.svg` (service-worker precache list updated). Regression tests updated to the new names.
+- Older changelog entries below still say "Presentation mode" because that was the name at the time.
+
+## v5.0.28-alpha
+
+- Simplified offline/PWA behavior to one atomic versioned cache. There is no separate song-data cache, Sheet Music cache, page-side Cache API bridge, optional activation warmup, or database-download state.
+- All four shipped `database.json` bundles are required install assets. Once a build installs successfully, every shipped song database is immediately available offline without opening it first.
+- The installed app shell, runtime SVG icons, language packs, chord/piano modules, Sheet Music proof asset, and database bundles install as one unit. If any required asset fails, that worker does not replace the previous working version.
+- Navigation always opens the installed `index.html`; if that cached shell is unexpectedly missing, the self-contained `offline.html` is used as the last-resort fallback.
+- Individual song files remain an online, non-blocking refresh layer only. They are no longer part of offline correctness.
+
+## v5.0.27-alpha
+
+- Hardened offline startup after an audit of the service-worker lifecycle. Activation no longer waits on optional Google Fonts / install artwork, preventing weak-network warmups from leaving the worker stuck in `activating` with no controller when connectivity disappears.
+- Promoted the runtime-injected SVG UI icon set, splash artwork, and the packaged Sheet Music proof score into the atomic offline shell so a successfully installed worker always has the complete functional UI, not just HTML/CSS/JS.
+- Switched favicon / Apple touch icon / About-logo usage to the existing 192px app icon and made that small asset atomic offline shell content; the 1920px source remains available for manifest/future artwork but no longer needs to load just to render the ordinary UI.
+- First-load icon and selected-database snapshot responses are also persisted directly from the page into the same Cache Storage buckets. This closes the initial-uncontrolled-page gap where resources could be visible from the browser HTTP cache while still being unavailable to the service worker after going offline.
+- Lazy font warmup now waits for service-worker readiness so those requests can be captured by the worker when possible; fonts remain best-effort and never block app activation.
+- Added dedicated offline-contract and service-worker simulation tests covering shell completeness, activation independence from optional network resources, offline navigation, cached UI assets, selected-database bootstrap fallback, Sheet Music offline assets, and the self-contained fallback page.
+- Added `tools/OFFLINE_TEST_PLAN.md` with a repeatable first-load, 128 kbps, hard-offline, database, Sheet Music, feature-smoke, and update test matrix for real-device/browser verification.
+- When a database has genuinely never been saved on the device, the Songs page now says that explicitly while offline instead of showing the generic network-load error; opening that database once while connected is enough to seed its offline bootstrap.
+
+## v5.0.26-alpha
+
+- Fixed Sheet Music's offline/runtime pipeline. The catalog is no longer misrouted through the generic song-data cache, and packaged sheet assets now use their own stable Sheet Music cache.
+- Replaced the fragile remote proof-of-concept score URLs with one packaged local score for SDA Hymnal 108, **Amazing Grace**, so the feature can be tested reliably without depending on Wikimedia image delivery.
+- Added stronger Sheet Music regression checks for local asset existence, source-song resolution, service-worker routing order, and offline precache coverage.
 
 ## v5.0.25-alpha
 

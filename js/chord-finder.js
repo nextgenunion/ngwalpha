@@ -9,7 +9,7 @@
    Two instruments share the same page: Guitar (the fretboard above) and Piano
    (a two-octave keyboard from js/piano-chords.js). Tap keys and the chord is
    named from the pressed notes, lowest key = bass, so inversions come out as
-   slash chords. Search and Presentation Mode follow the active instrument.
+   slash chords. Search and Display Mode follow the active instrument.
 
    Ported from the standalone Chord Finder index.html into the app:
    the same theory/detection/state logic, but the DOM is scoped to
@@ -20,10 +20,10 @@
    Public surface (used by app.js):
      ChordFinder.init()             build the board once (idempotent)
      ChordFinder.refreshLanguage()  re-render translated text
-     ChordFinder.exitPresentation() leave presentation mode (called when
+     ChordFinder.exitDisplay() leave display mode (called when
                                     the page is left, so it never reopens
                                     stuck in it)
-     ChordFinder.isPresenting()     true while presentation mode is on
+     ChordFinder.isDisplaying()     true while display mode is on
                                     (app.js uses it to keep the screen awake)
      ChordFinder.diagramForChord()  preferred diagram for a chord symbol
      ChordFinder.getChordVoicings() several distinct playable positions
@@ -46,7 +46,7 @@
     frets: 12,
     minNotes: 2,
     maxAlternatives: 3,
-    presentationFrets: 5,   // fret rows shown in presentation mode
+    displayFrets: 5,   // fret rows shown in display mode
   };
 
   /* ---------- MODULE 2 — MUSIC THEORY DATA ---------- */
@@ -55,7 +55,10 @@
     console.error('Chord Finder: js/chord-core.js must load first.');
     return;
   }
-  const NOTE_NAMES = Core.NOTE_NAMES;
+  const noteStyle = () => (typeof document !== 'undefined' && document.documentElement)
+    ? (document.documentElement.getAttribute('data-note-names') || 'letters')
+    : 'letters';
+  const displayNote = pc => Core.displayNote(pc, noteStyle());
   const CHORD_TYPES = Core.TYPES;
   // Optional: if the piano module failed to load the tool simply stays
   // guitar-only (the instrument switch is hidden).
@@ -78,7 +81,7 @@
                               1..N → selected fret
      This matches a real chord diagram: untouched strings sound open until the
      tuning label is tapped to mute them. It also keeps analysis and
-     Presentation Mode in sync — a normal open Am therefore has A, not E, as
+     Display Mode in sync — a normal open Am therefore has A, not E, as
      its bass once the low-E string is muted.
      String index 0 = high e … 5 = low E. */
   const State = {
@@ -99,7 +102,7 @@
         // temporarily removing one endpoint permanently shrank the stored
         // barre; re-adding that note could never expand it again. That could
         // leave an F shape looking like a partial barre (or no barre at all)
-        // in both the editor and Presentation Mode.
+        // in both the editor and Display Mode.
         const scopeFrom = Math.max(0, Math.min(
           this.selection.length - 1,
           Number.isFinite(+original.scopeFromString) ? +original.scopeFromString : +original.fromString,
@@ -325,7 +328,7 @@
         notes: document.getElementById('cf-notes-line'),
         alts: document.getElementById('cf-alts-line'),
         clear: document.getElementById('cf-clear-btn'),
-        present: document.getElementById('cf-present'),
+        display: document.getElementById('cf-display'),
         panel: document.querySelector('#page-chord-finder .cf-panel'),
         piano: document.getElementById('cf-piano-board'),
         instrument: document.getElementById('cf-instrument-toggle'),
@@ -396,7 +399,7 @@
         toggle.type = 'button';
         toggle.className = 'cf-string-toggle';
         toggle.dataset.string = s;
-        toggle.textContent = str.name.toUpperCase();
+        toggle.textContent = displayNote(str.pitch);
         toggle.setAttribute('aria-pressed', 'false');
         row.appendChild(toggle);
 
@@ -447,17 +450,17 @@
       board.querySelectorAll('.cf-string-row').forEach(row => {
         const str = CONFIG.strings[+row.dataset.string];
         row.setAttribute('role', 'group');
-        row.setAttribute('aria-label', tr('cfStringAria', str.name));
+        row.setAttribute('aria-label', tr('cfStringAria', displayNote(str.pitch)));
       });
       board.querySelectorAll('.cf-string-toggle').forEach(btn => {
         const str = CONFIG.strings[+btn.dataset.string];
-        btn.setAttribute('aria-label', tr('cfMuteAria', str.name));
+        btn.setAttribute('aria-label', tr('cfMuteAria', displayNote(str.pitch)));
         btn.title = tr('cfMuteTitle');
       });
       board.querySelectorAll('.cf-cell').forEach(cell => {
         const str = CONFIG.strings[+cell.dataset.string];
         const f = +cell.dataset.fret;
-        cell.setAttribute('aria-label', tr('cfCellFretAria', str.name, f));
+        cell.setAttribute('aria-label', tr('cfCellFretAria', displayNote(str.pitch), f));
       });
       board.querySelectorAll('.cf-fret-number').forEach(btn => {
         const f = +btn.dataset.fret;
@@ -476,7 +479,7 @@
         const on = State.selection[s] === f;
         const dot = cell.firstElementChild;
         let label = '';
-        if (on && Prefs.labelMode === 'note') label = NOTE_NAMES[Theory.noteAt(CONFIG.strings[s], f)];
+        if (on && Prefs.labelMode === 'note') label = displayNote(Theory.noteAt(CONFIG.strings[s], f));
         if (on && Prefs.labelMode === 'finger') label = fingers.get(`${s}:${f}`) || '';
         dot.textContent = label;
         dot.classList.toggle('cf-on', on);
@@ -552,7 +555,7 @@
       host.setAttribute('aria-label', tr('cfPianoBoardAria'));
       host.querySelectorAll('.cf-key').forEach(btn => {
         const info = Piano.keyInfo(+btn.dataset.key);
-        btn.setAttribute('aria-label', tr('cfKeyAria', info.name, info.octave));
+        btn.setAttribute('aria-label', tr('cfKeyAria', displayNote(info.pc), info.octave));
       });
     },
 
@@ -569,8 +572,8 @@
         const label = btn.firstElementChild;
         let text = '';
         let hint = false;
-        if (on && Prefs.pianoLabels === 'note') text = info.name;
-        else if (!on && info.pc === 0) { text = `C${info.octave}`; hint = true; }
+        if (on && Prefs.pianoLabels === 'note') text = displayNote(info.pc);
+        else if (!on && info.pc === 0) { text = `${displayNote(0)}${info.octave}`; hint = true; }
         label.textContent = text;
         label.classList.toggle('cf-key-hint', hint);
       });
@@ -638,7 +641,7 @@
     },
   };
 
-  /* ---------- MODULE 5b — PRESENTATION MODE ----------
+  /* ---------- MODULE 5b — DISPLAY MODE ----------
      A clean chord-viewer diagram for showing the voicing to other people:
      6 strings, 5 fret rows, a continuous barre when a barre is active, and
      a clear starting-fret label for shapes played above first position.
@@ -648,7 +651,7 @@
        - otherwise                → window starts at the lowest fretted note,
                                     and a "7fr"-style label anchors the shape
      Above the strings: × = muted / not played, ○ = open string. */
-  const Presentation = {
+  const Display = {
     active: false,
 
     /** Fret currently chosen on each string, ignoring muted ones. Accepts a
@@ -665,9 +668,9 @@
       if (!fretted.length) return 1;
       const lo = Math.min(...fretted);
       const hi = Math.max(...fretted);
-      if (hi <= CONFIG.presentationFrets) return 1;
+      if (hi <= CONFIG.displayFrets) return 1;
       // Keep the lowest held fret visible and never run off the 12-fret neck.
-      return Math.min(lo, CONFIG.frets - CONFIG.presentationFrets + 1);
+      return Math.min(lo, CONFIG.frets - CONFIG.displayFrets + 1);
     },
 
     /** Return visible column spans for all active barres. Diagram state uses
@@ -698,7 +701,7 @@
     svg(diagramState = null) {
       const values = this.held(diagramState);
       const n = CONFIG.strings.length;
-      const rows = CONFIG.presentationFrets;
+      const rows = CONFIG.displayFrets;
       const start = this.startFret(values);
       const atNut = start === 1;
 
@@ -784,7 +787,7 @@
       const showNames = Prefs.pianoLabels === 'note';
       const spoken = [...on].sort((a, b) => a - b).map(k => {
         const info = Piano.keyInfo(k);
-        return `${info.name}${info.octave}`;
+        return `${displayNote(info.pc)}${info.octave}`;
       }).join(', ');
 
       let out = `<svg class="cf-diagram cf-piano-diagram" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeAttr(`${tr('chordFinderTitle')} — ${spoken}`)}" preserveAspectRatio="xMidYMid meet">`;
@@ -796,30 +799,30 @@
         if (info.black) { blacks.push({ i, info, pos }); continue; }
         const x = pad + pos.ordinal * wW;
         out += `<rect class="cf-pd-white${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${wW}" height="${wH}" rx="7" ry="7"/>`;
-        if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-white" x="${x + wW / 2}" y="${pad + wH - 18}" text-anchor="middle" dominant-baseline="central">${info.name}</text>`);
+        if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-white" x="${x + wW / 2}" y="${pad + wH - 18}" text-anchor="middle" dominant-baseline="central">${displayNote(info.pc)}</text>`);
       }
       // Black keys are drawn after every white key so they sit on top.
       for (const { i, info, pos } of blacks) {
         const x = pad + pos.center * wW - bW / 2;
         out += `<rect class="cf-pd-black${on.has(i) ? ' is-on' : ''}" x="${x}" y="${pad}" width="${bW}" height="${bH}" rx="6" ry="6"/>`;
-        if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-black" x="${x + bW / 2}" y="${pad + bH - 16}" text-anchor="middle" dominant-baseline="central">${info.name}</text>`);
+        if (on.has(i) && showNames) labels.push(`<text class="cf-pd-label is-black" x="${x + bW / 2}" y="${pad + bH - 16}" text-anchor="middle" dominant-baseline="central">${displayNote(info.pc)}</text>`);
       }
       return out + labels.join('') + '</svg>';
     },
 
     render() {
-      const host = View.els.present;
+      const host = View.els.display;
       if (!host) return;
       const piano = Prefs.instrument === 'piano' && !!Piano;
 
-      // Presentation mode should still identify what is being shown. Keep a
-      // fixed title slot above the diagram so entering presentation mode (or
+      // Display mode should still identify what is being shown. Keep a
+      // fixed title slot above the diagram so entering display mode (or
       // changing the voicing before re-entering it) never makes the chart jump.
       const result = analyze();
       const chordName = result && !result.isHint ? result.title : '';
       host.innerHTML =
-        `<div class="cf-present-stage${piano ? ' is-piano' : ''}">` +
-          `<h1 class="cf-present-chord${chordName ? '' : ' is-empty'}">${escapeHtmlLocal(chordName || '–')}</h1>` +
+        `<div class="cf-display-stage${piano ? ' is-piano' : ''}">` +
+          `<h1 class="cf-display-chord${chordName ? '' : ' is-empty'}">${escapeHtmlLocal(chordName || '–')}</h1>` +
           (piano ? this.pianoSvg(PianoState.sorted()) : this.svg()) +
         `</div>`;
     },
@@ -832,7 +835,7 @@
   /** Screen-reader description of the diagram. */
   function diagramAria(values, start) {
     const parts = values.map((v, s) => {
-      const name = CONFIG.strings[s].name;
+      const name = displayNote(CONFIG.strings[s].pitch);
       if (v === 'x') return `${name}: ${tr('cfMutedWord')}`;
       if (v === 0) return `${name}: ${tr('cfOpen')}`;
       return `${name}: ${v}`;
@@ -843,7 +846,7 @@
   /* ---------- MODULE 5c — KEBAB MENU ----------
      Same pattern as the song view's "…" menu (see openSongViewMenu() in
      app.js): a .kebab-dropdown anchored under the button, closed by any
-     outside tap. The menu holds the single "Presentation mode" item for
+     outside tap. The menu holds the single "Display mode" item for
      now; add more buttons here as the tool grows. */
   const Menu = {
     open: false,
@@ -858,7 +861,7 @@
       const wrap = document.createElement('div');
       wrap.className = 'kebab-dropdown';
       wrap.id = 'cf-kebab-dropdown';
-      const label = Presentation.active ? tr('exitPresentationModeBtn') : tr('presentationModeBtn');
+      const label = Display.active ? tr('exitDisplayModeBtn') : tr('displayModeBtn');
       const fretOptions = selected => {
         let html = '';
         for (let f = 1; f <= CONFIG.frets; f++) {
@@ -876,8 +879,8 @@
       ).join('');
 
       wrap.innerHTML =
-        `<button type="button" id="cf-kebab-presentation" class="cf-menu-primary" aria-pressed="${Presentation.active}">` +
-          `<svg data-icon="presentation" viewBox="0 0 24 24"></svg>${escapeHtmlLocal(label)}</button>` +
+        `<button type="button" id="cf-kebab-display-mode" class="cf-menu-primary" aria-pressed="${Display.active}">` +
+          `<svg data-icon="display" viewBox="0 0 24 24"></svg>${escapeHtmlLocal(label)}</button>` +
         `<div class="cf-menu-settings">` +
           (isPiano ? '' :
           `<div class="cf-menu-section">` +
@@ -899,10 +902,10 @@
       this.open = true;
       btn.setAttribute('aria-expanded', 'true');
 
-      wrap.querySelector('#cf-kebab-presentation').addEventListener('click', e => {
+      wrap.querySelector('#cf-kebab-display-mode').addEventListener('click', e => {
         e.stopPropagation();
         Menu.close();
-        setPresentation(!Presentation.active);
+        setDisplay(!Display.active);
       });
 
       const startSelect = wrap.querySelector('#cf-menu-range-start');
@@ -917,7 +920,7 @@
           if (isPiano) {
             Prefs.pianoLabels = mode;
             View.renderPiano();
-            if (Presentation.active) Presentation.render();
+            if (Display.active) Display.render();
           } else {
             Prefs.labelMode = mode;
             View.renderBoard();
@@ -965,19 +968,19 @@
     ));
   }
 
-  function setPresentation(on) {
-    Presentation.active = !!on;
+  function setDisplay(on) {
+    Display.active = !!on;
     const page = document.getElementById('page-chord-finder');
-    if (page) page.classList.toggle('presentation-mode', Presentation.active);
-    if (View.els && View.els.present) View.els.present.hidden = !Presentation.active;
-    if (Presentation.active) Presentation.render();
-    // Keep the screen awake while presenting (app.js decides via isPresenting()).
+    if (page) page.classList.toggle('display-mode', Display.active);
+    if (View.els && View.els.display) View.els.display.hidden = !Display.active;
+    if (Display.active) Display.render();
+    // Keep the screen awake while in display mode (app.js decides via isDisplaying()).
     if (typeof window.updateWakeLock === 'function') window.updateWakeLock();
   }
 
   /* ---------- MODULE 6 — ANALYSIS (normal finder only) ----------
      A guitar chord shape treats every unmuted untouched string as OPEN. That
-     is also how Presentation Mode already draws the shape, so analysis must
+     is also how Display Mode already draws the shape, so analysis must
      use the same rule. The earlier selected-dots-only pass made an ordinary
      x02210 Am lose its open A bass and get mislabeled Am/E. */
   function soundingSelected() {
@@ -994,12 +997,12 @@
   function noteDetailsFor(candidate, notes) {
     if (!candidate) {
       const seen = new Set();
-      return notes.filter(x => !seen.has(x.pc) && seen.add(x.pc)).map(x => ({ name: NOTE_NAMES[x.pc], role: '' }));
+      return notes.filter(x => !seen.has(x.pc) && seen.add(x.pc)).map(x => ({ name: displayNote(x.pc), role: '' }));
     }
     const byPc = new Map();
     notes.forEach(x => {
       const interval = (x.pc - candidate.root + 12) % 12;
-      if (!byPc.has(x.pc)) byPc.set(x.pc, { name: NOTE_NAMES[x.pc], role: roleForInterval(interval, candidate.type.suffix), interval });
+      if (!byPc.has(x.pc)) byPc.set(x.pc, { name: displayNote(x.pc), role: roleForInterval(interval, candidate.type.suffix), interval });
     });
     return [...byPc.values()]
       .sort((a, b) => a.interval - b.interval)
@@ -1079,7 +1082,7 @@
     View.renderBoard();
     View.renderPiano();
     View.renderResult(analyze());
-    if (Presentation.active) Presentation.render();
+    if (Display.active) Display.render();
   }
 
   function setInstrument(name) {
@@ -1116,7 +1119,7 @@
      The song page can ask for a chord chart by symbol (Am, D/F#, Cmaj7…).
      No bitmap library is stored: the symbol is parsed into the same interval
      formulas above, a playable six-string voicing is generated locally, and
-     the existing Presentation SVG renderer draws it. */
+     the existing Display SVG renderer draws it. */
   const parseChordSymbol = Core.parse;
 
   function inferGeneratedBarres(valuesLowToHigh) {
@@ -1165,7 +1168,7 @@
     const minFret = fretted.length ? Math.min(...fretted) : 0;
     const maxFret = fretted.length ? Math.max(...fretted) : 0;
     const span = fretted.length ? maxFret - minFret : 0;
-    if (span > 4) return null; // one clean five-fret presentation window
+    if (span > 4) return null; // one clean five-fret display window
 
     const firstSound = values.findIndex(v => v >= 0);
     let lastSound = -1;
@@ -1346,7 +1349,7 @@
     return generateVoicings(symbol, 1)[0] || null;
   }
 
-  /** Pure diagram renderer used by both Presentation Mode and external
+  /** Pure diagram renderer used by both Display Mode and external
       callers. `values` are ordered low E → high e and contain -1 (mute),
       0 (open), or a positive fret number. `barres` use that same low-to-high
       string numbering (0 = low E, 5 = high e). No interactive state is read
@@ -1388,7 +1391,7 @@
       };
     }).filter(barre => Number.isFinite(barre.fret) && barre.toString > barre.fromString);
 
-    return Presentation.svg({ selection, muted, barres: stateBarres });
+    return Display.svg({ selection, muted, barres: stateBarres });
   }
 
   function getChordVoicings(symbol, limit = 5) {
@@ -1411,7 +1414,7 @@
     const parsed = Core.parse(symbol);
     if (!parsed) return [];
     return Piano.voicings(parsed, limit).map(voicing => ({
-      svg: Presentation.pianoSvg(voicing.keys),
+      svg: Display.pianoSvg(voicing.keys),
       keys: voicing.keys.slice(),
       label: voicing.label || 'root',
       source: 'piano',
@@ -1671,18 +1674,30 @@
     Search.applyLanguage();
     View.renderResult(analyze());
     Menu.close(true);
-    if (Presentation.active) Presentation.render();
+    if (Display.active) Display.render();
   }
 
-  /** Called by app.js when the page is left: drop presentation mode so the
+  /** Sync note-format preference without rebuilding the fretboard or losing the current selection. */
+  function refreshNoteNames() {
+    if (!inited) return;
+    View.els.board.querySelectorAll('.cf-string-toggle').forEach(btn => {
+      const str = CONFIG.strings[+btn.dataset.string];
+      btn.textContent = displayNote(str.pitch);
+    });
+    View.applyLabels();
+    View.applyPianoLabels();
+    update();
+  }
+
+  /** Called by app.js when the page is left: drop display mode so the
       tool never reopens stuck in it (its only exit is the small kebab). */
-  function exitPresentation() {
+  function exitDisplay() {
     if (!inited) return;
     Menu.close(true);
-    if (Presentation.active) setPresentation(false);
+    if (Display.active) setDisplay(false);
   }
 
-  function isPresenting() { return Presentation.active; }
+  function isDisplaying() { return Display.active; }
 
-  window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });
+  window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });
 })();

@@ -8,6 +8,17 @@
   'use strict';
 
   const NOTE_NAMES = Object.freeze(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']);
+  // Fixed-do note naming is a presentation option, NOT movable-do analysis.
+  // Music theory, song chords, search and transposition always use letter names.
+  const NOTE_DISPLAY = Object.freeze({
+    letters: NOTE_NAMES,
+    solfege: Object.freeze(['Do', 'Do♯', 'Re', 'Re♯', 'Mi', 'Fa', 'Fa♯', 'Sol', 'Sol♯', 'La', 'La♯', 'Si']),
+    mongolian: Object.freeze(['До', 'До♯', 'Ре', 'Ре♯', 'Ми', 'Фа', 'Фа♯', 'Соль', 'Соль♯', 'Ля', 'Ля♯', 'Си']),
+  });
+  function displayNote(pc, style = 'letters') {
+    const names = NOTE_DISPLAY[style] || NOTE_NAMES;
+    return names[((pc % 12) + 12) % 12];
+  }
   const NOTE_PC = Object.freeze({
     C: 0, 'C#': 1, DB: 1, D: 2, 'D#': 3, EB: 3, E: 4,
     F: 5, 'F#': 6, GB: 6, G: 7, 'G#': 8, AB: 8,
@@ -198,6 +209,7 @@
 
   window.ChordCore = Object.freeze({
     NOTE_NAMES,
+    displayNote,
     TYPES,
     parse,
     identify,

@@ -69,9 +69,9 @@ check(P.voicings('not-a-chord').length === 0, 'invalid symbol => no voicings');
 
 // 6. Chord Finder wiring (analysis + search) for the piano instrument.
 let src = fs.readFileSync(__dirname + '/../js/chord-finder.js', 'utf8');
-const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, exitPresentation, isPresenting, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });';
+const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });';
 if (!src.includes(marker)) { console.log('FAIL export marker missing'); process.exit(1); }
-src = src.replace(marker, 'window.__CF={Search,Prefs,View,Menu,PianoState,analyze,Presentation};' + marker);
+src = src.replace(marker, 'window.__CF={Search,Prefs,View,Menu,PianoState,analyze,Display};' + marker);
 vm.runInNewContext(src, ctx);
 const CF = ctx.__CF;
 CF.View.buildBoard = () => {}; CF.View.renderBoard = () => {}; CF.View.renderResult = () => {}; CF.Menu.syncControls = () => {};
@@ -94,17 +94,17 @@ CF.Prefs.instrument = 'guitar';
 CF.Search.run('Am');
 check(CF.Search.results[0] && Array.isArray(CF.Search.results[0].values), 'guitar search is unchanged when guitar is active');
 
-// 7. Presentation SVG draws one highlighted rect per pressed key.
+// 7. Display SVG draws one highlighted rect per pressed key.
 CF.Prefs.instrument = 'piano'; CF.Prefs.pianoLabels = 'note';
-const svg = CF.Presentation.pianoSvg([0, 4, 7, 13]);
+const svg = CF.Display.pianoSvg([0, 4, 7, 13]);
 const on = (svg.match(/class="cf-pd-(white|black) is-on"/g) || []).length;
-check(on === 4 && (svg.match(/<rect/g) || []).length === 24, 'presentation keyboard has 24 keys, 4 highlighted', `on=${on}`);
-check((svg.match(/cf-pd-label/g) || []).length === 4, 'presentation shows note names for pressed keys');
+check(on === 4 && (svg.match(/<rect/g) || []).length === 24, 'display keyboard has 24 keys, 4 highlighted', `on=${on}`);
+check((svg.match(/cf-pd-label/g) || []).length === 4, 'display shows note names for pressed keys');
 CF.Prefs.pianoLabels = 'hide';
-check(!/cf-pd-label/.test(CF.Presentation.pianoSvg([0, 4, 7])), 'presentation hides names when marker is Hide');
+check(!/cf-pd-label/.test(CF.Display.pianoSvg([0, 4, 7])), 'display hides names when marker is Hide');
 
 const popupPiano = ctx.ChordFinder.getPianoChordVoicings('C', 4);
-check(popupPiano.length === 3 && popupPiano.every(v => /cf-piano-diagram/.test(v.svg)), 'public piano popup API returns Presentation-style root + inversions');
+check(popupPiano.length === 3 && popupPiano.every(v => /cf-piano-diagram/.test(v.svg)), 'public piano popup API returns Display-style root + inversions');
 check(popupPiano[0].keys.join(',') === '0,4,7', 'piano popup API keeps root position first for C');
 
 if (failed) process.exit(1);

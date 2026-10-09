@@ -27,13 +27,17 @@
 <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: light)">
 
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/app-icon.png">
-<link rel="apple-touch-icon" href="icons/app-icon.png">
+<link rel="icon" href="icons/app-icon-192.png">
+<link rel="apple-touch-icon" href="icons/app-icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Shorter name for the phone/desktop home-screen label -->
 <meta name="apple-mobile-web-app-title" content="NGWorship Alpha">
 
+<!-- Fonts: Cyrillic (Noto Sans, Inter) and Fraunces Latin are self-hosted in
+     /fonts and cached for offline (see css/style.css). The Google Fonts link
+     below is only the online fallback for subsets not shipped yet (Latin for
+     Noto Sans/Inter, IBM Plex Mono, italics). Remove it once /fonts has them. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- crossorigin makes this a real CORS response instead of an opaque one.
@@ -600,6 +604,18 @@
         <button class="seg-toggle-btn" data-song-view="tiles" id="t-songViewTiles" aria-pressed="false">Tiles</button>
       </div>
     </div>
+    <div class="settings-row settings-row-note-names">
+      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <label class="settings-row-title" for="note-name-select" id="t-noteNamesTitle">Note names</label>
+        <span class="settings-row-sub settings-desc-hideable" id="t-noteNamesSub">Names shown on piano and guitar notes</span>
+      </div>
+      <select class="select-input" id="note-name-select" aria-labelledby="t-noteNamesTitle">
+        <option value="letters">C D E F G A B</option>
+        <option value="solfege">Do Re Mi Fa Sol La Si</option>
+        <option value="mongolian">До Ре Ми Фа Соль Ля Си</option>
+      </select>
+    </div>
     <div class="settings-row">
       <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
@@ -733,11 +749,11 @@
     <div class="cf-alts" id="cf-alts-line"></div>
   </section>
 
-  <!-- Presentation mode: a clean chord diagram (5 frets, barre line,
+  <!-- Display mode: a clean chord diagram (5 frets, barre line,
        finger markers and starting-fret label). Filled by ChordFinder;
        shown instead of .cf-result/.cf-panel while
-       #page-chord-finder.presentation-mode is set. -->
-  <section class="cf-present" id="cf-present" aria-live="polite" aria-atomic="true" hidden></section>
+       #page-chord-finder.display-mode is set. -->
+  <section class="cf-display" id="cf-display" aria-live="polite" aria-atomic="true" hidden></section>
  </div>
 </main>
 
@@ -754,7 +770,7 @@
   </header>
 
   <div class="about-block">
-    <img src="icons/app-icon.png" alt="" class="about-logo">
+    <img src="icons/app-icon-192.png" alt="" class="about-logo">
     <p class="about-label" id="t-versionTitle">Version</p>
     <p class="about-appname" id="about-version-line">Next Gen Worship Alpha</p>
     <p class="about-description" id="about-description">Offline worship songbook for the Adventist Church.</p>

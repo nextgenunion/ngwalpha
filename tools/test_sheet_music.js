@@ -25,7 +25,14 @@ for (const entry of manifest.entries) {
   assert.ok(!songRefs.has(ref), `Duplicate Sheet Music song ref: ${ref}`);
   songRefs.add(ref);
   assert.ok(Array.isArray(entry.pages) && entry.pages.length, `${entry.id} needs at least one page`);
-  for (const page of entry.pages) assert.ok(page.src && typeof page.src === 'string', `${entry.id} has invalid page src`);
+  for (const page of entry.pages) {
+    assert.ok(page.src && typeof page.src === 'string', `${entry.id} has invalid page src`);
+    if (!/^https?:/i.test(page.src)) {
+      const localAsset = path.join(ROOT, page.src);
+      assert.ok(fs.existsSync(localAsset), `${entry.id} local score asset is missing: ${page.src}`);
+      assert.ok(fs.statSync(localAsset).size > 0, `${entry.id} local score asset is empty: ${page.src}`);
+    }
+  }
   assert.ok(Array.isArray(entry.attributions), `${entry.id} attributions must be an array`);
   for (const credit of entry.attributions) assert.ok(credit.label && credit.url && credit.license, `${entry.id} attribution is incomplete`);
 }
@@ -52,6 +59,8 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf
   assert.ok(api, 'SheetMusicCatalog failed to initialize');
   await api.load();
   assert.strictEqual(api.list('sda').length, manifest.entries.filter(e => e.sourceKey === 'sda').length);
+  assert.ok(api.list('sda').length >= 1, 'English SDA source should expose at least one proof-of-concept score');
+  assert.ok(api.list('sda').some(e => e.songId === 'h108'), 'Amazing Grace proof-of-concept score missing');
   for (const entry of manifest.entries) {
     assert.strictEqual(api.getForSong(entry.sourceKey, entry.songId).id, entry.id);
     assert.strictEqual(api.getById(entry.id).songId, entry.songId);
@@ -81,8 +90,10 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf
   assert.ok(/sheetMusic\s*:\s*false/.test(config), 'Sheet Music must remain non-production by default');
 
   const sw = fs.readFileSync(path.join(ROOT, 'service-worker.js'), 'utf8');
-  assert.ok(sw.includes("'./data/sheet-music/catalog.js'"), 'Static Sheet Music catalog must be in core shell');
-  assert.ok(sw.includes('SHEET_MUSIC_ASSET_CACHE'), 'Remote sheet pages need stable runtime caching');
+  assert.ok(sw.includes("'./data/sheet-music/catalog.js'"), 'Static Sheet Music catalog must be in atomic offline install');
+  assert.ok(sw.includes("'./data/sheet-music/assets/sda/h108-amazing-grace.svg'"), 'Packaged proof score must be in atomic offline install');
+  assert.ok(!sw.includes('SHEET_MUSIC_ASSET_CACHE'), 'Sheet Music should not reintroduce a separate cache strategy');
+  assert.ok(/cache\.addAll\(REQUIRED_OFFLINE\)/.test(sw), 'Sheet Music must inherit the same atomic offline contract as the rest of the app');
 
-  console.log(`Sheet Music tests passed: ${manifest.entries.length} entries, ${manifest.entries.reduce((n,e)=>n+e.pages.length,0)} pages; gating/visibility checks passed.`);
+  console.log(`Sheet Music tests passed: ${manifest.entries.length} entries, ${manifest.entries.reduce((n,e)=>n+e.pages.length,0)} packaged page(s); gating/catalog/atomic-offline checks passed.`);
 })().catch((err) => { console.error(err); process.exit(1); });

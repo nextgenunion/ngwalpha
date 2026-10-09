@@ -112,15 +112,15 @@ const state = {
   sheetMusicQuery: '',
   activeSheetMusicId: null, // current catalog entry shown in #page-sheet-view
   sheetMusicPageIndex: 0,   // current horizontally-swiped page in the sheet viewer
-  presentationMode: false, // toggled from the song view's "…" menu — see
-                            // togglePresentationMode()/applyPresentationMode()
+  displayMode: false, // toggled from the song view's "…" menu — see
+                            // toggleDisplayMode()/applyDisplayMode()
                             // below. Session-only (not persisted to
                             // localStorage/Settings): it's a "projecting
                             // right now" mode rather than a saved
                             // preference, so it starts back off on reload,
                             // and deliberately carries across songs within
                             // the session rather than resetting per-song —
-                            // presenting is normally a whole-session thing,
+                            // display mode is normally a whole-session thing,
                             // not a per-song one.
   personalLabels: { bySongRef: {} }, // see "Labels" section below; loaded
                                       // from storage by loadPersonalLabels()
@@ -136,6 +136,7 @@ const state = {
   lyricsSize: 1.05,   // rem
   chordSize: 0.82,    // rem
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
+  noteNames: 'letters', // 'letters' | 'solfege' | 'mongolian' — display-only note labels
   hideChords: false,  // see applyHideChords()
   showTextSize: true, // visibility of A−/A+ on song pages
   lyricsWeight: 'normal',  // 'normal' | 'semibold' | 'bold' — see applyLyricsWeight()
@@ -283,7 +284,7 @@ const ICON_FILES = {
   'heart-outline': 'icons/svg/heart-outline.svg',
   'heart-filled': 'icons/svg/heart-filled.svg',
   'menu-kebab': 'icons/svg/menu-kebab.svg',
-  'presentation': 'icons/svg/presentation.svg',
+  'display': 'icons/svg/display.svg',
   'tag': 'icons/svg/tag.svg',
   'plus': 'icons/svg/plus.svg',
   'trash': 'icons/svg/trash.svg',
@@ -318,6 +319,8 @@ const ICON_FILES = {
   'mascot-sabbath': 'icons/svg/mascot-sabbath.svg',
 };
 
+// Offline completeness is owned by the service worker's atomic install.
+// The page does not maintain a second Cache Storage strategy.
 const iconFileCache = new Map();
 function loadIconFile(path) {
   if (!iconFileCache.has(path)) {
@@ -499,11 +502,12 @@ async function init() {
 // warmed; no visible element or layout is touched.
 function scheduleFontWarmup() {
   if (!(document.fonts && document.fonts.load)) return;
-  const warm = () => {
+  const warmFonts = () => {
     ['500 1em "IBM Plex Mono"', '600 1em "IBM Plex Mono"'].forEach((spec) => {
       document.fonts.load(spec).catch(() => {});
     });
   };
+  const warm = warmFonts;
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(warm, { timeout: 1500 });
   } else {
@@ -841,6 +845,26 @@ function isAbortError(err) {
 async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, manual = false } = {}) {
   const source = state.sources[sourceKey];
   if (!source || !DB_SOURCES[sourceKey]) return Promise.resolve(null);
+  if (DB_SOURCES[sourceKey].bundlePrimary) {
+    // No per-song sweep for the 3,143-song English library. Manual refresh
+    // reads the same complete database.json bundle with cache revalidation.
+    if (!manual) return source.songs;
+    const songs = await fetchSongBundleSnapshot(sourceKey, { forceRefresh });
+    source.songs = songs;
+    source.loaded = true;
+    source.loadFailed = false;
+    try { await saveSongsToIndexedDb(sourceKey, songs); }
+    catch (err) { console.warn('Songbook: English cache write skipped —', err); }
+    searchCacheWarmSources.delete(sourceKey);
+    if (state.activeDbSource === sourceKey && state.currentPage === 'songs') {
+      renderSongList();
+      scheduleSearchCacheWarmup(sourceKey);
+    } else if (state.activeDbSource === sourceKey) {
+      const list = document.getElementById('song-list');
+      if (list) list.dataset.renderSourceKey = '';
+    }
+    return songs;
+  }
   if (!manual && source.syncAttempted) return source.songs;
   if (source.syncPromise) {
     const oldSyncWasAborted = !!(source.syncController && source.syncController.signal.aborted);
@@ -948,7 +972,8 @@ function scheduleSongDataSync(sourceKey) {
 async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
   const source = state.sources[sourceKey];
   if (!source || !DB_SOURCES[sourceKey]) throw new Error(`unknown song source "${sourceKey}"`);
-  const shouldSync = syncLatest !== undefined ? syncLatest : sourceKey === state.activeDbSource;
+  const bundlePrimary = !!DB_SOURCES[sourceKey].bundlePrimary;
+  const shouldSync = !bundlePrimary && (syncLatest !== undefined ? syncLatest : sourceKey === state.activeDbSource);
 
   if (source.loaded) {
     if (shouldSync) scheduleSongDataSync(sourceKey);
@@ -961,6 +986,24 @@ async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
   }
 
   source.loadPromise = (async () => {
+    if (bundlePrimary) {
+      // Prefer the installed version's full English database over any older
+      // six-song IndexedDB snapshot left on existing devices.
+      try {
+        const snapshot = await fetchSongBundleSnapshot(sourceKey);
+        source.songs = snapshot;
+        source.loadFailed = false;
+        source.loaded = true;
+        source.syncAttempted = true;
+        // Optional persistence must not prevent a valid bundled database
+        // from loading if quota or private mode blocks IndexedDB writes.
+        try { await saveSongsToIndexedDb(sourceKey, snapshot); }
+        catch (err) { console.warn('Songbook: English cache write skipped —', err); }
+        return source.songs;
+      } catch (err) {
+        console.warn('Songbook: English bundle unavailable; trying saved songs —', err);
+      }
+    }
     // Returning device: the merged IndexedDB copy is normally the newest and
     // requires no network at all, so prefer it over the release snapshot.
     try {
@@ -2140,6 +2183,10 @@ function loadPrefs() {
   }
   applyLyricsWeight();
 
+  const savedNoteNames = localStorage.getItem('sb-note-names');
+  if (['letters', 'solfege', 'mongolian'].includes(savedNoteNames)) state.noteNames = savedNoteNames;
+  applyNoteNames();
+
   const savedLyricsSpacing = localStorage.getItem('sb-lyrics-spacing');
   if (savedLyricsSpacing === 'tight' || savedLyricsSpacing === 'normal' || savedLyricsSpacing === 'loose') {
     state.lyricsSpacing = savedLyricsSpacing;
@@ -2285,6 +2332,14 @@ function applyTextSizeVisibility() {
   document.documentElement.setAttribute('data-show-text-size', String(state.showTextSize));
   const toggle = document.getElementById('text-size-visibility-toggle');
   if (toggle) toggle.setAttribute('aria-checked', String(state.showTextSize));
+}
+
+// Display-only note names. Chord symbols and all stored song data remain unchanged.
+function applyNoteNames() {
+  document.documentElement.setAttribute('data-note-names', state.noteNames);
+  const select = document.getElementById('note-name-select');
+  if (select) select.value = state.noteNames;
+  if (window.ChordFinder) window.ChordFinder.refreshNoteNames();
 }
 
 // Lyrics style (Settings → Songs → Display settings): font weight for lyric text only —
@@ -2960,6 +3015,8 @@ function applyLanguage() {
     't-keyLabel': 'keyLabel',
     't-lyricsGroup': 'lyricsGroup',
     't-chordsGroup': 'chordsGroup',
+    't-noteNamesTitle': 'noteNamesTitle',
+    't-noteNamesSub': 'noteNamesSub',
     't-chordStyleGroup': 'chordStyleGroup',
     't-chordStyleSub': 'chordStyleSub',
     't-chordStyleChip': 'chordStyleChip',
@@ -3181,10 +3238,10 @@ function showPage(name, opts = {}) {
     document.querySelectorAll('#sv-audio audio').forEach(a => a.pause());
   }
 
-  // Same idea for the Chord Finder's presentation mode: its only way out is
+  // Same idea for the Chord Finder's display mode: its only way out is
   // a small kebab, so never let it reopen stuck in it after navigating away.
   if (!isSamePage && state.currentPage === 'chord-finder' && window.ChordFinder) {
-    window.ChordFinder.exitPresentation();
+    window.ChordFinder.exitDisplay();
   }
 
   // Otherwise, before switching away, remember where we were scrolled on
@@ -3935,7 +3992,10 @@ function renderSongList(opts = {}) {
   }
 
   if (!source || source.loadFailed) {
-    listEl.innerHTML = `<li class="load-error">${escapeHtml(t('songLoadError'))}</li>`;
+    const loadErrorKey = (source && DB_SOURCES[sourceKey] && !navigator.onLine)
+      ? 'songLoadOfflineError'
+      : 'songLoadError';
+    listEl.innerHTML = `<li class="load-error">${escapeHtml(t(loadErrorKey))}</li>`;
     emptyEl.hidden = true;
     countEl.textContent = '';
     if (animate) animateListRefresh(listEl, emptyEl, countEl);
@@ -4684,7 +4744,7 @@ function openSongViewMenu() {
     <button type="button" id="sv-kebab-edit"><svg data-icon="pencil" viewBox="0 0 24 24"></svg>${escapeHtml(t('editBtn'))}</button>
     <button type="button" id="sv-kebab-delete" class="is-danger"><svg data-icon="trash" viewBox="0 0 24 24"></svg>${escapeHtml(t('menuDelete'))}</button>
     ` : ''}
-    <button type="button" id="sv-kebab-presentation" aria-pressed="${String(state.presentationMode)}"><svg data-icon="presentation" viewBox="0 0 24 24"></svg>${escapeHtml(state.presentationMode ? t('exitPresentationModeBtn') : t('presentationModeBtn'))}</button>
+    <button type="button" id="sv-kebab-display-mode" aria-pressed="${String(state.displayMode)}"><svg data-icon="display" viewBox="0 0 24 24"></svg>${escapeHtml(state.displayMode ? t('exitDisplayModeBtn') : t('displayModeBtn'))}</button>
     ${state.devUnlocked ? `
     <button type="button" id="sv-kebab-info"><svg data-icon="info-outline" viewBox="0 0 24 24"></svg>${escapeHtml(t('infoBtn'))}</button>
     ` : ''}
@@ -4721,10 +4781,10 @@ function openSongViewMenu() {
     closeSongViewMenu();
     confirmDeleteUserSong(song);
   });
-  wrap.querySelector('#sv-kebab-presentation').addEventListener('click', (e) => {
+  wrap.querySelector('#sv-kebab-display-mode').addEventListener('click', (e) => {
     e.stopPropagation();
     closeSongViewMenu();
-    togglePresentationMode();
+    toggleDisplayMode();
   });
   const infoBtn = wrap.querySelector('#sv-kebab-info');
   if (infoBtn) infoBtn.addEventListener('click', (e) => {
@@ -4746,19 +4806,19 @@ function closeSongViewMenu() {
   wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
 }
 
-// Presentation mode: hides everything on the song view except the lyrics
+// Display mode: hides everything on the song view except the lyrics
 // themselves — back button, favorite, transpose, text size, links, audio
 // — for reading off a screen while projecting without any of the app's
 // own chrome competing for attention. The "…" menu is the one thing that
-// stays, since it's the only way back out of this mode; applyPresentationMode()
-// (via #page-song-view.presentation-mode in style.css) shrinks it down to
+// stays, since it's the only way back out of this mode; applyDisplayMode()
+// (via #page-song-view.display-mode in style.css) shrinks it down to
 // a low-profile dot instead of hiding it outright.
-function togglePresentationMode() {
-  state.presentationMode = !state.presentationMode;
-  applyPresentationMode();
+function toggleDisplayMode() {
+  state.displayMode = !state.displayMode;
+  applyDisplayMode();
 }
-function applyPresentationMode() {
-  document.getElementById('page-song-view').classList.toggle('presentation-mode', state.presentationMode);
+function applyDisplayMode() {
+  document.getElementById('page-song-view').classList.toggle('display-mode', state.displayMode);
 }
 
 function updateFavoriteButtonUI() {
@@ -5197,7 +5257,7 @@ function renderLyrics(opts = {}) {
             const displayedChord = transposeChord(piece.chord, transpose);
             chordEl.textContent = displayedChord;
             // In the real song view, chord labels double as compact chord-
-            // diagram buttons. The popup uses ChordFinder's Presentation SVG,
+            // diagram buttons. The popup uses ChordFinder's Display SVG,
             // so there is only one visual renderer to maintain. Editor/help
             // previews stay display-only.
             if (containerId === 'lyrics-container') {
@@ -5239,7 +5299,7 @@ function renderLyrics(opts = {}) {
 //
 // Interaction lives in js/chord-viewer.js. app.js only injects the modal,
 // translation, and Chord Finder voicing renderer so this feature stays independent of
-// the main application state while still reusing the exact Presentation SVG.
+// the main application state while still reusing the exact Display SVG.
 // ---------------------------------------------------------
 function bindChordViewer() {
   if (!window.SongChordViewer || !window.ChordFinder) return;
@@ -7071,17 +7131,54 @@ function bindModalShell() {
 // properties (--vvh, --vv-top) that the modal uses instead of 100vh/0.
 // Browsers without visualViewport support just keep the old 100vh/0
 // fallback defined in the CSS.
+//
+// Keyboard-open state: the overlay centers its card, so shrinking the
+// overlay to the area above the keyboard used to re-center the card and make
+// it jump upward. When the keyboard opens we now measure where the card
+// already is (before the new height is applied) and pin it there with
+// --kb-card-top, moving it only as far as needed to stay fully visible. The
+// same state also sets html.keyboard-open, which the stylesheet uses to tuck
+// the bottom nav away while typing.
 function initViewportSync() {
   if (!window.visualViewport) return;
   const root = document.documentElement;
+  const KEYBOARD_MIN_PX = 120;   // smaller gaps are browser toolbars, not a keyboard
+  let keyboardOpen = false;
+  let frame = 0;
+
   const sync = () => {
+    frame = 0;
     const vv = window.visualViewport;
+    // Pinch-zoom also shrinks the visual viewport; it is not a keyboard.
+    const open = vv.scale <= 1.01 && (window.innerHeight - vv.height) > KEYBOARD_MIN_PX;
+
+    const overlay = document.getElementById('modal-overlay');
+    const card = overlay && !overlay.hidden ? overlay.querySelector('.modal-card') : null;
+
+    if (open && card) {
+      // Measure BEFORE --vvh changes, so the first reading is the
+      // pre-keyboard (centered) position; later readings are already pinned.
+      const overlayTop = overlay.getBoundingClientRect().top;
+      const rect = card.getBoundingClientRect();
+      const margin = 12;
+      const wanted = rect.top - overlayTop;
+      const maxTop = Math.max(margin, vv.height - rect.height - margin);
+      root.style.setProperty('--kb-card-top', `${Math.round(Math.min(Math.max(wanted, margin), maxTop))}px`);
+    }
+    if (open !== keyboardOpen) {
+      keyboardOpen = open;
+      root.classList.toggle('keyboard-open', open);
+      if (!open) root.style.removeProperty('--kb-card-top');
+    }
+
     root.style.setProperty('--vvh', `${vv.height}px`);
     root.style.setProperty('--vv-top', `${vv.offsetTop}px`);
   };
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
+
   sync();
-  window.visualViewport.addEventListener('resize', sync);
-  window.visualViewport.addEventListener('scroll', sync);
+  window.visualViewport.addEventListener('resize', schedule);
+  window.visualViewport.addEventListener('scroll', schedule);
 }
 
 // Focuses `input` only after any in-flight modal-open animation has
@@ -7093,9 +7190,17 @@ function initViewportSync() {
 function focusModalInput(input, delay = 260) {
   if (!input) return;
   setTimeout(() => {
-    input.focus();
+    // preventScroll: the browser's own "scroll the focused field into view"
+    // was a third, separate movement on top of the sheet and the keyboard.
+    input.focus({ preventScroll: true });
+    // Only nudge if the keyboard actually left the field covered.
     setTimeout(() => {
-      input.scrollIntoView({ block: 'nearest' });
+      const vv = window.visualViewport;
+      const bottomEdge = vv ? vv.height : window.innerHeight;
+      const rect = input.getBoundingClientRect();
+      if (rect.bottom > bottomEdge - 8 || rect.top < 0) {
+        input.scrollIntoView({ block: 'nearest' });
+      }
     }, 300);
   }, delay);
 }
@@ -7967,6 +8072,14 @@ function bindSettings() {
     localStorage.setItem('sb-landscape-mode', String(state.landscapeMode));
   });
 
+  document.getElementById('note-name-select').addEventListener('change', e => {
+    const choice = e.target.value;
+    if (!['letters', 'solfege', 'mongolian'].includes(choice) || choice === state.noteNames) return;
+    state.noteNames = choice;
+    applyNoteNames();
+    localStorage.setItem('sb-note-names', choice);
+  });
+
   const hideVerseNumbersToggle = document.getElementById('dev-hide-verse-numbers-toggle');
   hideVerseNumbersToggle.addEventListener('click', () => {
     state.hideVerseNumbers = !state.hideVerseNumbers;
@@ -8163,10 +8276,10 @@ function releaseWakeLock() {
 // Called from showPage() on every navigation — cheap no-op when nothing
 // actually needs to change (e.g. moving between two non-song pages).
 function updateWakeLock() {
-  // Song view always (reading lyrics); Chord Finder only while presenting a
+  // Song view always (reading lyrics); Chord Finder only while in display mode, showing a
   // chord diagram to others, so the screen doesn't dim mid-demonstration.
   wakeLockWanted = state.currentPage === 'song-view'
-    || (state.currentPage === 'chord-finder' && !!window.ChordFinder && window.ChordFinder.isPresenting());
+    || (state.currentPage === 'chord-finder' && !!window.ChordFinder && window.ChordFinder.isDisplaying());
   if (wakeLockWanted) {
     if (!wakeLockSentinel && document.visibilityState === 'visible') requestWakeLock();
   } else {

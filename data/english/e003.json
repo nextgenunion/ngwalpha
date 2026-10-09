@@ -32,6 +32,9 @@
     "It is [A]well, it is [D]well with my [G]soul[D]"
   ],
   "links": [
-    { "label": "YouTube", "url": "https://www.youtube.com/results?search_query=It+Is+Well+with+My+Soul+hymn" }
+    {
+      "label": "YouTube",
+      "url": "https://www.youtube.com/results?search_query=It+Is+Well+with+My+Soul+hymn"
+    }
   ]
 }

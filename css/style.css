@@ -14,6 +14,49 @@
    interpolate between the old and new accent colors on the `transition`
    below instead of snapping instantly. initial-value here is only a spec
    requirement for @property; the real default comes from :root below. */
+/* ---------- self-hosted fonts ----------
+   Files live in /fonts and are part of the service worker's atomic offline
+   cache (see REQUIRED_OFFLINE), so text renders the same online and offline.
+   Each face is split by unicode-range exactly like the Google Fonts CSS, so
+   the browser only fetches a file for the characters actually on screen.
+   Mongolian Cyrillic needs BOTH subsets: Ө/ө and Ү/ү live in cyrillic-ext.
+   Families are named "<Name> Variable" so they sit in front of the
+   Google-hosted copies in the --font-* stacks; any subset not shipped yet
+   falls through to the Google copy online and to the system font offline.
+   Fraunces has no Cyrillic at all (latin only). */
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter_cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/fraunces_latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @property --accent {
   syntax: '<color>';
   inherits: true;
@@ -52,15 +95,15 @@
   --shadow-1: 0 1px 2px rgba(31,42,68,0.06), 0 1px 1px rgba(31,42,68,0.04);
   --shadow-2: 0 6px 20px rgba(31,42,68,0.10);
 
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  --font-body: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   /* Lyric text specifically (not UI chrome) uses Noto Sans rather than
      Inter: Inter is tuned for small-size UI legibility, while Noto Sans
      is built for continuous multi-script paragraph reading (including
      Cyrillic from the ground up, not bolted on) — closer to what a full
      screen of Mongolian Cyrillic lyric text actually is. See .lyric-word
      below for the variable weight choice (420 for Normal). */
-  --font-lyrics: 'Noto Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-lyrics: 'Noto Sans Variable', 'Noto Sans', 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
   --lyrics-size: 1.05rem;
@@ -88,6 +131,13 @@
   --lyric-line-plain-mb: 10px;
   --lyric-line-plain-gap: 10px;
   --lyric-section-gap: 12px; /* blank-line / verse-section separation; follows the vertical spacing preset */
+
+  /* Motion: three transition speeds plus the press collapse. Component rules
+     use these instead of ad-hoc values (.11/.12/.15/.16/.18/.2/.22/.24...). */
+  --dur-press: .08s;   /* button press collapse */
+  --dur-fast:  .15s;   /* color / background / border changes */
+  --dur-base:  .22s;   /* small movements, fades */
+  --dur-slow:  .3s;    /* larger panels */
 
   --nav-h: 68px;
   --radius-s: 8px;
@@ -586,9 +636,6 @@ button, a {
   transition: opacity 2.4s ease;
 }
 .christmas-snow.christmas-snow-hiding { opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .christmas-snow { transition: none; }
-}
 .snowflake {
   position: absolute;
   top: -10px;
@@ -634,7 +681,7 @@ button, a {
   background: transparent;
   color: var(--ink-faint);
   cursor: pointer;
-  transition: background-color .15s ease, color .15s ease, transform .18s var(--press-ease);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--dur-base) var(--press-ease);
 }
 .search-tools-btn svg { width: 19px; height: 19px; fill: currentColor; }
 .search-db-btn { margin-right: -7px; }
@@ -691,7 +738,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   padding: 0 14px;
   box-shadow: var(--shadow-1);
   transform: scale(1);
-  transition: border-color .15s ease, box-shadow .2s ease, transform .3s var(--press-ease);
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-base) ease, transform var(--dur-slow) var(--press-ease);
 }
 .search-bar:focus-within {
   transform: scale(1.012);
@@ -738,7 +785,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   border-radius: 999px;
   background: transparent;
   opacity: 0;
-  transition: opacity .28s ease;
+  transition: opacity var(--dur-slow) ease;
   pointer-events: none;
 }
 .song-sync-progress.is-active {
@@ -753,7 +800,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   background: color-mix(in srgb, var(--accent-strong) 48%, transparent);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform .16s linear;
+  transition: transform var(--dur-fast) linear;
   will-change: transform;
 }
 .song-sync-progress.is-indeterminate .song-sync-progress-bar {
@@ -806,7 +853,7 @@ html[data-theme="dark"] .search-tools-count { background: var(--accent); }
   padding: 7px 13px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s, transform .08s ease, box-shadow .08s ease;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 /* Pressed/selected state: a pastel fill in the app's own accent (not a
    flat --ink/--paper swap) plus a soft lip, so the active pill reads as
@@ -920,7 +967,7 @@ html[data-theme="dark"] .sort-btn-tap {
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-1);
-  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
+  transition: transform var(--dur-fast) var(--press-ease-soft), box-shadow var(--dur-fast) ease;
   /* Real Songbook databases run 300-1700+ songs, all rendered as plain
      (non-virtualized) rows/tiles — see renderSongList()/buildSongRow() in
      app.js. Rewriting that into a virtual-scrolled list would be a much
@@ -1267,7 +1314,7 @@ html[data-theme="dark"] .empty-state::before {
      transition racing its own per-frame updates would just fight itself
      and read as jank rather than smoothness. */
   transform: translateY(0) scaleY(1) scaleX(1);
-  transition: opacity .3s ease, background-color .2s ease, width .22s var(--press-ease-soft);
+  transition: opacity var(--dur-slow) ease, background-color var(--dur-base) ease, width var(--dur-base) var(--press-ease-soft);
   will-change: transform;
 }
 /* --accent-strong inverts to a pale text-tint in dark mode (readable as
@@ -1335,7 +1382,7 @@ html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
   opacity: 0;
   transform: scale(0.7) translateX(6px);
   transform-origin: right center;
-  transition: opacity .16s ease, transform .24s var(--press-ease), background-color .35s ease, border-color .35s ease, width .18s var(--press-ease-soft);
+  transition: opacity var(--dur-fast) ease, transform var(--dur-base) var(--press-ease), background-color .35s ease, border-color .35s ease, width var(--dur-base) var(--press-ease-soft);
 }
 /* Browsers with neither color-mix() nor backdrop-filter (support always
    comes as a pair on the engines that lack them) fall back to the
@@ -1439,15 +1486,12 @@ html[data-theme="dark"] .scroll-index-bubble {
   /* Lip press: a thin solid shadow that collapses flat on tap, then
      springs back — see --lip-sm/--lip-shadow in :root. */
   box-shadow: 0 var(--lip-sm) 0 var(--lip-shadow);
-  transition: transform .08s ease, box-shadow .08s ease;
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 .icon-btn svg { width: 20px; height: 20px; fill: var(--ink-soft); }
 .icon-btn:active {
   transform: translateY(var(--lip-sm));
   box-shadow: 0 0 0 var(--lip-shadow);
-}
-@media (prefers-reduced-motion: reduce) {
-  .icon-btn { transition: none; }
 }
 
 /* The favorite/menu buttons sit right next to the title and weren't
@@ -1473,8 +1517,8 @@ html[data-theme="dark"] .scroll-index-bubble {
   margin: 0;
 }
 .sv-header-top { display: flex; align-items: center; justify-content: space-between; }
-/* Presentation mode — toggled from the song view's "…" menu (see
-   togglePresentationMode() in app.js). Strips everything back to just
+/* Display mode — toggled from the song view's "…" menu (see
+   toggleDisplayMode() in app.js). Strips everything back to just
    the lyrics for reading off a projected screen: back button, favorite,
    transpose, text size, links, audio all disappear. The "…" menu is the
    one control that survives, since it's the only way back out of this
@@ -1491,10 +1535,10 @@ html[data-theme="dark"] .scroll-index-bubble {
    .transpose-bar/.font-controls/#sv-links/#sv-audio are stacked block
    elements, so they collapse via max-height instead. */
 #back-btn, #sv-favorite-btn {
-  transition: opacity .22s ease, max-width .26s ease, transform .22s ease;
+  transition: opacity var(--dur-base) ease, max-width .26s ease, transform var(--dur-base) ease;
 }
-#page-song-view.presentation-mode #back-btn,
-#page-song-view.presentation-mode #sv-favorite-btn {
+#page-song-view.display-mode #back-btn,
+#page-song-view.display-mode #sv-favorite-btn {
   max-width: 0;
   opacity: 0;
   transform: scale(0.5);
@@ -1508,22 +1552,22 @@ html[data-theme="dark"] .scroll-index-bubble {
    each is picked generously above that element's actual tallest
    realistic height (font-controls wrapping to 3 rows on a narrow phone,
    a song with several links, etc.) so it never clips normal content —
-   it only ever matters once presentation mode drives it down to 0. */
-.transpose-bar { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease, padding .3s ease, border-color .3s ease; max-height: 90px; }
-.font-controls { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 220px; }
-#sv-links { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 320px; }
-#sv-audio { transition: opacity .22s ease, max-height .3s ease, margin-top .3s ease; max-height: 100px; }
-#page-song-view.presentation-mode .transpose-bar,
-#page-song-view.presentation-mode .font-controls,
-#page-song-view.presentation-mode #sv-links,
-#page-song-view.presentation-mode #sv-audio {
+   it only ever matters once display mode drives it down to 0. */
+.transpose-bar { transition: opacity var(--dur-base) ease, max-height var(--dur-slow) ease, margin-top var(--dur-slow) ease, padding var(--dur-slow) ease, border-color var(--dur-slow) ease; max-height: 90px; }
+.font-controls { transition: opacity var(--dur-base) ease, max-height var(--dur-slow) ease, margin-top var(--dur-slow) ease; max-height: 220px; }
+#sv-links { transition: opacity var(--dur-base) ease, max-height var(--dur-slow) ease, margin-top var(--dur-slow) ease; max-height: 320px; }
+#sv-audio { transition: opacity var(--dur-base) ease, max-height var(--dur-slow) ease, margin-top var(--dur-slow) ease; max-height: 100px; }
+#page-song-view.display-mode .transpose-bar,
+#page-song-view.display-mode .font-controls,
+#page-song-view.display-mode #sv-links,
+#page-song-view.display-mode #sv-audio {
   max-height: 0;
   margin-top: 0;
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
 }
-#page-song-view.presentation-mode .transpose-bar {
+#page-song-view.display-mode .transpose-bar {
   padding-top: 0;
   padding-bottom: 0;
   border-color: transparent;
@@ -1532,34 +1576,26 @@ html[data-theme="dark"] .scroll-index-bubble {
    justify-content: space-between — with it gone, .sv-header-actions
    would collapse back to the row's start (left) instead of staying at
    the right where the kebab has always lived. */
-#page-song-view.presentation-mode .sv-header-actions {
+#page-song-view.display-mode .sv-header-actions {
   margin-left: auto;
 }
-#page-song-view.presentation-mode #sv-menu-btn {
+#page-song-view.display-mode #sv-menu-btn {
   width: 26px;
   height: 26px;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
   opacity: 0.4;
-  transition: opacity .15s ease, width .22s ease, height .22s ease;
+  transition: opacity var(--dur-fast) ease, width var(--dur-base) ease, height var(--dur-base) ease;
 }
-#page-song-view.presentation-mode #sv-menu-btn svg {
+#page-song-view.display-mode #sv-menu-btn svg {
   width: 14px;
   height: 14px;
-  transition: width .22s ease, height .22s ease;
+  transition: width var(--dur-base) ease, height var(--dur-base) ease;
 }
-#page-song-view.presentation-mode #sv-menu-btn:hover,
-#page-song-view.presentation-mode #sv-menu-btn:active {
+#page-song-view.display-mode #sv-menu-btn:hover,
+#page-song-view.display-mode #sv-menu-btn:active {
   opacity: 0.85;
-}
-@media (prefers-reduced-motion: reduce) {
-  #back-btn, #sv-favorite-btn,
-  .transpose-bar, .font-controls, #sv-links, #sv-audio,
-  #page-song-view.presentation-mode #sv-menu-btn,
-  #page-song-view.presentation-mode #sv-menu-btn svg {
-    transition: none;
-  }
 }
 .sv-header-actions { display: flex; align-items: center; gap: 8px; }
 /* Floating circles still need to stand out against the page's gradient
@@ -1703,7 +1739,7 @@ html[data-theme="dark"] .scroll-index-bubble {
   display: flex; align-items: center; justify-content: center;
   line-height: 1;
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
-  transition: background .15s ease, transform .08s ease, box-shadow .08s ease;
+  transition: background var(--dur-fast) ease, transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 .chip-btn:active {
   background: var(--accent-tint);
@@ -1712,9 +1748,6 @@ html[data-theme="dark"] .scroll-index-bubble {
 }
 .chip-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
 .chip-btn:disabled:active { background: var(--paper); transform: none; box-shadow: none; }
-@media (prefers-reduced-motion: reduce) {
-  .chip-btn { transition: none; }
-}
 /* Keep the song-view action chips the same larger size on phones too.
    Previously this media query shrank them below the desktop size, which
    made transpose and text-size controls feel disproportionately small on
@@ -1791,53 +1824,24 @@ html[data-theme="dark"] .scroll-index-bubble {
   .font-group-label { font-size: 0.74rem; }
 }
 
-/* Compact two-option segmented control — used for the chord chip/text
-   display toggle, sized to sit inline in a .font-group next to a label
-   the same way the A−/A+ chip-btn pairs do.
-   border-radius uses --radius-m (the same rounding as cards elsewhere in
-   the app) rather than a full 999px stadium. At this control's height, a
-   999px cap makes each end curve inward before it reaches the button's
-   own horizontal padding — the curve eats into that padding on top of it,
-   not instead of it — which reads fine on the selected (filled) segment
-   because the fill hides it, but reads as odd left-over whitespace on an
-   unselected segment where there's no fill to hide it behind. --radius-m
-   is gentle enough not to trigger that, while still matching the rest of
-   the .seg-toggle-btn / .seg-toggle-thumb radii below. */
+/* Shared segmented-control track: pill controls use the same padding
+   as their sliding thumb. The database picker sets --seg-inset to 3px;
+   compact controls keep the 2px default. */
 .seg-toggle {
+  --seg-inset: 2px;
   display: flex;
   position: relative; /* anchors .seg-toggle-thumb below */
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  padding: 2px;
+  padding: var(--seg-inset);
   background: var(--paper);
   flex-shrink: 0;
 }
-/* The pressed segment's fill, as an actual element that slides/resizes
-   under the buttons (via JS — see positionSegToggleThumb() in app.js)
-   instead of being painted as each button's own background. Sized off
-   the pressed button's real offsetWidth so it works for options of
-   different widths (Normal/Semibold/Bold) same as equal ones (Chips/Text).
-   Sits at z-index:0, under the (position:relative, z-index:1) buttons —
-   see .seg-toggle-btn below — so the label text always reads on top of it.
-
-   left:2px matches the container's own 2px padding on every other side
-   (top/bottom here, and the JS-set width implicitly on the right) — it
-   was previously left:0, which measured the thumb from the *border* edge
-   while the buttons it's meant to sit under start 2px further in, at the
-   *padding* edge. positionSegToggleThumb()'s translateX only ever
-   corrects for the gap *between* segments (pressed vs. the first button),
-   not this shared base offset, so every thumb — including the very first
-   segment — sat 2px left of where it should, which then reads as an
-   overshoot past the right edge on whichever segment is actually
-   selected, and as the label inside it looking off-center. border-radius
-   is inset by that same 2px so its curve stays concentric with the
-   container's — matching the raw --radius-m value here instead looks
-   more rounded than the container at each corner (a smaller box, same
-   nominal radius) and leaves a sliver of the track's background visible
-   right at the corners. */
+/* Selected fill slides beneath the button labels. Both track padding
+   and thumb insets use --seg-inset to avoid a visible offset at either end. */
 .seg-toggle-thumb {
   position: absolute;
-  top: 2px; bottom: 2px; left: 2px;
+  top: var(--seg-inset); bottom: var(--seg-inset); left: var(--seg-inset);
   width: 0;
   border-radius: var(--radius-pill);
   background: var(--accent-strong);
@@ -1850,7 +1854,7 @@ html[data-theme="dark"] .scroll-index-bubble {
      pill (small blur, small spread) so it reads as "gently raised
      pastel pill" rather than a heavy drop shadow. */
   box-shadow: none;
-  transition: transform .32s var(--motion-settle), width .32s var(--motion-settle);
+  transition: transform var(--dur-slow) var(--motion-settle), width var(--dur-slow) var(--motion-settle);
 }
 /* Dark mode inverts --accent-strong to a pale text-tint (readable as text
    on a dark surface — see .btn-secondary), not a fill — using it as the
@@ -1872,7 +1876,7 @@ html[data-theme="dark"] .seg-toggle-thumb { background: var(--accent); }
   border-radius: var(--radius-pill);
   cursor: pointer;
   line-height: 1.2;
-  transition: color .2s ease;
+  transition: color var(--dur-base) ease;
 }
 .seg-toggle-btn[aria-pressed="true"] { color: var(--paper); }
 html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--paper-dim); }
@@ -1952,7 +1956,7 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
      html[data-lyrics-spacing] overrides below) — it never rebuilds these
      elements — so without a transition here the rhythm change snaps
      instantly instead of easing, feeling like a jump cut. */
-  transition: margin-bottom .22s ease, line-height .22s ease, gap .22s ease;
+  transition: margin-bottom var(--dur-base) ease, line-height var(--dur-base) ease, gap var(--dur-base) ease;
 }
 /* A line with no chords at all (see renderLyrics) has nothing to reserve
    the chord row's height for, so it drops the tight chord-chart rhythm
@@ -2087,9 +2091,9 @@ html[data-hide-verse-numbers="true"] .lyric-section-index {
      deliberately left out of this list: chord-pop's own animation below
      already drives it on transpose, and mixing a transition into that
      property would fight it. */
-  transition: color .22s ease, background-color .22s ease, padding .22s ease,
-    border-radius .22s ease, box-shadow .22s ease, margin-bottom .22s ease,
-    top .22s ease;
+  transition: color var(--dur-base) ease, background-color var(--dur-base) ease, padding var(--dur-base) ease,
+    border-radius var(--dur-base) ease, box-shadow var(--dur-base) ease, margin-bottom var(--dur-base) ease,
+    top var(--dur-base) ease;
 }
 /* "Text" chord style (opt-in via the Chips/Text toggle in font-controls):
    the traditional WorshipLeader/OnSong/ChordPro convention — chords sit
@@ -2119,7 +2123,7 @@ html[data-chord-style="text"] .chord-tag {
   -webkit-user-select: none;
   user-select: none;
   height: calc(var(--chord-size) + var(--lyric-chord-mb) + 1px);
-  transition: height .22s ease; /* keeps pace with .lyric-line's margin/gap transition above when line spacing changes */
+  transition: height var(--dur-base) ease; /* keeps pace with .lyric-line's margin/gap transition above when line spacing changes */
 }
 
 /* Hide chords (opt-in via the switch under the Chord style toggle):
@@ -2172,7 +2176,7 @@ html[data-hide-chords="true"] .lyric-line {
      transition the weight change snaps instantly. Numeric font-weight
      transitions are well supported in current browsers; where they
      aren't, this just falls back to an instant change, same as before. */
-  transition: font-weight .22s ease;
+  transition: font-weight var(--dur-base) ease;
 }
 /* Lyrics style (Settings → Appearance → Lyrics style): exact weights are
    available because Noto Sans is loaded as a variable font. Chords, chrome,
@@ -2418,15 +2422,12 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
      never picked up even the universal scale-pop the way a real button
      would; it had zero press feedback of any kind before this. */
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
-  transition: transform .08s ease, box-shadow .08s ease;
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 .about-contact-btn:active {
   transform: translateY(var(--chip-lip));
   box-shadow: 0 0 0 var(--chip-lip-shadow);
-  transition-duration: .08s;
-}
-@media (prefers-reduced-motion: reduce) {
-  .about-contact-btn { transition: none; }
+  transition-duration: var(--dur-press);
 }
 .about-contact-btn:not([hidden]) { display: inline-flex; }
 .about-contact-btn svg { width: 16px; height: 16px; fill: currentColor; }
@@ -2501,7 +2502,7 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   /* Track color lags the knob by a touch (.24s vs the knob's .32s spring
      starting instantly) so the color settles just after the knob arrives,
      rather than both finishing on the same flat beat. */
-  transition: background .24s ease .04s;
+  transition: background var(--dur-base) ease .04s;
 }
 .switch[aria-checked="true"] { background: var(--accent); }
 .switch-knob {
@@ -2515,14 +2516,11 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
      brief independent squash/stretch on width so the knob reads as a
      soft, slightly compressible object rather than a rigid dot sliding
      on a rail. */
-  transition: transform .32s var(--press-ease), width .18s ease;
+  transition: transform var(--dur-slow) var(--press-ease), width var(--dur-base) ease;
 }
 .switch[aria-checked="true"] .switch-knob { transform: translateX(19px); }
 .switch:active .switch-knob { width: 25px; }
 .switch[aria-checked="true"]:active .switch-knob { transform: translateX(15px); }
-@media (prefers-reduced-motion: reduce) {
-  .switch, .switch-knob { transition: none; }
-}
 
 .btn-primary {
   background: var(--ink);
@@ -2540,15 +2538,12 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
      thing on the screen. Ratio dropped again, 55%→40%, alongside the
      --lip-sm/--lip-md/--lip-shadow token pass — see that comment. */
   box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 40%, var(--line));
-  transition: transform .08s ease, box-shadow .08s ease;
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 html[data-theme="dark"] .btn-primary {
   background: var(--accent);
   color: var(--paper-dim);
   box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
-}
-@media (prefers-reduced-motion: reduce) {
-  .btn-primary { transition: none; }
 }
 
 /* Destructive confirm buttons (delete song / delete playlist) used to
@@ -2594,15 +2589,12 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
      no fill color of its own to derive one from (background stays
      transparent). */
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
-  transition: background .15s, color .15s, border-color .15s, transform .08s ease, box-shadow .08s ease;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 .btn-secondary:active {
   transform: translateY(var(--chip-lip));
   box-shadow: 0 0 0 var(--chip-lip-shadow);
-  transition-duration: .08s;
-}
-@media (prefers-reduced-motion: reduce) {
-  .btn-secondary { transition: none; }
+  transition-duration: var(--dur-press);
 }
 .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .btn-secondary:disabled:active { transform: none; }
@@ -2631,12 +2623,12 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
      way the other colored buttons do; a dark rim reads as "this
      circle's own shadow" regardless of which hue sits under it. */
   box-shadow: 0 var(--chip-lip) 0 rgba(0, 0, 0, 0.22);
-  transition: border-color .18s ease, transform .32s var(--press-ease), box-shadow .08s ease;
+  transition: border-color var(--dur-base) ease, transform var(--dur-slow) var(--press-ease), box-shadow var(--dur-press) ease;
 }
 .accent-swatch:active {
   transform: translateY(var(--chip-lip));
   box-shadow: 0 0 0 rgba(0, 0, 0, 0.22);
-  transition-duration: .08s;
+  transition-duration: var(--dur-press);
 }
 /* var(--ink) here used to read as a flat black/white ring slapped on
    top of whatever hue the swatch is — it doesn't belong to the app's
@@ -2648,16 +2640,13 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
 .accent-swatch[aria-pressed="true"] { border-color: var(--accent-strong); transform: scale(1.08); }
 .accent-swatch[aria-pressed="true"]:active {
   transform: scale(1.08) translateY(var(--chip-lip));
-  transition-duration: .08s;
+  transition-duration: var(--dur-press);
 }
 .accent-swatch[aria-pressed="true"]::after {
   content: '';
   position: absolute; inset: 0;
   border-radius: 50%;
   border: 2px solid var(--surface);
-}
-@media (prefers-reduced-motion: reduce) {
-  .accent-swatch { transition: none; }
 }
 
 /* ---------- bottom nav ---------- */
@@ -2675,6 +2664,10 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   z-index: 20;
 }
 .bottom-nav:not([hidden]) { display: flex; }
+/* Tucked away while the on-screen keyboard is up: it is position:fixed, so
+   it would otherwise float or get covered mid-typing. */
+.bottom-nav { transition: transform var(--dur-fast) ease; }
+html.keyboard-open .bottom-nav { transform: translateY(110%); pointer-events: none; }
 .bottom-nav-inner {
   /* space-evenly + flex:1 on each button (below) means this distributes
      however many nav-btns exist — 2 today, up to 5 once User Songs,
@@ -2709,9 +2702,9 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
   font-weight: 600;
   cursor: pointer;
 }
-.nav-btn { transition: color .18s ease, transform var(--press-duration-out) var(--press-ease); }
+.nav-btn { transition: color var(--dur-base) ease, transform var(--press-duration-out) var(--press-ease); }
 .nav-btn:active { transform: scale(var(--press-scale-icon)); transition-duration: var(--press-duration-in); }
-.nav-btn svg { width: 23px; height: 23px; fill: var(--ink-faint); transition: fill .18s ease, transform .22s cubic-bezier(.34, 1.56, .64, 1); }
+.nav-btn svg { width: 23px; height: 23px; fill: var(--ink-faint); transition: fill var(--dur-base) ease, transform var(--dur-base) cubic-bezier(.34, 1.56, .64, 1); }
 .nav-btn.is-active { color: var(--accent-strong); }
 .nav-btn.is-active svg { fill: var(--accent-strong); transform: scale(1.08); }
 
@@ -2969,7 +2962,7 @@ button:disabled { transform: none !important; }
 .btn-primary:active {
   transform: translateY(var(--lip-md));
   box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 40%, var(--line));
-  transition-duration: .08s;
+  transition-duration: var(--dur-press);
 }
 html[data-theme="dark"] .btn-primary:active {
   box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
@@ -2983,7 +2976,7 @@ html[data-theme="dark"] .btn-primary:active {
 .btn-pill-done:active {
   transform: translateY(var(--lip-md));
   box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
-  transition-duration: .08s;
+  transition-duration: var(--dur-press);
 }
 html[data-theme="dark"] .btn-pill-done:active {
   box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
@@ -3019,7 +3012,7 @@ html[data-theme="dark"] .btn-pill-done:active {
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-1);
-  transition: transform .16s var(--press-ease-soft), box-shadow .16s ease;
+  transition: transform var(--dur-fast) var(--press-ease-soft), box-shadow var(--dur-fast) ease;
 }
 .playlist-row:active { transform: scale(0.99); }
 .playlist-row:hover { box-shadow: var(--shadow-2); }
@@ -3115,13 +3108,10 @@ html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"]:active {
      derives its own shadow from its own background, so the two filled
      buttons collapse the same amount and read as one family. */
   box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
-  transition: transform .08s ease, box-shadow .08s ease;
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
 }
 html[data-theme="dark"] .btn-pill-done {
   box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
-}
-@media (prefers-reduced-motion: reduce) {
-  .btn-pill-done { transition: none; }
 }
 .btn-pill-done[hidden] { display: none; }
 /* Fade/scale for the Finish pill's own appear/disappear (see
@@ -3202,7 +3192,7 @@ html[data-theme="dark"] .btn-pill-done {
   position: relative;
   z-index: 30;
   box-shadow: var(--shadow-2);
-  transition: box-shadow .18s ease;
+  transition: box-shadow var(--dur-base) ease;
 }
 
 /* ---------- kebab dropdown menu ---------- */
@@ -3369,7 +3359,7 @@ span.trash-row-check {
   justify-content: center;
   padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
   opacity: 1;
-  transition: opacity .24s ease;
+  transition: opacity var(--dur-base) ease;
 }
 .modal-overlay[hidden] { display: none; }
 .modal-overlay:not([hidden]) { display: flex; }
@@ -3384,6 +3374,17 @@ span.trash-row-check {
   box-shadow: var(--shadow-2);
   padding-bottom: 0;
   animation: modal-slide-up .34s var(--motion-settle);
+}
+
+/* Keyboard open (class set by initViewportSync in app.js): keep the card
+   where it already was instead of re-centering it in the shorter area.
+   --kb-card-top is measured in JS from the card's own position. */
+html.keyboard-open .modal-overlay {
+  align-items: flex-start;
+  padding-top: var(--kb-card-top, max(12px, env(safe-area-inset-top)));
+}
+html.keyboard-open .modal-card {
+  max-height: calc(var(--vvh, 100vh) - var(--kb-card-top, 12px) - 12px);
 }
 /* The shared dialog now behaves like a centered popup at every viewport
    size. A small rise + scale gives the card some arrival motion without
@@ -3469,7 +3470,7 @@ span.trash-row-check {
    inline control (see the comment above), so give it more presence than
    the base .seg-toggle-btn sizing — taller tap targets and a slightly
    larger label read better spanning the popup's full width. */
-.db-picker-tabs.seg-toggle { padding: 3px; }
+.db-picker-tabs.seg-toggle { --seg-inset: 3px; }
 .db-picker-tabs .seg-toggle-btn { padding: 10px 10px; font-size: 0.85rem; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
 /* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
@@ -3509,7 +3510,7 @@ span.trash-row-check {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--ink);
-  transition: transform .18s var(--press-ease-soft); /* same subtle spring press feel as .song-row/.playlist-row, not the universal button pop — see that rule's comment */
+  transition: transform var(--dur-base) var(--press-ease-soft); /* same subtle spring press feel as .song-row/.playlist-row, not the universal button pop — see that rule's comment */
 }
 .checklist-item:active { transform: scale(0.99); }
 .checklist-item-sub { font-size: 0.78rem; color: var(--ink-faint); font-weight: 400; margin-top: 1px; }
@@ -3519,9 +3520,9 @@ span.trash-row-check {
   border-radius: 50%;
   border: 2px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  transition: background-color .18s ease-out, border-color .18s ease-out;
+  transition: background-color var(--dur-base) ease-out, border-color var(--dur-base) ease-out;
 }
-.checklist-check svg { width: 14px; height: 14px; fill: var(--paper); opacity: 0; transition: opacity .18s ease-out; }
+.checklist-check svg { width: 14px; height: 14px; fill: var(--paper); opacity: 0; transition: opacity var(--dur-base) ease-out; }
 .checklist-item[aria-pressed="true"] .checklist-check {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
@@ -3636,7 +3637,7 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   border-radius: 999px;
   padding: 5px 12px;
   cursor: pointer;
-  transition: transform var(--press-duration-out) var(--press-ease), border-color .15s;
+  transition: transform var(--press-duration-out) var(--press-ease), border-color var(--dur-fast);
 }
 .label-suggestion-new {
   color: var(--accent-strong);
@@ -3658,7 +3659,7 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--accent-strong);
-  transition: transform .18s var(--press-ease-soft); /* same subtle spring press feel as .checklist-item, not the universal button pop */
+  transition: transform var(--dur-base) var(--press-ease-soft); /* same subtle spring press feel as .checklist-item, not the universal button pop */
 }
 .modal-new-playlist-row:active { transform: scale(0.99); }
 .modal-new-playlist-row svg { width: 16px; height: 16px; fill: currentColor; }
@@ -3719,7 +3720,7 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  transition: transform var(--press-duration-out) var(--press-ease), background .15s, border-color .15s;
+  transition: transform var(--press-duration-out) var(--press-ease), background var(--dur-fast), border-color var(--dur-fast);
 }
 .editor-info-btn:hover {
   background: var(--accent-tint);
@@ -3939,7 +3940,7 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 
 /* ==========================================================
    Chord Finder (Settings → Tools → Chord Finder)
-   Interactive horizontal fretboard. Presentation mode has its own
+   Interactive horizontal fretboard. Display mode has its own
    separate styles below and is intentionally unchanged.
    ========================================================== */
 #page-chord-finder {
@@ -3992,7 +3993,7 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
 }
 
 /* Tuning labels remain visually plain. They retain the existing tap-to-mute
-   behavior for presentation compatibility. */
+   behavior for display compatibility. */
 .cf-string-toggle {
   width: 100%;
   height: 100%;
@@ -4139,7 +4140,7 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   font-weight: 750;
   line-height: 1;
   letter-spacing: -0.02em;
-  transition: transform 0.12s var(--press-ease-soft, ease), opacity 0.12s ease;
+  transition: transform var(--dur-fast) var(--press-ease-soft, ease), opacity var(--dur-fast) ease;
   pointer-events: none;
 }
 html[data-theme="dark"] .cf-dot { color: var(--paper); }
@@ -4303,16 +4304,13 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   .cf-toolbar { align-items: center; }
   .cf-result { min-height: 150px; padding-left: 10px; padding-right: 10px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .cf-dot { transition: none; }
-}
 
 /* ----------------------------------------------------------
-   Chord Finder — kebab menu + Presentation mode
+   Chord Finder — kebab menu + Display mode
    The header's "…" opens a .kebab-dropdown (same one the song view
-   uses). Presentation mode swaps the interactive board for a plain
-   printed-style chord diagram (js/chord-finder.js → Presentation):
-   5 fret rows, fret numbers only. Like the song view's presentation
+   uses). Display mode swaps the interactive board for a plain
+   printed-style chord diagram (js/chord-finder.js → Display):
+   5 fret rows, fret numbers only. Like the song view's display
    mode, the kebab shrinks to a faint dot rather than disappearing, since
    it is the only way back out.
    ---------------------------------------------------------- */
@@ -4320,7 +4318,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 #cf-menu-btn { width: 34px; height: 34px; flex-shrink: 0; }
 #cf-menu-btn svg { width: 18px; height: 18px; }
 
-.cf-present {
+.cf-display {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -4330,9 +4328,9 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   min-height: calc(100dvh - 90px);
   padding: 0 0 24px;
 }
-.cf-present[hidden] { display: none; }
+.cf-display[hidden] { display: none; }
 
-.cf-present-stage {
+.cf-display-stage {
   width: min(100%, 560px);
   display: flex;
   flex-direction: column;
@@ -4341,7 +4339,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   gap: clamp(14px, 2.4vh, 28px);
 }
 
-.cf-present-chord {
+.cf-display-chord {
   min-height: 1.15em;
   margin: 0;
   color: var(--ink);
@@ -4352,7 +4350,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   letter-spacing: -0.035em;
   text-align: center;
 }
-.cf-present-chord.is-empty {
+.cf-display-chord.is-empty {
   visibility: hidden;
 }
 
@@ -4387,35 +4385,32 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   letter-spacing: -0.02em;
 }
 
-/* Presentation mode: hide the finder's own UI, keep only the diagram. */
-#page-chord-finder.presentation-mode .pv-header .song-view-title,
-#page-chord-finder.presentation-mode #chord-finder-back-btn,
-#page-chord-finder.presentation-mode .cf-result,
-#page-chord-finder.presentation-mode .cf-panel {
+/* Display mode: hide the finder's own UI, keep only the diagram. */
+#page-chord-finder.display-mode .pv-header .song-view-title,
+#page-chord-finder.display-mode #chord-finder-back-btn,
+#page-chord-finder.display-mode .cf-result,
+#page-chord-finder.display-mode .cf-panel {
   display: none;
 }
-#page-chord-finder.presentation-mode .pv-header {
+#page-chord-finder.display-mode .pv-header {
   min-height: 0;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
 }
-#page-chord-finder.presentation-mode .pv-header-actions { margin-left: auto; }
-#page-chord-finder.presentation-mode #cf-menu-btn {
+#page-chord-finder.display-mode .pv-header-actions { margin-left: auto; }
+#page-chord-finder.display-mode #cf-menu-btn {
   width: 26px;
   height: 26px;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
   opacity: 0.4;
-  transition: opacity .15s ease, width .22s ease, height .22s ease;
+  transition: opacity var(--dur-fast) ease, width var(--dur-base) ease, height var(--dur-base) ease;
 }
-#page-chord-finder.presentation-mode #cf-menu-btn svg { width: 14px; height: 14px; }
-#page-chord-finder.presentation-mode #cf-menu-btn:hover,
-#page-chord-finder.presentation-mode #cf-menu-btn:active { opacity: 0.85; }
-@media (prefers-reduced-motion: reduce) {
-  #page-chord-finder.presentation-mode #cf-menu-btn { transition: none; }
-}
+#page-chord-finder.display-mode #cf-menu-btn svg { width: 14px; height: 14px; }
+#page-chord-finder.display-mode #cf-menu-btn:hover,
+#page-chord-finder.display-mode #cf-menu-btn:active { opacity: 0.85; }
 
 /* ---------- Song view: tappable chord diagram popup (v5.0.7) ---------- */
 /* Chord labels still stay out of lyric text selection/copy, but they now
@@ -4475,7 +4470,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  transition: height .24s var(--motion-settle);
+  transition: height var(--dur-base) var(--motion-settle);
 }
 .song-chord-viewer-stage {
   width: 100%;
@@ -4484,7 +4479,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   justify-content: center;
   opacity: 1;
   transform: translateY(0) scale(1);
-  transition: opacity .11s ease, transform .14s ease;
+  transition: opacity var(--dur-fast) ease, transform .14s ease;
 }
 .song-chord-viewer-stage.is-leaving {
   opacity: 0;
@@ -4702,7 +4697,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 
 /* ==========================================================
    v5.0.13 — Chord Finder piano mode
-   Instrument switch + two-octave keyboard (interactive + Presentation).
+   Instrument switch + two-octave keyboard (interactive + Display).
    Keys use fixed ivory/ebony colours so the keyboard reads as a piano in
    both themes; only the pressed state follows the chosen accent.
    ========================================================== */
@@ -4739,7 +4734,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   font: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color .12s ease, transform .12s var(--press-ease-soft, ease);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) var(--press-ease-soft, ease);
 }
 .cf-key:focus-visible {
   outline: 2px solid var(--accent);
@@ -4797,8 +4792,8 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   .cf-key-white:not(.cf-on):hover { background: color-mix(in srgb, var(--accent) 12%, #fbfaf7); }
 }
 
-/* Presentation Mode keyboard (SVG). */
-.cf-present-stage.is-piano { width: min(100%, 760px); }
+/* Display Mode keyboard (SVG). */
+.cf-display-stage.is-piano { width: min(100%, 760px); }
 .cf-piano-diagram { width: min(100%, 760px); }
 .cf-pd-white { fill: #fbfaf7; stroke: #c4bfc8; stroke-width: 2; }
 .cf-pd-white.is-on { fill: var(--accent); stroke: color-mix(in srgb, var(--accent) 70%, #000); }
@@ -5016,4 +5011,28 @@ html[data-theme="dark"] .sheet-page-image {
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet-view-pages { scroll-behavior: auto; }
+}
+
+/* ---------- touch: no iOS focus-zoom ----------
+   iOS Safari zooms the whole page when a focused field is under 16px and
+   often doesn't zoom back out, which shifts the entire app. These fields
+   were 14-15.4px. Touch devices only, so desktop sizing is unchanged. */
+@media (pointer: coarse) {
+  #search-input,
+  .search-field,
+  .modal-text-input,
+  .editor-lyrics-textarea,
+  .cf-search-input { font-size: 16px; }
+}
+
+/* Fixed-do note formats have longer names than A–G. Preserve the fretboard,
+   but reduce only their marker lettering so Sol♯ / Соль♯ stays inside. */
+html:not([data-note-names="letters"]) .cf-dot { font-size: clamp(.43rem, .9vw, .54rem); letter-spacing: -.045em; }
+html:not([data-note-names="letters"]) .cf-key-label { font-size: clamp(.48rem, 1.2vw, .61rem); letter-spacing: -.045em; }
+html:not([data-note-names="letters"]) .cf-key-black .cf-key-label { font-size: clamp(.4rem, 1vw, .51rem); }
+html:not([data-note-names="letters"]) .cf-pd-label { font-size: 11px; letter-spacing: -.04em; }
+html:not([data-note-names="letters"]) .cf-pd-label.is-black { font-size: 9px; }
+.settings-row-note-names .select-input { max-width: 100%; }
+@media (max-width: 480px) {
+  .settings-row-note-names .select-input { flex: 1 1 100%; width: 100%; }
 }

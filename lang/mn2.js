@@ -19,6 +19,8 @@ window.SONGBOOK_LANG.mn2 = {
   resultsFiltered: (n, total) => `${total}-с ${n} дуу`,
   emptyState: "ᠲᠣᢈᠢᠷᠠᠬᠤ ᠳᠠᠭᠤᠤ ᠣᠯᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ ᠭᠠᠷᠴᠠᠭ᠂ ᠳ᠋ᠤᠭᠠᠷ᠂ ᠡᠰᠡᠪᠡᠯ ᠦᢉᠡ ᠪᠡᠷ ᠬᠠᠶᠢᠵᠤ ᠦᠵᠡᠨ᠎ᠡ ᠦᠦ᠃ ",
   songLoadError: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ ᠤ᠋ᠨ ᠵᠢᠭᠰᠠᠭᠠᠯᠲᠠ ᠶ᠋ᠢ ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ Дараа дахин оролдоно уу.",
+  // TODO: placeholder Cyrillic until traditional-script translation is completed.
+  songLoadOfflineError: "Энэ дууны сан офлайнаар хадгалагдаагүй. Интернэттэй үед нээвэл хадгалагдана.",
   navSongs: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ",
   navSettings: "ᠲᠣᢈᠢᠷᠠᠭ᠎ᠠ",
   navUserSongs: "Миний дуу",
@@ -32,6 +34,8 @@ window.SONGBOOK_LANG.mn2 = {
   // TODO: these three are placeholder Cyrillic, not transliterated to
   // traditional script yet — file is currently disabled/unloaded (see
   // service-worker.js and index.html), fix before re-enabling.
+  noteNamesTitle: "Нотын нэр",
+  noteNamesSub: "Төгөлдөр хуур, гитарын нотын нэр",
   chordStyleGroup: "Аккордын загвар",
   chordStyleSub: "Аккордыг үгийн дээр хэрхэн харуулах",
   chordStyleChip: "Дугтуй",
@@ -203,8 +207,8 @@ window.SONGBOOK_LANG.mn2 = {
   saveBtn: "Хадгалах",
   deleteBtn: "Устгах",
   addToPlaylistTitle: "Жагсаалтад нэмэх",
-  presentationModeBtn: "Танилцуулах горим",
-  exitPresentationModeBtn: "Танилцуулах горимоос гарах",
+  displayModeBtn: "Дэлгэцийн горим",
+  exitDisplayModeBtn: "Дэлгэцийн горимоос гарах",
   addSongsTitle: "Дуу нэмэх",
   removeFromPlaylist: "Жагсаалтаас хасах",
   menuDelete: "Устгах",

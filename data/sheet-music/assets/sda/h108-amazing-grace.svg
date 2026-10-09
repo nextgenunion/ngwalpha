@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" width="1200" height="1600">
+<rect width="100%" height="100%" fill="#fff"/>
+<g fill="#111" font-family="Georgia, Times New Roman, serif">
+<text x="600" y="92" text-anchor="middle" font-size="52" font-weight="700">Amazing Grace</text>
+<text x="600" y="132" text-anchor="middle" font-size="22">NEW BRITAIN • C major • 3/4</text>
+<text x="90" y="175" font-size="17">Melody transcription for Sheet Music feature testing</text>
+<text x="1110" y="175" text-anchor="end" font-size="17">Traditional</text>
+<line x1="105" y1="245" x2="1055" y2="245" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="263" x2="1055" y2="263" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="281" x2="1055" y2="281" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="299" x2="1055" y2="299" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="317" x2="1055" y2="317" stroke="#111" stroke-width="2"/>
+<text x="110" y="314" font-size="72" font-family="Noto Music, Bravura, serif">𝄞</text>
+<text x="172" y="275" font-size="30" font-weight="700">3</text>
+<text x="172" y="310" font-size="30" font-weight="700">4</text>
+<rect x="131.0" y="280" width="18" height="6" fill="#111"/>
+<ellipse cx="230.0" cy="281.0" rx="10" ry="7" transform="rotate(-18 230.0 281.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="239.0" y1="281.0" x2="239.0" y2="233.0" stroke="#111" stroke-width="2.5"/>
+<line x1="295" y1="245" x2="295" y2="317" stroke="#111" stroke-width="2"/>
+<ellipse cx="330.0" cy="263.0" rx="10" ry="7" transform="rotate(-18 330.0 263.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="339.0" y1="263.0" x2="339.0" y2="215.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="420.0" cy="263.0" rx="10" ry="7" transform="rotate(-18 420.0 263.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="429.0" y1="263.0" x2="429.0" y2="215.0" stroke="#111" stroke-width="2.5"/>
+<line x1="485" y1="245" x2="485" y2="317" stroke="#111" stroke-width="2"/>
+<ellipse cx="520.0" cy="245.0" rx="10" ry="7" transform="rotate(-18 520.0 245.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="529.0" y1="245.0" x2="529.0" y2="197.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="610.0" cy="245.0" rx="10" ry="7" transform="rotate(-18 610.0 245.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="619.0" y1="245.0" x2="619.0" y2="197.0" stroke="#111" stroke-width="2.5"/>
+<line x1="675" y1="245" x2="675" y2="317" stroke="#111" stroke-width="2"/>
+<ellipse cx="710.0" cy="263.0" rx="10" ry="7" transform="rotate(-18 710.0 263.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="719.0" y1="263.0" x2="719.0" y2="215.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="800.0" cy="263.0" rx="10" ry="7" transform="rotate(-18 800.0 263.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="809.0" y1="263.0" x2="809.0" y2="215.0" stroke="#111" stroke-width="2.5"/>
+<line x1="865" y1="245" x2="865" y2="317" stroke="#111" stroke-width="2"/>
+<ellipse cx="900.0" cy="272.0" rx="10" ry="7" transform="rotate(-18 900.0 272.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="909.0" y1="272.0" x2="909.0" y2="224.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="990.0" cy="272.0" rx="10" ry="7" transform="rotate(-18 990.0 272.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="999.0" y1="272.0" x2="999.0" y2="224.0" stroke="#111" stroke-width="2.5"/>
+<line x1="1050" y1="245" x2="1050" y2="317" stroke="#111" stroke-width="2"/>
+<line x1="1055" y1="245" x2="1055" y2="317" stroke="#111" stroke-width="5"/>
+<text x="145" y="380" font-size="25">Amazing grace, how sweet the sound,</text>
+<line x1="105" y1="630" x2="1055" y2="630" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="648" x2="1055" y2="648" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="666" x2="1055" y2="666" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="684" x2="1055" y2="684" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="702" x2="1055" y2="702" stroke="#111" stroke-width="2"/>
+<text x="110" y="699" font-size="72" font-family="Noto Music, Bravura, serif">𝄞</text>
+<line x1="105" y1="630" x2="105" y2="702" stroke="#111" stroke-width="2"/>
+<ellipse cx="140.0" cy="648.0" rx="10" ry="7" transform="rotate(-18 140.0 648.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="149.0" y1="648.0" x2="149.0" y2="600.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="230.0" cy="666.0" rx="10" ry="7" transform="rotate(-18 230.0 666.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="239.0" y1="666.0" x2="239.0" y2="618.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 239.0 618.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<ellipse cx="252.5" cy="648.0" rx="10" ry="7" transform="rotate(-18 252.5 648.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="261.5" y1="648.0" x2="261.5" y2="600.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 261.5 600.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<line x1="295" y1="630" x2="295" y2="702" stroke="#111" stroke-width="2"/>
+<ellipse cx="330.0" cy="630.0" rx="10" ry="7" transform="rotate(-18 330.0 630.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="339.0" y1="630.0" x2="339.0" y2="582.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="420.0" cy="639.0" rx="10" ry="7" transform="rotate(-18 420.0 639.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="429.0" y1="639.0" x2="429.0" y2="591.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 429.0 591.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<ellipse cx="442.5" cy="648.0" rx="10" ry="7" transform="rotate(-18 442.5 648.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="451.5" y1="648.0" x2="451.5" y2="600.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 451.5 600.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<line x1="485" y1="630" x2="485" y2="702" stroke="#111" stroke-width="2"/>
+<ellipse cx="520.0" cy="657.0" rx="10" ry="7" transform="rotate(-18 520.0 657.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="529.0" y1="657.0" x2="529.0" y2="609.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="610.0" cy="657.0" rx="10" ry="7" transform="rotate(-18 610.0 657.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="619.0" y1="657.0" x2="619.0" y2="609.0" stroke="#111" stroke-width="2.5"/>
+<line x1="675" y1="630" x2="675" y2="702" stroke="#111" stroke-width="2"/>
+<ellipse cx="710.0" cy="666.0" rx="10" ry="7" transform="rotate(-18 710.0 666.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="719.0" y1="666.0" x2="719.0" y2="618.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="800.0" cy="657.0" rx="10" ry="7" transform="rotate(-18 800.0 657.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="809.0" y1="657.0" x2="809.0" y2="609.0" stroke="#111" stroke-width="2.5"/>
+<line x1="865" y1="630" x2="865" y2="702" stroke="#111" stroke-width="2"/>
+<ellipse cx="900.0" cy="666.0" rx="10" ry="7" transform="rotate(-18 900.0 666.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="909.0" y1="666.0" x2="909.0" y2="618.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="990.0" cy="666.0" rx="10" ry="7" transform="rotate(-18 990.0 666.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="999.0" y1="666.0" x2="999.0" y2="618.0" stroke="#111" stroke-width="2.5"/>
+<line x1="1050" y1="630" x2="1050" y2="702" stroke="#111" stroke-width="2"/>
+<line x1="1055" y1="630" x2="1055" y2="702" stroke="#111" stroke-width="5"/>
+<text x="145" y="765" font-size="25">that saved a wretch like me!</text>
+<line x1="105" y1="1015" x2="1055" y2="1015" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="1033" x2="1055" y2="1033" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="1051" x2="1055" y2="1051" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="1069" x2="1055" y2="1069" stroke="#111" stroke-width="2"/>
+<line x1="105" y1="1087" x2="1055" y2="1087" stroke="#111" stroke-width="2"/>
+<text x="110" y="1084" font-size="72" font-family="Noto Music, Bravura, serif">𝄞</text>
+<line x1="105" y1="1015" x2="105" y2="1087" stroke="#111" stroke-width="2"/>
+<ellipse cx="140.0" cy="1033.0" rx="10" ry="7" transform="rotate(-18 140.0 1033.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="149.0" y1="1033.0" x2="149.0" y2="985.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="230.0" cy="1033.0" rx="10" ry="7" transform="rotate(-18 230.0 1033.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="239.0" y1="1033.0" x2="239.0" y2="985.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 239.0 985.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<ellipse cx="252.5" cy="1042.0" rx="10" ry="7" transform="rotate(-18 252.5 1042.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="261.5" y1="1042.0" x2="261.5" y2="994.0" stroke="#111" stroke-width="2.5"/>
+<path d="M 261.5 994.0 q 18 7 6 24" fill="none" stroke="#111" stroke-width="3"/>
+<line x1="295" y1="1015" x2="295" y2="1087" stroke="#111" stroke-width="2"/>
+<ellipse cx="330.0" cy="1051.0" rx="10" ry="7" transform="rotate(-18 330.0 1051.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="339.0" y1="1051.0" x2="339.0" y2="1003.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="420.0" cy="1051.0" rx="10" ry="7" transform="rotate(-18 420.0 1051.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="429.0" y1="1051.0" x2="429.0" y2="1003.0" stroke="#111" stroke-width="2.5"/>
+<line x1="485" y1="1015" x2="485" y2="1087" stroke="#111" stroke-width="2"/>
+<ellipse cx="520.0" cy="1015.0" rx="10" ry="7" transform="rotate(-18 520.0 1015.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="529.0" y1="1015.0" x2="529.0" y2="967.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="610.0" cy="1051.0" rx="10" ry="7" transform="rotate(-18 610.0 1051.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="619.0" y1="1051.0" x2="619.0" y2="1003.0" stroke="#111" stroke-width="2.5"/>
+<line x1="675" y1="1015" x2="675" y2="1087" stroke="#111" stroke-width="2"/>
+<ellipse cx="710.0" cy="1033.0" rx="10" ry="7" transform="rotate(-18 710.0 1033.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<line x1="719.0" y1="1033.0" x2="719.0" y2="985.0" stroke="#111" stroke-width="2.5"/>
+<ellipse cx="800.0" cy="1042.0" rx="10" ry="7" transform="rotate(-18 800.0 1042.0)" fill="#111" stroke="#111" stroke-width="2.5"/>
+<line x1="809.0" y1="1042.0" x2="809.0" y2="994.0" stroke="#111" stroke-width="2.5"/>
+<line x1="865" y1="1015" x2="865" y2="1087" stroke="#111" stroke-width="2"/>
+<ellipse cx="900.0" cy="1033.0" rx="10" ry="7" transform="rotate(-18 900.0 1033.0)" fill="#fff" stroke="#111" stroke-width="2.5"/>
+<circle cx="917.0" cy="1033.0" r="3.3" fill="#111"/>
+<line x1="1050" y1="1015" x2="1050" y2="1087" stroke="#111" stroke-width="2"/>
+<line x1="1055" y1="1015" x2="1055" y2="1087" stroke="#111" stroke-width="5"/>
+<text x="145" y="1150" font-size="25">I once was lost, but now am found,</text>
+<text x="145" y="1189" font-size="25">was blind, but now I see.</text>
+<line x1="90" y1="1462" x2="1110" y2="1462" stroke="#ddd" stroke-width="2"/>
+<text x="90" y="1500" font-size="17">Based on the CC0 AmazingGrace.svg transcription by Brian Ammon (Wikimedia Commons).</text>
+<text x="90" y="1530" font-size="17">The hymn and tune are public domain. This local SVG is packaged to verify the offline Sheet Music pipeline.</text>
+</g></svg>

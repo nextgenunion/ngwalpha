@@ -23,6 +23,8 @@
       group: 'all',
       labelKey: 'dbOptionEnglish',
       store: 'english-songs',
+      // All imported English songs ship in one offline-ready snapshot.
+      bundlePrimary: true,
     }),
     sda: Object.freeze({
       folder: 'hymn',
