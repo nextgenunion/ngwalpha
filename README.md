@@ -5,18 +5,123 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.33-alpha)
+# Next Gen Worship — Worship Song App (v5.0.38-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
 
-This is the **Version 4.2** line of the planning doc's roadmap, building on
-Version 3's User Songs and Song Editor with backup/import and Trash Bin
-work while retaining Version 2's Playlists/Favorites and Version 1's core
-songbook, settings, theme, search, and transpose features.
+This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
+backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
+remains an optional developer preview.
 
+## v5.0.38 interaction and visual audit fixes
 
+- Interrupted chord taps are canceled when the person chooses another control,
+  clicks another lyric, presses a key, or starts scrolling. Focus/layout scroll
+  events do not cancel legitimate taps.
+- A native desktop double-click is recognized at the timer boundary and after
+  its first-click popup appears. Its second click opens the intended chord in
+  Chord Finder rather than closing the backdrop or pressing a popup control.
+  The ordinary single-tap delay and mobile double-tap behavior are retained.
+- Reselecting a database after a failed download retries its bootstrap. An
+  unrelated checkbox change does not repeatedly retry a retained failed source,
+  and existing in-flight loads stay shared.
+- Chord popups use available viewport height in short landscape layouts. The
+  instrument switch and alternate-voicing controls remain visible; smaller
+  exceptional viewports can scroll the dialog body. Each new modal starts at
+  the top, and Escape closes the active modal. Keyboard focus enters the dialog,
+  Tab stays within it, and closing restores focus without scrolling the song.
+- Song rows retain their real layout size. The former offscreen size estimate
+  could shrink a newly focused row between pointerdown and pointerup after a
+  far-down jump, causing the click to miss. The future-database browser fixture
+  reproduces this with a short row in a combined numbered/unnumbered list.
+- Unavailable or single-voicing chord charts hide their unused voicing controls;
+  the popup's flex styling no longer overrides the navigation's hidden state.
+- `tools/verify_multidb_adversarial.cjs` tests the app through actual touch/mouse
+  input, all 15 selection combinations, interrupted taps, temporary server
+  failures/retries, blocked IndexedDB, varied double-click timing, and light/dark
+  screenshots at 320×568, 390×844, 844×390, and 1440×900. It also checks the
+  visibility of the popup's individual controls, beyond its outer bounds, and
+  immediately activates far-down songs in all three views with mouse and touch.
+- `tools/test_chord_gestures.js` provides deterministic regression coverage for
+  cancellation, delayed native clicks, stale gesture origins and keyboard use.
 
+## v5.0.37 multiple song databases and chord navigation
+
+- The ✓ toggle beside SDA / All enables multiple database selection. Choices
+  apply immediately and remain selected after closing the picker or restarting
+  the app. At least one database stays selected. Turning ✓ off returns to the
+  most recently selected database and the original single-selection behavior.
+- The Songbook combines selected libraries for search, label filters, all three
+  list views, sorting, fast scrolling, and the playlist Add Songs picker. Song
+  references remain `sourceKey + songId`; identical IDs in different libraries
+  keep independent Favorites, labels and playlist membership.
+- Exactly one selected numbered database keeps its printed numbers, alongside
+  any unnumbered libraries. Selecting two or more numbered databases hides
+  numbers in the combined Songbook and Add Songs lists and disables number
+  sorting. Alphabetical sorting is used instead. An individually opened song
+  still identifies its original songbook number. Metadata in the source registry
+  determines this rule; no database names or library sizes are hardcoded.
+- With number sorting, numbered songs appear first in numeric order, followed by
+  unnumbered songs in alphabetical order. The scroll handle resolves real rows
+  with source-qualified IDs; it shows letters for unnumbered rows.
+- Selected libraries load independently with shared in-flight requests. Late
+  responses cannot replace a newer selection, rapid taps coalesce rendering,
+  deselection aborts only unwanted background updates, and multiple requests
+  waiting on an aborted update share one replacement sweep. Available libraries
+  remain visible if another selected library fails to load, with an explicit
+  failure row. Refresh processes the selected libraries.
+- One tap on a song chord opens its compact diagram. Double-tapping / clicking
+  the chord opens the Chord Finder with that displayed (including transposed)
+  chord loaded into the editable fretboard or piano. You can also double-tap
+  the popup diagram; Enter on that diagram or Shift+Enter on a chord provides
+  keyboard access.
+- Back returns to the same song and chord popup, preserving transposition,
+  song scroll, popup instrument and voicing. Browser Forward reopens the tool.
+  Repeated rapid taps push one navigation entry. Closing the popup clears its
+  saved popup state, and a pending tap cannot open on another page.
+- Existing song databases and assets are unchanged. Both additions use the
+  existing atomic offline installation and work without a network connection
+  after installation. Internal and archive versions are `5.0.37-alpha`.
+
+### Verification
+
+Run the dependency-free Node regression checks in `tools/test_*.js`.
+`test_multidb_selection.js` covers all 15 shipped combinations and future source
+metadata; `test_multidb_sync_races.js` covers 100 simultaneous re-selections.
+
+`tools/verify_multidb_chords_browser.cjs` starts its own local HTTP server and
+runs interaction tests using Playwright. With Playwright installed, run
+`node tools/verify_multidb_chords_browser.cjs`; optionally set
+`CHROMIUM_EXECUTABLE` to your Chromium/Chrome executable, or `BASE_URL` to an
+already-running local preview. It covers phone touch and desktop mouse input,
+all combinations/views/sort directions, rapid selection/mode toggles, persisted
+selection, delayed loads, future source fixtures, colliding song IDs, labels,
+Favorites and real service-worker offline navigation. Screenshot captures are
+local QA output; they are not part of the distributable package.
+
+## v5.0.36 complete offline installation and lyric copying
+
+- Installs the app shell, every runtime icon, bundled audio, and every shipped songbook as one complete version. V1–V3 cache their original manifest-listed song files; V4/V5 cache their existing database bundles. No song data is converted or replaced.
+- Required-download failures leave the previous installed worker/cache usable. Version checks and Reload app request updates without clearing the working offline installation. Installation bypasses stale HTTP responses.
+- Optional online font stylesheets no longer block app startup. Cached audio supports byte-range playback/seeking offline.
+- Regression check: `node tools/test_offline_install.js` exercises failed installation, immediate offline databases, byte-range audio and fallback navigation.
+- Selection copying on mobile/desktop preserves words, lines, sections and mid-word chord splits while omitting chord symbols and automatic section numbers. Real DOM word spaces provide a native-copy fallback.
+
+## v5.0.35 fast-scroll accuracy fix
+
+- The handle shows actual song numbers, including gaps and reverse order, rather than rounding to tens. Alphabet labels preserve the title's original script.
+- Lookup reads current row geometry, so off-screen row layout, fonts, view changes and resizing cannot leave cached positions stale.
+- The indicated song stays visible. The reference point moves from the top to the bottom of the viewport through a drag, reaching the final songs gradually instead of forcing the last number at the end.
+- List, Compact, Tiles and landscape layouts retain the existing lazy rendering and handle animation. Database sizes and last song numbers are not hardcoded.
+- Run `node tools/test_scroll_index.js` for geometry, sparse-number and sorting regression coverage.
+
+## v5.0.34 editor and translation update
+
+- Shared interface translations align with the supplied v5 baseline; Mongolian reading mode is “Унших горим”.
+- Editor preview wording is shorter; formatting hints and empty-label text are removed where present. Link labels no longer say optional.
+- Formatting help uses the first Mongolian SDA song with its original chords. The info glyph has no outer circular button border.
+- Unattributed interface icons are replaced with sourced library SVGs; source and license information is in icons/THIRD_PARTY.md.
 
 ## v5.0.33-alpha
 

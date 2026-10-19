@@ -69,7 +69,7 @@ check(P.voicings('not-a-chord').length === 0, 'invalid symbol => no voicings');
 
 // 6. Chord Finder wiring (analysis + search) for the piano instrument.
 let src = fs.readFileSync(__dirname + '/../js/chord-finder.js', 'utf8');
-const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });';
+const marker = 'window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings, openChord });';
 if (!src.includes(marker)) { console.log('FAIL export marker missing'); process.exit(1); }
 src = src.replace(marker, 'window.__CF={Search,Prefs,View,Menu,PianoState,analyze,Display};' + marker);
 vm.runInNewContext(src, ctx);

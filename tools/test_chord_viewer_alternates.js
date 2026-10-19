@@ -26,7 +26,7 @@ class El {
 const root=new El('div'); root.isConnected=true;
 const chord=new El('span');chord.dataset.chord='Am';chord.textContent='Am';chord._closest=sel=>sel==='.chord-tag[data-chord]'?chord:null;
 let modal=null;
-const ctx={console,setTimeout,clearTimeout,document:{getElementById:id=>id==='lyrics-container'?root:null,createElement:tag=>new El(tag)},matchMedia:()=>({matches:true})};ctx.window=ctx;
+const ctx={console,setTimeout,clearTimeout,document:{getElementById:id=>id==='lyrics-container'?root:null,createElement:tag=>new El(tag),addEventListener(){}},matchMedia:()=>({matches:true})};ctx.window=ctx;
 vm.runInNewContext(fs.readFileSync(__dirname+'/../js/chord-viewer.js','utf8'),ctx);
 const calls=[];
 ctx.SongChordViewer.bind({

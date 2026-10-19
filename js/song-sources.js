@@ -65,6 +65,18 @@
   const indexedDbVersion = 6;
   const defaultSource = 'official';
 
+  // Validate saved selections against the registry, including future sources.
+  // Keep registry order stable, remove duplicates, and always retain a source.
+  function normalizeSelection(keys) {
+    const requested = new Set(Array.isArray(keys) ? keys : [keys]);
+    const selected = Object.keys(databases).filter(key => requested.has(key));
+    return selected.length ? selected : [defaultSource];
+  }
+
+  function selectionHasNumbers(keys) {
+    return normalizeSelection(keys).filter(key => databases[key].hasNumbers === true).length === 1;
+  }
+
   function makeRemoteRuntimeState() {
     return {
       songs: [],
@@ -118,6 +130,8 @@
     groupLabels,
     indexedDbVersion,
     defaultSource,
+    normalizeSelection,
+    selectionHasNumbers,
     createRuntimeSources,
   });
 })();

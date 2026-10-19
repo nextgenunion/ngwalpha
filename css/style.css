@@ -968,26 +968,12 @@ html[data-theme="dark"] .sort-btn-tap {
   text-align: left;
   box-shadow: var(--shadow-1);
   transition: transform var(--dur-fast) var(--press-ease-soft), box-shadow var(--dur-fast) ease;
-  /* Real Songbook databases run 300-1700+ songs, all rendered as plain
-     (non-virtualized) rows/tiles — see renderSongList()/buildSongRow() in
-     app.js. Rewriting that into a virtual-scrolled list would be a much
-     bigger, riskier change (it'd have to be threaded through the diffed
-     add/remove animations, the fast-scroll rail's elementFromPoint
-     sampling in visibleSongRowKeys(), and all three view modes below).
-     content-visibility gets most of the same win far more cheaply: the
-     browser skips style/layout/paint entirely for rows currently
-     scrolled out of view, without changing the DOM or touching any of
-     that JS — a row only becomes "skippable" once it's actually off
-     screen, so anything visibleSongRowKeys() samples is unaffected.
-     contain-intrinsic-size reserves this row's real height (measured
-     from the base 'list' view below) as a placeholder before an
-     off-screen row has ever been laid out, so the scrollbar/scroll
-     position don't jump around as rows scroll past; the `auto` keyword
-     means the browser remembers each row's actual measured size after
-     that and uses it from then on, self-correcting if a row (e.g. one
-     with an alt-title) is taller than this estimate. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 76px;
+  /* Keep interactive rows fully laid out. content-visibility:auto used
+     an estimated height until focus materialized an unseen row. After
+     a fast-scroll jump that could shrink the button between pointerdown
+     and pointerup, moving its hit area away from the pending click.
+     Combined databases have varied badges/subtitles/wrapping, so one
+     intrinsic-height estimate cannot keep those hit areas stable. */
 }
 .song-row:hover { box-shadow: var(--shadow-2); }
 /* Plain :active alone wasn't reliable here — clicking a row navigates
@@ -1089,7 +1075,6 @@ html[data-show-text-size="false"] #page-song-view > .page-inner > .font-controls
   gap: 10px;
   padding: 7px 10px;
   margin-bottom: 4px;
-  contain-intrinsic-size: auto 47px; /* shorter than list view: no subtitle, smaller badge */
 }
 #song-list[data-view="compact"] .song-badge {
   width: 26px;
@@ -1114,7 +1099,6 @@ html[data-show-text-size="false"] #page-song-view > .page-inner > .font-controls
   min-height: 56px;
   justify-content: center;
   padding: 8px 6px;
-  contain-intrinsic-size: auto 56px; /* matches this view's own min-height above */
 }
 /* .song-badge itself is deliberately left untouched here — same circle,
    background/color, and font as the list view (see the base .song-badge
@@ -3292,11 +3276,6 @@ html[data-theme="dark"] .btn-pill-done {
    without invalid/inaccessible markup. */
 .trash-row {
   cursor: default;
-  /* .song-row normally uses content-visibility:auto for very large song
-     lists. That implies paint containment, which clipped this row's
-     absolutely-positioned kebab dropdown at the card boundary. Trash lists
-     are tiny, so opt out here and let the menu paint outside the row. */
-  content-visibility: visible;
   contain: none;
   overflow: visible;
 }
@@ -3472,6 +3451,11 @@ html.keyboard-open .modal-card {
    larger label read better spanning the popup's full width. */
 .db-picker-tabs.seg-toggle { --seg-inset: 3px; }
 .db-picker-tabs .seg-toggle-btn { padding: 10px 10px; font-size: 0.85rem; }
+.db-picker-toolbar { display: flex; align-items: center; gap: 8px; }
+.db-picker-toolbar .db-picker-tabs { flex: 1; min-width: 0; width: auto; }
+.db-picker-multi.icon-btn { flex: 0 0 44px; width: 44px; height: 44px; border-radius: var(--radius-m); }
+.db-picker-multi[aria-pressed="true"] { color: var(--accent-strong); background: var(--accent-tint); }
+.db-picker-multi:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
 /* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
    app.js) so switching between the All/SDA tabs can height-animate via
@@ -3574,11 +3558,6 @@ html.keyboard-open .modal-card {
 }
 .label-editor-chip.label-chip-enter { animation: label-chip-enter .22s cubic-bezier(.34, 1.56, .64, 1); }
 .label-editor-chip.label-chip-exit { animation: label-chip-exit .16s ease-out; pointer-events: none; }
-.label-editor-empty {
-  font-size: 0.82rem;
-  color: var(--ink-faint);
-  margin: 0;
-}
 .label-editor-chip {
   display: inline-flex;
   align-items: center;
@@ -3698,47 +3677,24 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   margin-top: 4px;
   line-height: 1.4;
 }
-.editor-field-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
+/* Plain info glyph, centered beside the field label; no outer circle. */
+.editor-field-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.editor-field-heading .editor-field-label { line-height: 24px; }
 .editor-info-btn {
   position: relative;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--accent-strong);
-  padding: 0;
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-  transition: transform var(--press-duration-out) var(--press-ease), background var(--dur-fast), border-color var(--dur-fast);
+  width: 32px; height: 32px; flex: 0 0 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0; background: transparent;
+  color: var(--accent-strong); padding: 0; line-height: 1; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  transition: transform var(--press-duration-out, .15s) var(--press-ease, ease), color var(--dur-fast, .15s);
 }
-.editor-info-btn:hover {
-  background: var(--accent-tint);
-  border-color: color-mix(in srgb, var(--accent-strong) 30%, var(--line));
-}
+.editor-info-btn:hover { color: var(--ink); }
 .editor-info-btn:active { transform: scale(.94); }
-.editor-info-btn svg { width: 17px; height: 17px; fill: currentColor; }
+.editor-info-btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.editor-info-btn svg { display: block; width: 24px; height: 24px; fill: currentColor; pointer-events: none; }
 @media (pointer: coarse) {
-  .editor-info-btn::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 44px;
-    height: 44px;
-    transform: translate(-50%, -50%);
-    background: transparent;
-  }
+  .editor-info-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); background: transparent; }
 }
 
 /* Formatting-help modal opened by the info button beside Lyrics & chords.
@@ -3800,8 +3756,6 @@ html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 
   color: var(--ink-soft);
   font-size: .76rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .04em;
 }
 .editor-format-source {
   margin: 0;
@@ -4416,6 +4370,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 /* Chord labels still stay out of lyric text selection/copy, but they now
    behave like compact diagram buttons when tapped. */
 #lyrics-container .chord-tag[data-chord] {
+  touch-action: manipulation;
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -4428,7 +4383,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 .modal-card[data-modal-variant="chord-viewer"] {
   width: min(calc(100% - 24px), 360px);
   max-width: 360px;
-  max-height: min(58dvh, 500px);
+  max-height: min(500px, calc(var(--vvh, 100dvh) - 24px));
   margin: 0;
   border-radius: var(--radius-l);
   padding-bottom: 0;
@@ -4454,7 +4409,9 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
 }
 .modal-card[data-modal-variant="chord-viewer"] .modal-body {
   padding: 0 12px 14px;
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .song-chord-viewer {
   display: flex;
@@ -4464,6 +4421,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   padding: 0;
 }
 .song-chord-viewer-diagram {
+  touch-action: manipulation;
   width: 100%;
   min-height: 148px;
   display: flex;
@@ -4481,6 +4439,8 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   transform: translateY(0) scale(1);
   transition: opacity var(--dur-fast) ease, transform .14s ease;
 }
+.song-chord-viewer-diagram[role="button"] { cursor: pointer; }
+.song-chord-viewer-diagram[role="button"]:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
 .song-chord-viewer-stage.is-leaving {
   opacity: 0;
   transform: translateY(3px) scale(.985);
@@ -4680,6 +4640,7 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   padding: 1px 3px;
   border-radius: 999px;
 }
+.song-chord-viewer-nav[hidden] { display: none; }
 .song-chord-viewer-arrow {
   width: 28px;
   height: 28px;
@@ -5036,3 +4997,5 @@ html:not([data-note-names="letters"]) .cf-pd-label.is-black { font-size: 9px; }
 @media (max-width: 480px) {
   .settings-row-note-names .select-input { flex: 1 1 100%; width: 100%; }
 }
+
+.label-editor-chips-wrap:has(.label-editor-chips:empty) { display: none; }

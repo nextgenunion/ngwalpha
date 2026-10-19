@@ -46,7 +46,7 @@ assert.ok(required.has('data/sheet-music/assets/sda/h108-amazing-grace.svg'), 'S
 assert.ok(required.has('offline.html'), 'offline.html missing from atomic cache');
 assert.ok(!/persistResponseForOffline/.test(app), 'page-side Cache Storage bridge should be removed');
 assert.ok(!/SONGDATA_CACHE|SHEET_MUSIC_ASSET_CACHE|BEST_EFFORT_ASSETS/.test(sw), 'old multi-cache strategy still present');
-assert.ok(/cache\.addAll\(REQUIRED_OFFLINE\)/.test(sw), 'required assets are not installed atomically');
+assert.ok(/cache\.addAll\(REQUIRED_OFFLINE(?:\.map\(freshRequest\))?\)/.test(sw), 'required assets are not installed atomically');
 assert.ok(!/\.catch\(\(\)\s*=>\s*\{?\s*\}?\)/.test(sw), 'install failures must not be swallowed');
 assert.ok(!/<(?:script|link|img)\b[^>]*(?:src|href)=["'](?:https?:|\/|\.\/)/i.test(offline), 'offline.html must be self-contained');
 

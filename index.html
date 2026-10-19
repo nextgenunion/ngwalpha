@@ -48,7 +48,7 @@
      the font file itself could even start downloading. See the mono-font
      warmup in js/app.js (scheduleFontWarmup) for the other half of this
      fix. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" crossorigin>
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -372,8 +372,7 @@
           <svg data-icon="info-outline" viewBox="0 0 24 24" aria-hidden="true"></svg>
         </button>
       </div>
-      <span class="editor-field-hint" id="t-editorLyricsHint">Tap the info button for simple formatting examples.</span>
-      <textarea id="editor-lyrics" class="editor-lyrics-textarea" aria-labelledby="t-editorLyricsLabel" aria-describedby="t-editorLyricsHint" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      <textarea id="editor-lyrics" class="editor-lyrics-textarea" aria-labelledby="t-editorLyricsLabel" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
     </div>
 
     <div class="editor-preview-section">
@@ -389,7 +388,7 @@
     </div>
 
     <label class="editor-field">
-      <span class="editor-field-label" id="t-editorLinkLabel">Link (optional)</span>
+      <span class="editor-field-label" id="t-editorLinkLabel">Link</span>
       <input type="url" id="editor-link" class="modal-text-input" autocomplete="off">
     </label>
 
@@ -1013,7 +1012,7 @@
 <!-- ===== MODAL (shared shell — playlist create/rename, add-to-playlist,
      add-songs, delete-confirm all render their content into #modal-body) ===== -->
 <div id="modal-overlay" class="modal-overlay" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
     <div class="modal-header">
       <h3 id="modal-title"></h3>
       <button id="modal-close-btn" class="icon-btn" aria-label="Close">

@@ -29,9 +29,11 @@ const DB_SOURCES = SOURCE_REGISTRY.databases;
 const DB_GROUP_ORDER = SOURCE_REGISTRY.groupOrder;
 const DB_GROUP_LABELS = SOURCE_REGISTRY.groupLabels;
 const DEFAULT_DB_SOURCE = SOURCE_REGISTRY.defaultSource;
+const SONGBOOK_SOURCE = '__songbook__';
+const songbookSongSources = new WeakMap();
 
 // Marks the version we're about to reload into as "already seen", so that
-// when app.js re-executes after the reload, hardUpdateBackstop() below
+// when app.js re-executes after the reload, versionUpdateBackstop() below
 // sees no mismatch and stays quiet. Called by every code path that already
 // handles an update and is about to reload for it on its own (the normal
 // controllerchange path, and the manual "Reload app" button) — so the
@@ -51,20 +53,8 @@ function markVersionSeen() {
   }
 }
 
-// --- Version/update backstop -------------------------------------------------
-// A previous version of this backstop tried to "self-heal" a stale install by
-// unregistering every service worker and deleting every cache before reloading.
-// That created a real offline hole: the installed PWA icon could remain while
-// Chrome temporarily had no worker/app shell left to launch, which is exactly
-// when Chrome falls back to its own generated "You're offline" PWA screen.
-//
-// Keep the backstop non-destructive instead. If fresh page code notices that
-// the remembered version changed, simply mark it seen and nudge the existing
-// registration to check for an update. Normal service-worker versioning and the
-// controllerchange handler below do the actual handoff atomically, so the old
-// worker/cache remain usable until the new one is ready. The explicit
-// Settings -> Reload app action is still available when a person deliberately
-// wants the destructive full reset while online.
+// Version changes request an update without removing the installed cache.
+// Worker installation performs the complete, atomic handoff.
 (function versionUpdateBackstop() {
   try {
     const seen = localStorage.getItem(SEEN_VERSION_KEY);
@@ -81,23 +71,16 @@ function markVersionSeen() {
   }
 })();
 
-// Song sources: each is an independent collection of songs — its own list,
-// its own load-state, and (see SONGDB_STORES further down) its own offline
-// backup store. Version 1 only ever populates and shows 'official'. The
-// list/search/sort/song-view code below all takes a source key as a
-// parameter rather than assuming 'official' is the only one, so a future
-// 'user' source (v2's User Songs) can reuse it — add its loader, its own
-// page, and a call site — without rewriting any of this.
+// Every library keeps its own loader and offline store. The main Songbook
+// derives a combined collection from selectedDbSources; personal song
+// references always retain their original sourceKey + songId identity.
 const state = {
   sources: SOURCE_REGISTRY.createRuntimeSources(),
-  // Which entry in `sources` (and which folder under data/) the Songs
-  // page, search, sort, and the playlist song-picker all currently browse.
-  // Driven by Settings → Song database (see openDbPickerModal() and
-  // 'sb-db' in bindSettings and DB_SOURCES below) — not the same thing as
-  // activeSourceKey below, which instead remembers where an *already
-  // open* song came from, since a person can switch databases while a
-  // song from the other one is still open in the song view.
+  // Primary/last selected database for the single picker and Sheet Music.
+  // activeSourceKey instead identifies the song currently open in song view.
   activeDbSource: DEFAULT_DB_SOURCE,
+  selectedDbSources: [DEFAULT_DB_SOURCE],
+  multiDbSelect: false,
   sortBy: 'num',       // 'alpha' | 'num'
   sortOrder: 'asc',     // 'asc' | 'desc'
   query: '',
@@ -203,9 +186,8 @@ const state = {
 //   onEnter          — optional callback run each time this page is shown.
 const PAGES = {
   // Songs deliberately does NOT re-render its potentially-thousands of
-  // rows on every return. onSongsPageEnter() only re-measures the existing
-  // fast-scroll buckets once the hidden page is visible again (hidden-page
-  // getBoundingClientRect() values collapse to zero). Actual list rebuilds
+  // rows on every return. onSongsPageEnter() reconnects the existing
+  // fast-scroll rows and syncs the thumb when the page is visible. Rebuilds
   // still happen when source/search/sort/view data changes.
   'songs':          { elId: 'page-songs',          navKey: 'songs',     rememberScroll: true, onEnter: () => onSongsPageEnter() },
   'song-view':      { elId: 'page-song-view',      navKey: 'songs',     rememberScroll: false, hideNav: true },
@@ -466,11 +448,9 @@ async function init() {
   safe('initWakeLock', initWakeLock);
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
-  // Only the selected official database is loaded at startup. Other
-  // databases stay untouched until the person actually switches to them
-  // (or opens a playlist that references one), which keeps startup fast
-  // and avoids downloading thousands of songs the person may never use.
-  await Promise.all([loadSongDataFor(state.activeDbSource), loadPlaylists(), loadUserSongs(), loadTrash(), loadPersonalLabels()]);
+  // Load the saved selection at startup. Unselected databases stay lazy
+  // until selected or required by a playlist reference.
+  await Promise.all([loadSelectedSongDatabases(), loadPlaylists(), loadUserSongs(), loadTrash(), loadPersonalLabels()]);
   // Sweep anything past its 30-day retention before the Trash Bin page (or
   // its Settings badge/count, if either ever reads trashSongs) can show it
   // — every app open gets a fresh, already-clean trash list rather than
@@ -564,7 +544,7 @@ function dbSourceLabel(sourceKey) {
 // applyLanguage() (the 'english' source's name is language-dependent).
 function updateDbRowSub() {
   const el = document.getElementById('t-dbSub');
-  const label = dbSourceLabel(state.activeDbSource);
+  const label = state.selectedDbSources.map(dbSourceLabel).join(' + ');
   if (el) el.textContent = label;
   const quickBtn = document.getElementById('song-db-btn');
   if (quickBtn) {
@@ -572,6 +552,66 @@ function updateDbRowSub() {
     quickBtn.setAttribute('aria-label', `${action}: ${label}`);
     quickBtn.title = `${action}: ${label}`;
   }
+}
+
+function isSelectedDbSource(sourceKey) {
+  return state.selectedDbSources.includes(sourceKey);
+}
+
+function songbookSelectionKey() {
+  return state.selectedDbSources.join('\u001f');
+}
+
+function songSourceKey(song, fallback) {
+  return fallback === SONGBOOK_SOURCE ? songbookSongSources.get(song) : fallback;
+}
+
+function songHasVisibleNumber(song, sourceKey, hasNumbers) {
+  return hasNumbers && sourceHasSongNumbers(songSourceKey(song, sourceKey))
+    && song.number != null && String(song.number).trim() !== '' && Number.isFinite(Number(song.number));
+}
+
+function getSongbookSource() {
+  const sources = state.selectedDbSources.map(key => state.sources[key]);
+  const songs = [];
+  state.selectedDbSources.forEach(key => {
+    const source = state.sources[key];
+    if (!source || source.loadFailed) return;
+    source.songs.forEach(song => {
+      songbookSongSources.set(song, key);
+      songs.push(song);
+    });
+  });
+  return {
+    songs,
+    loaded: sources.every(source => source && source.loaded),
+    loadFailed: sources.every(source => !source || source.loadFailed),
+    failedSources: state.selectedDbSources.filter(key => state.sources[key].loadFailed),
+  };
+}
+
+function loadSelectedSongDatabases() {
+  return Promise.all(state.selectedDbSources.map(key => loadSongDataFor(key)));
+}
+
+let songbookRenderFrame = 0;
+function scheduleSongbookRender() {
+  const list = document.getElementById('song-list');
+  if (list) list.dataset.renderSelection = '__stale__';
+  if (songbookRenderFrame) return;
+  songbookRenderFrame = requestAnimationFrame(() => {
+    songbookRenderFrame = 0;
+    if (state.currentPage === 'songs') renderSongList();
+  });
+}
+
+function appendSongbookLoadErrors(list, source) {
+  (source.failedSources || []).forEach(key => {
+    const li = document.createElement('li');
+    li.className = 'load-error';
+    li.textContent = `${dbSourceLabel(key)}: ${t(navigator.onLine ? 'songLoadError' : 'songLoadOfflineError')}`;
+    list.appendChild(li);
+  });
 }
 
 // One JSON file per song remains the editable/latest source of truth, listed
@@ -787,8 +827,8 @@ async function loadSongsFromIndexedDb(sourceKey) {
 }
 
 // Thin, text-free progress line below the Songs search box. It only reflects
-// the selected database's work; background/bootstrap loads done solely to
-// resolve another database referenced by a playlist do not surface UI here.
+// the primary selected database's work. Pending collection loads also
+// show it indeterminately; playlist-only source resolution stays quiet.
 let songSyncFadeTimer = null;
 function setSongSyncProgress(sourceKey, completed, total, { indeterminate = false } = {}) {
   if (sourceKey !== state.activeDbSource) return;
@@ -840,8 +880,8 @@ function isAbortError(err) {
 
 // Fetch the latest individual files for the selected database without
 // blocking its already-visible bootstrap/local copy. One sync attempt per
-// source per session is enough; switching away aborts the old source so the
-// app never keeps downloading a database that is no longer selected.
+// source per session is enough; deselection aborts unwanted work while
+// updates for other selected libraries can continue independently.
 async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, manual = false } = {}) {
   const source = state.sources[sourceKey];
   if (!source || !DB_SOURCES[sourceKey]) return Promise.resolve(null);
@@ -856,10 +896,10 @@ async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, ma
     try { await saveSongsToIndexedDb(sourceKey, songs); }
     catch (err) { console.warn('Songbook: English cache write skipped —', err); }
     searchCacheWarmSources.delete(sourceKey);
-    if (state.activeDbSource === sourceKey && state.currentPage === 'songs') {
+    if (isSelectedDbSource(sourceKey) && state.currentPage === 'songs') {
       renderSongList();
       scheduleSearchCacheWarmup(sourceKey);
-    } else if (state.activeDbSource === sourceKey) {
+    } else if (isSelectedDbSource(sourceKey)) {
       const list = document.getElementById('song-list');
       if (list) list.dataset.renderSourceKey = '';
     }
@@ -876,13 +916,16 @@ async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, ma
       try { source.syncController.abort(); } catch (e) {}
     }
     try { await source.syncPromise; } catch (e) {}
+    // Several rapid re-selections can await the same aborted sweep. Only
+    // the first waiter restarts it; later waiters join that new sweep.
+    if (source.syncPromise) return source.syncPromise;
   }
-  if (!manual && sourceKey !== state.activeDbSource) return source.songs;
+  if (!manual && !isSelectedDbSource(sourceKey)) return source.songs;
   if (!navigator.onLine && !manual) return source.songs;
 
-  // Abort a different selected database that may still be downloading.
+  // Stop work only for databases that are no longer selected.
   Object.entries(state.sources).forEach(([key, other]) => {
-    if (key !== sourceKey && other && other.syncController) {
+    if (key !== sourceKey && !isSelectedDbSource(key) && other && other.syncController) {
       try { other.syncController.abort(); } catch (e) {}
       // Let that promise clear its own controller/promise in finally; clearing
       // them here would allow a second sync to overlap before the abort has
@@ -919,10 +962,10 @@ async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, ma
       // so a background sync never makes rows jump around while the person
       // is reading/searching. Preserve current query/sort state.
       searchCacheWarmSources.delete(sourceKey);
-      if (state.activeDbSource === sourceKey && state.currentPage === 'songs') {
+      if (isSelectedDbSource(sourceKey) && state.currentPage === 'songs') {
         renderSongList();
         scheduleSearchCacheWarmup(sourceKey);
-      } else if (state.activeDbSource === sourceKey) {
+      } else if (isSelectedDbSource(sourceKey)) {
         // The list is hidden (song view/settings/etc.). Mark its DOM snapshot
         // stale so onSongsPageEnter() rebuilds it once when the person comes
         // back instead of displaying the pre-sync rows indefinitely.
@@ -957,7 +1000,7 @@ async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, ma
 
 function scheduleSongDataSync(sourceKey) {
   const start = () => {
-    if (state.activeDbSource !== sourceKey) return;
+    if (!isSelectedDbSource(sourceKey)) return;
     syncSongDataFromIndividuals(sourceKey);
   };
   // Let the bootstrap/local list paint first; the authoritative sweep is
@@ -973,7 +1016,7 @@ async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
   const source = state.sources[sourceKey];
   if (!source || !DB_SOURCES[sourceKey]) throw new Error(`unknown song source "${sourceKey}"`);
   const bundlePrimary = !!DB_SOURCES[sourceKey].bundlePrimary;
-  const shouldSync = !bundlePrimary && (syncLatest !== undefined ? syncLatest : sourceKey === state.activeDbSource);
+  const shouldSync = !bundlePrimary && (syncLatest !== undefined ? syncLatest : isSelectedDbSource(sourceKey));
 
   if (source.loaded) {
     if (shouldSync) scheduleSongDataSync(sourceKey);
@@ -1077,11 +1120,17 @@ async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
 // If the app started offline and later regains connectivity, give the selected
 // database one chance to catch up automatically. No other database is touched.
 window.addEventListener('online', () => {
-  const source = state.sources[state.activeDbSource];
-  if (source && source.loaded) {
+  state.selectedDbSources.forEach(key => {
+    const source = state.sources[key];
+    if (!source) return;
     source.syncAttempted = false;
-    syncSongDataFromIndividuals(state.activeDbSource);
-  }
+    if (source.loadFailed) {
+      source.loaded = false;
+      loadSongDataFor(key).then(scheduleSongbookRender).catch(() => {});
+    } else if (source.loaded) {
+      syncSongDataFromIndividuals(key).catch(() => {});
+    }
+  });
 });
 
 // ---------------------------------------------------------
@@ -1855,8 +1904,7 @@ async function reloadSongLibrary() {
   btn.disabled = true;
   btn.textContent = t('reloadBtnBusy');
 
-  const sourceKey = state.activeDbSource;
-  const source = state.sources[sourceKey];
+  const selected = [...state.selectedDbSources];
   if (!navigator.onLine) {
     showToast(t('toastLibraryOffline'));
     btn.disabled = false;
@@ -1867,11 +1915,15 @@ async function reloadSongLibrary() {
     // Manual refresh means "check the authoritative individual files now".
     // database.json remains only the fast bootstrap snapshot and is never
     // required to be rebuilt for a one-song correction.
-    if (source) source.syncAttempted = false;
-    await syncSongDataFromIndividuals(sourceKey, { forceRefresh: true, manual: true });
-    renderSongList();
-    searchCacheWarmSources.delete(sourceKey);
-    scheduleSearchCacheWarmup(sourceKey);
+    for (const sourceKey of selected) {
+      if (!isSelectedDbSource(sourceKey)) continue;
+      const source = state.sources[sourceKey];
+      source.syncAttempted = false;
+      await syncSongDataFromIndividuals(sourceKey, { forceRefresh: true, manual: true });
+      searchCacheWarmSources.delete(sourceKey);
+      scheduleSearchCacheWarmup(sourceKey);
+    }
+    scheduleSongbookRender();
     showToast(navigator.onLine ? t('toastLibraryReloaded') : t('toastLibraryOffline'));
   } catch (err) {
     console.error('Songbook: manual song database refresh failed —', err);
@@ -1882,64 +1934,22 @@ async function reloadSongLibrary() {
   }
 }
 
-// Manual "Reload app" button: a different, heavier reload than the song
-// database refresh above — this clears the offline app-shell cache and the
-// service worker entirely, then reloads the page, so it picks up a fresh
-// copy of everything (HTML/CSS/JS included), not just the song data. This
-// exists as an explicit, deliberate action the person has to tap, since the
-// browser's native swipe-down-to-reload gesture is disabled in this app
-// (accidental pull-to-refresh mid-scroll was closing songs/losing state).
+// Check for an update while retaining the complete installed app. A failed
+// download must never delete the worker/cache that can still launch offline.
 async function reloadApp() {
   const btn = document.getElementById('reload-app-btn');
   btn.disabled = true;
   btn.textContent = t('reloadAppBtnBusy');
-
-  // Offline: unregistering the service worker and clearing every cache
-  // leaves nothing behind to serve the reload with — nothing can be
-  // re-downloaded without a connection. That combination used to be
-  // exactly what stranded people on a broken/blank reload while offline.
-  // Skip the destructive cleanup entirely here and just reload normally —
-  // the still-intact service worker and cache keep serving the app as-is,
-  // and the offline fallback page (see service-worker.js) covers it even
-  // if something's still missing.
-  if (!navigator.onLine) {
-    showToast(t('toastReloadAppOffline'));
-    btn.disabled = false;
-    btn.textContent = t('reloadAppBtn');
-    window.location.reload();
-    return;
-  }
-
-  // This function's own reload (below) is the deliberate, complete fix —
-  // the fresh load it triggers will register a new service worker, which
-  // will then claim this page and fire 'controllerchange' again. Without
-  // these, two other independent update-detection paths would each see
-  // that fresh load as a separate, unrelated update and reload it AGAIN,
-  // right on top of this one: registerServiceWorker()'s controllerchange
-  // listener (suppressed for this one cycle via the sessionStorage flag),
-  // and hardUpdateBackstop() at the top of this file (suppressed by
-  // marking the version as seen before we go). See the comments on those
-  // two for the full picture.
   try {
-    sessionStorage.setItem('ngw_skip_next_auto_reload', '1');
-  } catch (e) {
-    // sessionStorage unavailable — worst case is one extra (harmless,
-    // if annoying) reload; not worth failing the whole action over.
-  }
-  markVersionSeen();
-
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-    if (window.caches) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
+    if (!navigator.onLine) showToast(t('toastReloadAppOffline'));
+    else if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update();
     }
   } catch (err) {
-    console.error('Songbook: app reload cleanup failed —', err);
+    console.warn('Songbook: update unavailable; keeping installed app —', err);
   } finally {
+    try { localStorage.setItem('ngw_seen_version', APP_VERSION); } catch (_) {}
     window.location.reload();
   }
 }
@@ -1997,6 +2007,7 @@ function initHistoryNav() {
 
   window.addEventListener('popstate', (e) => {
     const st = e.state;
+    closeModal({ immediate: true });
     // Figure out which way we just moved before anything below touches
     // currentNavSeq, so showPage() can read pendingNavDirection once it
     // runs (see the direction comment near pendingNavDirection).
@@ -2010,7 +2021,16 @@ function initHistoryNav() {
         const sourceKey = st.sourceKey || DEFAULT_DB_SOURCE;
         const source = state.sources[sourceKey];
         const song = source && source.songs.find(s => s.id === st.songId);
-        if (song) { openSong(song, { pushHistory: false, sourceKey }); return; }
+        if (song) {
+          openSong(song, { pushHistory: false, sourceKey, transpose: st.transpose, scrollTop: st.scrollTop });
+          if (st.chordViewer && window.SongChordViewer) window.SongChordViewer.open(st.chordViewer);
+          return;
+        }
+      }
+      if (st.page === 'chord-finder' && st.chordViewer) {
+        showPage('chord-finder', { pushHistory: false });
+        if (window.ChordFinder) window.ChordFinder.openChord(st.chordViewer.symbol, st.chordViewer);
+        return;
       }
       if (st.page === 'sheet-view' && st.sheetMusicId) {
         openSheetMusicEntry(st.sheetMusicId, { pushHistory: false });
@@ -2227,7 +2247,11 @@ function loadPrefs() {
   const savedDb = localStorage.getItem('sb-db');
   const legacyDbKeys = { mn: 'official', en: 'english' };
   const resolvedDb = legacyDbKeys[savedDb] || (DB_SOURCES[savedDb] ? savedDb : DEFAULT_DB_SOURCE);
-  applyDbSource(resolvedDb);
+  let savedSelection;
+  try { savedSelection = JSON.parse(localStorage.getItem('sb-dbs')); } catch (_) {}
+  const selected = SOURCE_REGISTRY.normalizeSelection(Array.isArray(savedSelection) ? savedSelection : [resolvedDb]);
+  state.multiDbSelect = localStorage.getItem('sb-db-multi') === 'true' || selected.length > 1;
+  applyDbSelection(selected, { primary: resolvedDb });
 }
 
 function applyFontSizes() {
@@ -2393,15 +2417,8 @@ function applySongListView() {
     btn.setAttribute('aria-pressed', String(btn.dataset.songView === state.songListView));
   });
   positionSegToggleThumb(document.getElementById('song-view-toggle'));
-  // List/Compact/Tiles have very different row heights (Tiles in particular
-  // packs several songs into one grid row), which changes where every
-  // letter/number lands pixel-wise. The fast-scroll rail's popup
-  // (scrollIndexEntries, see measureScrollIndexEntries()) is only ever
-  // re-measured from inside renderSongList() — so without this call here,
-  // switching views leaves it comparing the real (new) scroll position
-  // against pixel offsets measured under the *previous* view's geometry,
-  // which is what made the popup show the wrong letter/number (or get
-  // stuck near one end) after switching to Compact or Tiles.
+  // Rebuild the entries alongside the chosen view. Their row references
+  // resolve live geometry for List, Compact and Tiles.
   renderSongList();
 }
 
@@ -2464,63 +2481,71 @@ function renderSongLoadingState() {
   if (track) track.hidden = true;
 }
 
+let dbSelectionRevision = 0;
 function applyDbSource(sourceKey) {
-  if (!DB_SOURCES[sourceKey]) sourceKey = DEFAULT_DB_SOURCE;
-  const previousSourceKey = state.activeDbSource;
-  if (previousSourceKey !== sourceKey) {
-    const previousSource = state.sources[previousSourceKey];
-    if (previousSource && previousSource.syncController) {
-      try { previousSource.syncController.abort(); } catch (e) {}
-      previousSource.syncAttempted = false;
-    }
-  }
-  state.activeDbSource = sourceKey;
-  updateDbRowSub();
-  resetSongSyncProgress(sourceKey);
-  state.query = '';
-  state.songLabelFilters = [];
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) searchInput.value = '';
-  updateSongToolbarButtons();
+  applyDbSelection([sourceKey], { primary: sourceKey });
+}
 
-  const hasNumbers = sourceHasSongNumbers(sourceKey);
+function applyDbSelection(keys, { primary } = {}) {
+  const selected = SOURCE_REGISTRY.normalizeSelection(keys);
+  const previousSelection = new Set(state.selectedDbSources);
+  const changed = selected.join('\u001f') !== songbookSelectionKey();
+  const revision = ++dbSelectionRevision;
+  state.selectedDbSources = selected;
+  state.activeDbSource = selected.includes(primary) ? primary
+    : (selected.includes(state.activeDbSource) ? state.activeDbSource : selected[0]);
+
+  // A deliberate re-selection retries a failed bootstrap. Retained failed
+  // sources do not retry on every unrelated checkbox tap, and a still-running
+  // request remains shared rather than being restarted.
+  selected.forEach(key => {
+    const source = state.sources[key];
+    if (source.loadFailed && !source.loadPromise && (!previousSelection.has(key) || !state.multiDbSelect)) {
+      source.loaded = false;
+      source.loadFailed = false;
+      source.syncAttempted = false;
+    }
+  });
+
+  Object.entries(state.sources).forEach(([key, source]) => {
+    if (!selected.includes(key) && source.syncController) {
+      source.syncController.abort();
+      source.syncAttempted = false;
+    }
+  });
+  try {
+    localStorage.setItem('sb-dbs', JSON.stringify(selected));
+    localStorage.setItem('sb-db', state.activeDbSource);
+    localStorage.setItem('sb-db-multi', String(state.multiDbSelect));
+  } catch (_) {}
+  updateDbRowSub();
+  resetSongSyncProgress(state.activeDbSource);
+  if (changed) {
+    state.query = '';
+    state.songLabelFilters = [];
+    const search = document.getElementById('search-input');
+    if (search) search.value = '';
+    const page = document.getElementById('page-songs');
+    if (page) page.scrollTop = 0;
+    scrollMemory.songs = 0;
+  }
+  updateSongToolbarButtons();
+  const hasNumbers = sourceHasSongNumbers(SONGBOOK_SOURCE);
   const numBtn = document.querySelector('.sort-btn[data-sort-by="num"]');
   const alphaBtn = document.querySelector('.sort-btn[data-sort-by="alpha"]');
   if (numBtn) numBtn.hidden = !hasNumbers;
-  if (!hasNumbers && state.sortBy === 'num') {
-    state.sortBy = 'alpha';
-    if (numBtn) numBtn.setAttribute('aria-pressed', 'false');
-    if (alphaBtn) alphaBtn.setAttribute('aria-pressed', 'true');
-  }
+  if (!hasNumbers && state.sortBy === 'num') state.sortBy = 'alpha';
+  if (numBtn) numBtn.setAttribute('aria-pressed', String(state.sortBy === 'num'));
+  if (alphaBtn) alphaBtn.setAttribute('aria-pressed', String(state.sortBy === 'alpha'));
 
-  const source = state.sources[sourceKey];
-  const listEl = document.getElementById('song-list');
-  if (state.currentPage === 'sheet-music' && isSheetMusicFeatureEnabled()) {
-    renderSheetMusicLibrary();
-  }
-  if (source && source.loaded) {
-    // Database changes are made from Settings, where #page-songs is hidden.
-    // Don't spend a frame building thousands of invisible rows there; mark
-    // the list stale and let onSongsPageEnter() build it once when needed.
-    if (state.currentPage === 'songs') renderSongList();
-    else if (listEl) listEl.dataset.renderSourceKey = '';
-    scheduleSearchCacheWarmup(sourceKey);
-    loadSongDataFor(sourceKey); // schedules the selected source's latest sync
-    return;
-  }
-
-  // Settings can switch databases while the Songs page is hidden. Start
-  // the selected database immediately, but don't touch any unrelated DB or
-  // build a hidden song list. The thin progress line will already be active
-  // if the person returns to Songs before bootstrap/sync finishes.
-  if (state.currentPage === 'songs') renderSongLoadingState();
-  else if (listEl) listEl.dataset.renderSourceKey = '';
-  loadSongDataFor(sourceKey).then(() => {
-    if (state.activeDbSource !== sourceKey) return;
-    if (state.currentPage === 'songs') renderSongList();
-    else if (listEl) listEl.dataset.renderSourceKey = '';
-    scheduleSearchCacheWarmup(sourceKey);
-  });
+  scheduleSongbookRender();
+  loadSelectedSongDatabases().then(() => {
+    if (revision !== dbSelectionRevision) return;
+    scheduleSongbookRender();
+    selected.forEach(scheduleSearchCacheWarmup);
+    if (!state.sources[state.activeDbSource].syncController) finishSongSyncProgress(state.activeDbSource);
+    if (state.currentPage === 'sheet-music' && isSheetMusicFeatureEnabled()) renderSheetMusicLibrary();
+  }).catch(err => console.warn('Songbook: selected libraries could not load —', err));
 }
 
 // ---------------------------------------------------------
@@ -3010,7 +3035,6 @@ function applyLanguage() {
     't-editorLinkLabel': 'editorLinkLabel',
     't-editorLabelsLabel': 'editorLabelsLabel',
     't-editorLyricsLabel': 'editorLyricsLabel',
-    't-editorLyricsHint': 'editorLyricsHint',
     't-editorPreviewLabel': 'editorPreviewLabel',
     't-keyLabel': 'keyLabel',
     't-lyricsGroup': 'lyricsGroup',
@@ -3860,7 +3884,7 @@ function sortSongs(list, q, sourceKey = state.activeDbSource, precomputedRanks =
   // lazy per-sort cache as a safe compatibility fallback.
   const rankCache = query ? (precomputedRanks || new Map()) : null;
   const rankFor = (song) => {
-    if (!rankCache.has(song)) rankCache.set(song, relevanceRank(song, query, sourceKey));
+    if (!rankCache.has(song)) rankCache.set(song, relevanceRank(song, query, songSourceKey(song, sourceKey)));
     return rankCache.get(song);
   };
 
@@ -3871,7 +3895,10 @@ function sortSongs(list, q, sourceKey = state.activeDbSource, precomputedRanks =
       if (rankA !== rankB) return rankA - rankB;
     }
     if (state.sortBy === 'num' && hasNumbers) {
-      return (a.number - b.number) * dir;
+      const aNumbered = songHasVisibleNumber(a, sourceKey, hasNumbers);
+      const bNumbered = songHasVisibleNumber(b, sourceKey, hasNumbers);
+      if (aNumbered !== bNumbered) return aNumbered ? -1 : 1;
+      if (aNumbered && Number(a.number) !== Number(b.number)) return (Number(a.number) - Number(b.number)) * dir;
     }
     // dir flips both the group order and the in-group ordering together,
     // so Descending is a true mirror of Ascending (symbols/digits first,
@@ -3896,7 +3923,7 @@ function filterAndSortSongs(list, q, sourceKey = state.activeDbSource, extraFilt
   const ranks = compiled.query ? new Map() : null;
 
   for (const song of list) {
-    const result = evaluateSongSearch(song, compiled, sourceKey);
+    const result = evaluateSongSearch(song, compiled, songSourceKey(song, sourceKey));
     if (!result.matches) continue;
     if (extraFilter && !extraFilter(song)) continue;
     matches.push(song);
@@ -3953,7 +3980,7 @@ function visibleSongRowKeys(listEl) {
 
 function renderSongList(opts = {}) {
   const {
-    sourceKey = state.activeDbSource,
+    sourceKey = SONGBOOK_SOURCE,
     listElId = 'song-list',
     emptyElId = 'empty-state',
     countElId = 'results-count',
@@ -3966,7 +3993,7 @@ function renderSongList(opts = {}) {
     animate = false,
   } = opts;
 
-  const source = state.sources[sourceKey];
+  const source = sourceKey === SONGBOOK_SOURCE ? getSongbookSource() : state.sources[sourceKey];
   const listEl = document.getElementById(listElId);
   const emptyEl = document.getElementById(emptyElId);
   const countEl = document.getElementById(countElId);
@@ -3977,22 +4004,24 @@ function renderSongList(opts = {}) {
     if (listElId === 'song-list') {
       listEl.dataset.renderLabelFilter = state.songLabelFilters.slice().sort().join('\u001f');
       listEl.dataset.sortBy = state.sortBy;
+      listEl.dataset.sortOrder = state.sortOrder;
+      listEl.dataset.renderSelection = songbookSelectionKey();
     }
   }
 
-  if (source && DB_SOURCES[sourceKey] && !source.loaded) {
+  if (source && (sourceKey === SONGBOOK_SOURCE || DB_SOURCES[sourceKey]) && !source.loaded) {
     listEl.innerHTML = '';
     emptyEl.hidden = true;
     countEl.textContent = '';
     if (listElId === 'song-list') {
-      setSongSyncProgress(sourceKey, 0, 0, { indeterminate: true });
+      setSongSyncProgress(state.activeDbSource, 0, 0, { indeterminate: true });
       updateSongScrollIndex([], false, '');
     }
     return;
   }
 
   if (!source || source.loadFailed) {
-    const loadErrorKey = (source && DB_SOURCES[sourceKey] && !navigator.onLine)
+    const loadErrorKey = (source && (sourceKey === SONGBOOK_SOURCE || DB_SOURCES[sourceKey]) && !navigator.onLine)
       ? 'songLoadOfflineError'
       : 'songLoadError';
     listEl.innerHTML = `<li class="load-error">${escapeHtml(t(loadErrorKey))}</li>`;
@@ -4007,7 +4036,7 @@ function renderSongList(opts = {}) {
     source.songs,
     query,
     sourceKey,
-    listElId === 'song-list' ? (song => matchesSongLabelFilter(song, sourceKey)) : null
+    listElId === 'song-list' ? (song => matchesSongLabelFilter(song, songSourceKey(song, sourceKey))) : null
   );
 
   countEl.textContent = filtered.length === source.songs.length
@@ -4033,11 +4062,12 @@ function renderSongList(opts = {}) {
     // language change, reduced-motion) — nothing is animating, so there's
     // no reason to pay for the diff below.
     listEl.innerHTML = '';
-    filtered.forEach(song => listEl.appendChild(buildSongRow(song, hasNumbers, q, sourceKey)));
+    filtered.forEach(song => listEl.appendChild(buildSongRow(song, songHasVisibleNumber(song, sourceKey, hasNumbers), q, songSourceKey(song, sourceKey))));
     // The fast-scroll rail (see updateSongScrollIndex()) only exists on
     // the Songbook list — User Songs and playlist song-pickers reuse this
     // same function against their own listElId with no rail in their
     // markup, so this is a no-op for those.
+    appendSongbookLoadErrors(listEl, source);
     if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q || (state.songLabelFilters.length ? '__label_filter__' : ''));
     return;
   }
@@ -4061,7 +4091,7 @@ function renderSongList(opts = {}) {
   const newRows = new Map();
 
   filtered.forEach(song => {
-    const key = `${sourceKey}:${song.id}`;
+    const key = `${songSourceKey(song, sourceKey)}:${song.id}`;
     keptKeys.add(key);
     let li = existingRows.get(key);
     if (li) {
@@ -4069,9 +4099,9 @@ function renderSongList(opts = {}) {
       // song reappeared mid-fade (e.g. one character got backspaced),
       // and refresh its highlighted title text for the new query.
       cancelRowExit(li);
-      updateSongRowContent(li, song, hasNumbers, q);
+      updateSongRowContent(li, song, songHasVisibleNumber(song, sourceKey, hasNumbers), q);
     } else {
-      li = buildSongRow(song, hasNumbers, q, sourceKey);
+      li = buildSongRow(song, songHasVisibleNumber(song, sourceKey, hasNumbers), q, songSourceKey(song, sourceKey));
       newRows.set(key, li);
     }
     fragment.appendChild(li); // detaches reused rows from listEl, leaving only dropped-out ones behind
@@ -4107,21 +4137,22 @@ function renderSongList(opts = {}) {
     });
   }
 
+  listEl.querySelectorAll('.load-error').forEach(row => row.remove());
+  appendSongbookLoadErrors(listEl, source);
   if (listElId === 'song-list') updateSongScrollIndex(filtered, hasNumbers, q || (state.songLabelFilters.length ? '__label_filter__' : ''));
 }
 
 // Returning to Songs should not rebuild thousands of rows just because the
 // page became visible again. The rows themselves are already current; the
-// only thing that needs a visible-page pass is the fast-scroll rail, whose
-// pixel positions can't be measured correctly while #page-songs is hidden.
+// fast-scroll rail needs its thumb synced to the visible page again.
 function onSongsPageEnter() {
-  const source = state.sources[state.activeDbSource];
+  const source = getSongbookSource();
   const listEl = document.getElementById('song-list');
 
   if (!source || !source.loaded) {
     renderSongLoadingState();
-    if (source && !source.loadPromise) {
-      loadSongDataFor(state.activeDbSource).then(() => {
+    if (source) {
+      loadSelectedSongDatabases().then(() => {
         if (state.currentPage === 'songs') renderSongList();
       });
     }
@@ -4129,7 +4160,9 @@ function onSongsPageEnter() {
   }
 
   const renderMatchesCurrentState = listEl
-    && listEl.dataset.renderSourceKey === state.activeDbSource
+    && listEl.dataset.renderSourceKey === SONGBOOK_SOURCE
+    && listEl.dataset.renderSelection === songbookSelectionKey()
+    && listEl.dataset.sortOrder === state.sortOrder
     && listEl.dataset.renderQuery === (state.query || '')
     && listEl.dataset.renderLabelFilter === state.songLabelFilters.slice().sort().join('\u001f')
     && listEl.dataset.sortBy === state.sortBy;
@@ -4165,89 +4198,40 @@ function refreshSongScrollIndexMeasurements() {
 // below is a no-op for those (see its call sites in renderSongList).
 // ---------------------------------------------------------
 
-// A handful of Cyrillic capitals are visually identical, in this UI's
-// fonts, to a Latin capital — Cyrillic А/В/Е/К/М/Н/О/Р/С/Т/Х render as the
-// exact same glyph shapes as Latin A/B/E/K/M/H/O/P/C/T/X. Without this map,
-// a Mongolian-source title starting with Cyrillic "А" and an English-source
-// title starting with Latin "A" would land in two different scroll-index
-// buckets that look identical on the popup — so this folds the Cyrillic
-// lookalike onto its Latin twin before bucketing.
-const CYRILLIC_LATIN_HOMOGLYPHS = {
-  'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M',
-  'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X'
-};
-
-// Canonicalizes a title's leading character into the scroll-index bucket
-// label it belongs in: a leading digit always collapses to a single '#'
-// bucket (rather than separate 1/2/3… entries fragmenting the alphabetic
-// index), and CYRILLIC_LATIN_HOMOGLYPHS above merges lookalike letters.
+// Keep the title's actual script. Cyrillic Н is not Latin H, even when
+// their glyphs look alike. Numeric titles share the conventional # label.
 function scrollIndexLetter(title) {
-  const raw = (title || '').trim().charAt(0);
-  if (!raw || /[0-9]/.test(raw)) return '#';
-  const upper = raw.toUpperCase();
-  return CYRILLIC_LATIN_HOMOGLYPHS[upper] || upper;
+  const raw = Array.from(String(title || '').trim())[0];
+  return !raw || /[0-9]/.test(raw) ? '#' : raw.toUpperCase();
 }
 
-// Groups the already-sorted list into buckets and records, for each
-// bucket, the index (into that same sorted array) of the first song in
-// it. Only detects where a bucket *changes* from the previous song, so it
-// automatically reads correctly whichever direction the list is sorted in
-// (ascending or descending) without needing to know which — sortSongs()
-// already applied that direction before this ever runs, so "the next
-// bucket" just falls out of walking the array in order either way.
+// One entry per actual song, in the current sorted order. Never infer a
+// number from its array index or round it: future books can start anywhere,
+// have gaps, or sort in reverse, and their printed numbers must survive.
 function computeScrollIndexEntries(sortedSongs, sortBy, hasNumbers) {
-  const entries = [];
-  if (sortBy === 'num' && hasNumbers) {
-    // Buckets of ten (0, 10, 20, 30…) rather than one entry per song
-    // number — a continuous drag already covers the fine positions
-    // between buckets, so this just keeps the popup's number changing at
-    // a sensible, readable rate as you drag.
-    let lastBucket = null;
-    sortedSongs.forEach((song, i) => {
-      if (typeof song.number !== 'number') return;
-      const bucket = Math.floor(song.number / 10) * 10;
-      if (bucket !== lastBucket) {
-        entries.push({ label: String(bucket), index: i });
-        lastBucket = bucket;
-      }
-    });
-  } else {
-    let lastLetter = null;
-    sortedSongs.forEach((song, i) => {
-      const letter = scrollIndexLetter(song.title);
-      if (letter !== lastLetter) {
-        entries.push({ label: letter, index: i });
-        lastLetter = letter;
-      }
-    });
-  }
-  return entries;
+  return sortedSongs.map((song, index) => ({
+    id: song.id,
+    sourceKey: songbookSongSources.get(song),
+    index,
+    label: sortBy === 'num' && hasNumbers && song.number != null
+      && String(song.number).trim() !== '' && Number.isFinite(Number(song.number))
+      && (!songbookSongSources.has(song) || sourceHasSongNumbers(songbookSongSources.get(song)))
+      ? String(song.number) : scrollIndexLetter(song.title),
+  }));
 }
 
-// Populated by updateSongScrollIndex() below; each entry also gets a
-// `.top` (see measureScrollIndexEntries) recording where its first song's
-// row actually sits within the Songbook page's scrollable content, so a
-// scrollTop reached mid-drag can be mapped back to "which bucket is this"
-// (see labelForScrollTop()). Whether those buckets are numbers or letters
-// for the *current* render — needed so the popup knows which font/style
-// to use — is tracked alongside in scrollIndexIsNumeric.
 let scrollIndexEntries = [];
 let scrollIndexIsNumeric = false;
 
-// #page-songs is the actual scrolling element (see .page's overflow-y:auto
-// in css/style.css) — #song-list itself doesn't scroll on its own — so
-// every row's position has to be measured relative to that, not the
-// viewport or #song-list.
+// Retain row references, not pixel offsets. content-visibility:auto changes
+// off-screen placeholder heights as songs are laid out; resizing and font
+// loading also change geometry. Read current bounds only when scrubbing.
 function measureScrollIndexEntries(entries) {
   const listEl = document.getElementById('song-list');
-  const pageEl = document.getElementById('page-songs');
-  if (!listEl || !pageEl) return entries;
-  const pageTop = pageEl.getBoundingClientRect().top;
-  const baseScroll = pageEl.scrollTop;
-  entries.forEach(entry => {
-    const li = listEl.children[entry.index];
-    entry.top = li ? (li.getBoundingClientRect().top - pageTop + baseScroll) : 0;
-  });
+  if (!listEl) return entries;
+  const rows = new Map(Array.from(listEl.children, li => [li.dataset.rowKey, li]));
+  const sourceKey = listEl.dataset.renderSourceKey;
+  entries.forEach(entry => { entry.row = rows.get(`${entry.sourceKey || sourceKey}:${entry.id}`); });
   return entries;
 }
 
@@ -4277,9 +4261,7 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
   const isNumeric = state.sortBy === 'num' && hasNumbers;
   const entries = computeScrollIndexEntries(sortedSongs, state.sortBy, hasNumbers);
 
-  // Fewer than two entries means the whole list is already one bucket —
-  // nothing meaningful to jump between, and a list that short rarely
-  // needs a scrollbar assist anyway.
+  // Fewer than two songs needs no scrollbar assist.
   if (entries.length < 2) {
     scrollIndexEntries = [];
     track.hidden = true;
@@ -4292,49 +4274,40 @@ function updateSongScrollIndex(sortedSongs, hasNumbers, query) {
   updateScrollThumbPosition();
 }
 
-// Returned by labelForScrollTop() below instead of a real bucket label
-// when the drag position is still above the very first bucket — i.e.
-// still within the header/search-bar area at the top of the Songbook
-// page, where no letter/number applies yet. applyDrag() checks for this
-// exact value to swap the bubble into its icon state (see
-// .scroll-index-bubble.is-search in css/style.css) rather than printing
-// it as text.
 const SCROLL_INDEX_SEARCH_LABEL = '__search__';
 
-// Finds which bucket a given scrollTop currently falls in — the last
-// entry whose row hasn't scrolled past yet — the same "which section am I
-// in" logic a sticky section header would use. Assumes scrollIndexEntries
-// is already sorted top-to-bottom, which it always is: it's built by
-// walking the sorted song list in order.
-//
-// maxScroll (the deepest #page-songs can ever actually scroll to) matters
-// here for a reason that isn't obvious from the loop below: whenever the
-// content from the LAST bucket's row to the very end of the list is
-// shorter than one screenful — normal for Tiles, where ten songs' worth
-// of a bucket can be barely a hundred pixels tall — that row's own
-// measured top ends up further down the page than the deepest point
-// it's ever possible to scroll to. Its "have we scrolled far enough"
-// check then never passes, no matter how far you drag, and dragging to
-// the very bottom silently reports an earlier bucket instead — the
-// popup topping out at, say, "310" or "340" when the list actually goes
-// to "360". Treating "at the bottom of the scrollable area" as always
-// meaning the last bucket sidesteps that entirely, and matches what
-// dragging all the way down actually means to someone doing it.
+// Follow a point inside the visible viewport, from its top at the start to
+// its bottom at the end. This includes the final screenful gradually rather
+// than abruptly substituting the book's last number at the bottom. Every
+// reported song is on screen. Binary search reads live row bounds in O(log n)
+// without forcing layout of every off-screen song's contents.
 function labelForScrollTop(scrollTop, maxScroll) {
   const entries = scrollIndexEntries;
-  if (!entries.length) return '';
-  // Above the first bucket's own row — still in the search-bar/header
-  // area, not any lettered/numbered section yet.
-  if (scrollTop < entries[0].top - 1) return SCROLL_INDEX_SEARCH_LABEL;
-  if (maxScroll != null && scrollTop >= maxScroll - 1) {
-    return entries[entries.length - 1].label;
+  const pageEl = document.getElementById('page-songs');
+  if (!entries.length || !pageEl || !pageEl.clientHeight) return '';
+  const limit = maxScroll == null ? pageEl.scrollHeight - pageEl.clientHeight : maxScroll;
+  const ratio = limit > 0 ? Math.min(1, Math.max(0, scrollTop / limit)) : 0;
+  const targetY = pageEl.getBoundingClientRect().top + ratio * pageEl.clientHeight;
+  const topAt = i => entries[i].row.getBoundingClientRect().top;
+  if (!entries[0].row || !entries[0].row.isConnected) return '';
+  if (targetY < topAt(0)) return SCROLL_INDEX_SEARCH_LABEL;
+
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (topAt(mid) <= targetY) lo = mid + 1;
+    else hi = mid;
   }
-  let current = entries[0];
-  for (let i = 0; i < entries.length; i++) {
-    if (entries[i].top <= scrollTop + 1) current = entries[i];
-    else break;
-  }
-  return current.label;
+  const end = Math.max(0, lo - 1);
+  const rowTop = topAt(end);
+  let start = end;
+  while (start > 0 && Math.abs(topAt(start - 1) - rowTop) < 1) start--;
+  // Tiles/landscape put multiple songs in a row. Traverse those songs in
+  // reading order as the reference point moves through that row's height.
+  const nextTop = end + 1 < entries.length
+    ? topAt(end + 1) : entries[end].row.getBoundingClientRect().bottom;
+  const fraction = Math.min(0.999999, Math.max(0, (targetY - rowTop) / Math.max(1, nextTop - rowTop)));
+  return entries[start + Math.floor(fraction * (end - start + 1))].label;
 }
 
 // ---- Squishy thumb physics --------------------------------------------
@@ -4441,12 +4414,7 @@ function scheduleScrollIndexFade() {
   }, 900);
 }
 
-// Tap-to-jump and drag-to-scrub on the indicator as a single pointerdown/
-// pointermove/pointerup trio — Pointer Events unify mouse and touch, so
-// this covers both a desktop click and a phone drag with one code path. A
-// tap is simply a pointerdown with no follow-up pointermove, so it's
-// handled the same way a drag's first frame is: both just set the page's
-// scrollTop to whatever position was touched.
+// Pointer Events share the same handle drag for mouse and touch.
 function bindScrollIndexInteraction() {
   const track = document.getElementById('song-scroll-index');
   const thumb = document.getElementById('song-scroll-thumb');
@@ -4460,6 +4428,7 @@ function bindScrollIndexInteraction() {
   pageEl.addEventListener('scroll', () => {
     if (track.hidden) return;
     updateScrollThumbPosition();
+    if (scrollIndexDragging && dragPointerY != null) updateDragBubble(dragPointerY);
     setScrollIndexActive(true);
     scheduleScrollIndexFade();
   }, { passive: true });
@@ -4467,9 +4436,11 @@ function bindScrollIndexInteraction() {
   let lastDragY = null;
   let lastDragTime = null;
   let dragGrabOffsetY = 0;
+  let dragPointerY = null;
 
   function updateDragBubble(clientY, maxScroll) {
     if (!bubble) return;
+    dragPointerY = clientY;
     const label = labelForScrollTop(pageEl.scrollTop, maxScroll);
     const isSearch = label === SCROLL_INDEX_SEARCH_LABEL;
     const labelEl = document.getElementById('song-scroll-index-bubble-label');
@@ -4530,7 +4501,7 @@ function bindScrollIndexInteraction() {
     scrollIndexDragging = true;
     lastDragY = null;
     lastDragTime = null;
-    dragGrabOffsetY = Math.min(thumbRect.height, Math.max(0, e.clientY - thumbRect.top));
+    dragGrabOffsetY = Math.min(thumb.offsetHeight, Math.max(0, e.clientY - track.getBoundingClientRect().top - thumbTranslateY));
     if (track.setPointerCapture) track.setPointerCapture(e.pointerId);
     setScrollIndexActive(true);
     track.classList.add('is-dragging');
@@ -4565,7 +4536,22 @@ function bindScrollIndexInteraction() {
     });
   }
 
-  window.addEventListener('resize', () => updateScrollThumbPosition());
+  let geometryRAF = null;
+  const refreshGeometry = () => {
+    if (geometryRAF != null) return;
+    geometryRAF = requestAnimationFrame(() => {
+      geometryRAF = null;
+      updateScrollThumbPosition();
+      if (scrollIndexDragging && dragPointerY != null) updateDragBubble(dragPointerY);
+    });
+  };
+  window.addEventListener('resize', refreshGeometry);
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(refreshGeometry);
+    observer.observe(pageEl);
+    observer.observe(document.getElementById('song-list'));
+  }
+  if (document.fonts) document.fonts.ready.then(refreshGeometry);
 }
 
 // Song-list subtitle priority: show the first alternate title when one
@@ -4855,7 +4841,7 @@ function openSong(song, opts = {}) {
   const { pushHistory = true, sourceKey = state.activeDbSource } = opts;
   state.activeSong = song;
   state.activeSourceKey = sourceKey;
-  state.transpose = 0;
+  state.transpose = Number.isInteger(opts.transpose) ? Math.max(-TRANSPOSE_LIMIT, Math.min(TRANSPOSE_LIMIT, opts.transpose)) : 0;
 
   const numberEl = document.getElementById('sv-number');
   if (song.number != null) {
@@ -4942,6 +4928,10 @@ function openSong(song, opts = {}) {
   updateSongViewMenuUI();
   updateSongSheetMusicButton(sourceKey, song.id);
   showPage('song-view', { resetScroll: true });
+  if (Number.isFinite(opts.scrollTop)) {
+    const page = document.getElementById('page-song-view');
+    page.scrollTop = Math.max(0, opts.scrollTop);
+  }
   if (pushHistory) {
     pushNavState({ page: 'song-view', songId: song.id, sourceKey });
   }
@@ -5301,6 +5291,28 @@ function renderLyrics(opts = {}) {
 // translation, and Chord Finder voicing renderer so this feature stays independent of
 // the main application state while still reusing the exact Display SVG.
 // ---------------------------------------------------------
+function rememberSongChordViewer(snapshot) {
+  const entry = history.state;
+  if (state.currentPage !== 'song-view' || !state.activeSong || !entry
+      || entry.page !== 'song-view' || entry.songId !== state.activeSong.id
+      || entry.sourceKey !== state.activeSourceKey) return;
+  const data = { ...entry, transpose: state.transpose,
+    scrollTop: document.getElementById('page-song-view').scrollTop };
+  if (snapshot) data.chordViewer = { ...snapshot };
+  else delete data.chordViewer;
+  history.replaceState(data, '', location.href);
+}
+
+function openChordFinderFromSong(snapshot) {
+  if (state.currentPage !== 'song-view' || !state.activeSong || !window.ChordFinder) return;
+  // Keep the return popup on the song's entry, then push exactly one tool entry.
+  rememberSongChordViewer(snapshot);
+  showPage('chord-finder', { resetScroll: true });
+  pushNavState({ page: 'chord-finder', chordViewer: { ...snapshot } });
+  closeModal({ immediate: true });
+  window.ChordFinder.openChord(snapshot.symbol, snapshot);
+}
+
 function bindChordViewer() {
   if (!window.SongChordViewer || !window.ChordFinder) return;
   window.SongChordViewer.bind({
@@ -5315,6 +5327,11 @@ function bindChordViewer() {
     guitarText: () => t('cfGuitar'),
     pianoText: () => t('cfPiano'),
     instrumentText: () => t('cfInstrument'),
+    openFinder: openChordFinderFromSong,
+    onStateChange: rememberSongChordViewer,
+    onClose: () => rememberSongChordViewer(null),
+    isActive: () => state.currentPage === 'song-view',
+    finderText: () => t('chordViewerOpenFinder'),
   });
 }
 
@@ -5903,7 +5920,8 @@ function sourceHasSongNumbers(sourceKey) {
   // User Songs never have songbook numbers. DB_SOURCES only contains the
   // packaged databases, so falling back to {} used to make `user` look like
   // a numbered source and rendered a literal "undefined" badge in playlists.
-  return sourceKey === 'user' ? false : (DB_SOURCES[sourceKey] || {}).hasNumbers !== false;
+  if (sourceKey === SONGBOOK_SOURCE) return SOURCE_REGISTRY.selectionHasNumbers(state.selectedDbSources);
+  return !!(DB_SOURCES[sourceKey] && DB_SOURCES[sourceKey].hasNumbers === true);
 }
 
 function getUserSongPlaylistMemberships(songId) {
@@ -6136,7 +6154,7 @@ function effectiveLabels(sourceKey, songId, song) {
 // view. Mark its DOM snapshot stale so returning to the list re-evaluates an
 // active label filter instead of reusing rows whose label membership changed.
 function markSongListLabelsStale(sourceKey) {
-  if (sourceKey !== state.activeDbSource) return;
+  if (!isSelectedDbSource(sourceKey)) return;
   const listEl = document.getElementById('song-list');
   if (listEl) listEl.dataset.renderLabelFilter = '__stale__';
 }
@@ -6267,8 +6285,7 @@ function openSongSearchToolsModal() {
   labelSection.appendChild(labelHeading);
   wrap.appendChild(labelSection);
 
-  const sourceKey = state.activeDbSource;
-  const available = labelsInUse(sourceKey)
+  const available = Array.from(new Set(state.selectedDbSources.flatMap(labelsInUse)))
     .sort((a, b) => labelDisplayText(a).localeCompare(labelDisplayText(b)));
 
   // A label that vanished from the selected database should not remain as a
@@ -7021,11 +7038,15 @@ function commitPlaylistOrderFromDom() {
 // This one overlay/card pair is reused for every modal in the app (Add
 // Songs, rename/create playlist, etc.) — see bindModalShell() below.
 function openModal(title, bodyEl, options = {}) {
+  const overlay = document.getElementById('modal-overlay');
+  if (!overlay.contains(document.activeElement)) overlay._returnFocus = document.activeElement;
   document.getElementById('modal-title').textContent = title;
   const body = document.getElementById('modal-body');
   body.innerHTML = '';
   body.appendChild(bodyEl);
-  const overlay = document.getElementById('modal-overlay');
+  body.scrollTop = 0;
+  if (typeof overlay._onClose === 'function') overlay._onClose();
+  overlay._onClose = typeof options.onClose === 'function' ? options.onClose : null;
   const card = overlay.querySelector('.modal-card');
   // Modal variants keep feature-specific sizing/presentation in CSS without
   // creating a second modal implementation. Every open resets the variant so
@@ -7070,18 +7091,51 @@ function openModal(title, bodyEl, options = {}) {
     // and clearing it (back to that CSS resting value) on the next frame
     // is what gives the transition something to animate across.
     overlay.style.opacity = '0';
-    requestAnimationFrame(() => { overlay.style.opacity = ''; });
+    requestAnimationFrame(() => {
+      if (!overlay.hidden && !overlay.classList.contains('modal-overlay-closing')) overlay.style.opacity = '';
+    });
   }
   initIcons(overlay);
+  if (card) card.focus({ preventScroll: true });
 }
 
-function closeModal() {
+function restoreModalFocus(overlay) {
+  const target = overlay._returnFocus;
+  overlay._returnFocus = null;
+  if (!target || !target.isConnected || target.closest('[hidden]')) return;
+  const ownerPage = target.closest('.page');
+  // Navigation can close a song popup after moving to the tool. Do not
+  // send focus back into the previous page during its slide-out animation.
+  if (ownerPage && ownerPage.dataset.page !== state.currentPage) return;
+  target.focus({ preventScroll: true });
+}
+
+function closeModal({ immediate = false } = {}) {
   const overlay = document.getElementById('modal-overlay');
-  if (overlay.hidden || overlay._closeCleanup) return;
+  if (overlay.hidden) return;
+  if (typeof overlay._onClose === 'function') {
+    const callback = overlay._onClose;
+    overlay._onClose = null;
+    callback();
+  }
+  if (immediate) {
+    if (overlay._closeCleanup) overlay.removeEventListener('transitionend', overlay._closeCleanup);
+    if (overlay._closeTimer) clearTimeout(overlay._closeTimer);
+    overlay._closeCleanup = null;
+    overlay._closeTimer = null;
+    overlay.classList.remove('modal-overlay-closing');
+    overlay.style.opacity = '';
+    overlay.hidden = true;
+    document.getElementById('modal-body').innerHTML = '';
+    restoreModalFocus(overlay);
+    return;
+  }
+  if (overlay._closeCleanup) return;
 
   if (prefersReducedMotion()) {
     overlay.hidden = true;
     document.getElementById('modal-body').innerHTML = '';
+    restoreModalFocus(overlay);
     return;
   }
 
@@ -7101,6 +7155,7 @@ function closeModal() {
     overlay.classList.remove('modal-overlay-closing');
     overlay.style.opacity = '';
     document.getElementById('modal-body').innerHTML = '';
+    restoreModalFocus(overlay);
   };
   overlay._closeCleanup = cleanup;
   overlay.addEventListener('transitionend', cleanup);
@@ -7113,6 +7168,29 @@ function bindModalShell() {
   document.getElementById('modal-close-btn').addEventListener('click', closeModal);
   document.getElementById('modal-overlay').addEventListener('click', (e) => {
     if (e.target.id === 'modal-overlay') closeModal();
+  });
+  document.addEventListener('keydown', event => {
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeModal();
+    } else if (event.key === 'Tab') {
+      const targets = Array.from(overlay.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+        .filter(el => !el.closest('[hidden]') && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+      const first = targets[0];
+      const last = targets[targets.length - 1];
+      const active = document.activeElement;
+      if (!first) {
+        event.preventDefault();
+      } else if (event.shiftKey && (active === first || !targets.includes(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !targets.includes(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   });
   initViewportSync();
 }
@@ -7351,22 +7429,14 @@ function openAddToPlaylistModal(sourceKey, songId) {
 // DB_GROUP_ORDER — a new database or a new group needs no changes here,
 // see the comment above DB_SOURCES.
 //
-// Picking a database applies it and closes the popup immediately (like
-// the accent-color swatches) rather than needing a separate confirm step,
-// since there's nothing else to configure on the way in.
+// Single selection applies and closes immediately. The check toggle keeps
+// this picker open for multiple independent choices across its groups.
 // ---------------------------------------------------------
 function openDbPickerModal() {
   const wrap = document.createElement('div');
-
-  // Open on whichever tab already contains the active database, so the
-  // person sees their current choice (checkmarked) the instant the popup
-  // appears instead of always landing on the first tab.
   let currentGroup = (DB_SOURCES[state.activeDbSource] || {}).group || DB_GROUP_ORDER[0];
-
-  // role="group", not "tablist": every other seg-toggle in this app (song
-  // view, chord style, etc.) uses aria-pressed toggle-button semantics
-  // rather than tab semantics (aria-selected) — matching that here keeps
-  // one consistent pattern for screen readers across the whole app.
+  const toolbar = document.createElement('div');
+  toolbar.className = 'db-picker-toolbar';
   const tabs = document.createElement('div');
   tabs.className = 'seg-toggle db-picker-tabs';
   tabs.setAttribute('role', 'group');
@@ -7375,55 +7445,79 @@ function openDbPickerModal() {
   thumb.className = 'seg-toggle-thumb';
   tabs.appendChild(thumb);
 
+  const multi = document.createElement('button');
+  multi.type = 'button';
+  multi.className = 'db-picker-multi icon-btn';
+  multi.setAttribute('aria-label', t('dbSelectMultiple'));
+  multi.title = t('dbSelectMultiple');
+  multi.innerHTML = '<svg data-icon="check" viewBox="0 0 24 24" aria-hidden="true"></svg>';
+  toolbar.append(tabs, multi);
+
   const listWrap = document.createElement('div');
   listWrap.className = 'db-picker-list-wrap';
   const list = document.createElement('ul');
   list.className = 'checklist';
   listWrap.appendChild(list);
 
+  const syncSelectionUI = () => {
+    multi.setAttribute('aria-pressed', String(state.multiDbSelect));
+    list.querySelectorAll('[data-db-source]').forEach(item => {
+      const selected = isSelectedDbSource(item.dataset.dbSource);
+      item.setAttribute('aria-pressed', String(selected));
+      // A library always remains selected; rapid taps cannot create an empty state.
+      item.disabled = state.multiDbSelect && selected && state.selectedDbSources.length === 1;
+    });
+  };
+
   const renderList = ({ animate = false } = {}) => {
     const startHeight = listWrap.getBoundingClientRect().height;
     list.innerHTML = '';
     Object.keys(DB_SOURCES).filter(key => DB_SOURCES[key].group === currentGroup).forEach(key => {
-      const isActive = key === state.activeDbSource;
       const li = document.createElement('li');
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'checklist-item';
-      item.setAttribute('aria-pressed', String(isActive));
+      item.dataset.dbSource = key;
       item.innerHTML = `
         <span style="flex:1">${escapeHtml(dbSourceLabel(key))}</span>
         <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
       `;
       item.addEventListener('click', () => {
-        if (key !== state.activeDbSource) {
-          applyDbSource(key);
-          localStorage.setItem('sb-db', key);
-          showToast(t('toastDbSaved'));
+        if (state.multiDbSelect) {
+          const selected = isSelectedDbSource(key);
+          if (selected && state.selectedDbSources.length === 1) return;
+          const keys = selected ? state.selectedDbSources.filter(value => value !== key)
+            : [...state.selectedDbSources, key];
+          applyDbSelection(keys, { primary: selected ? undefined : key });
+          syncSelectionUI();
+          return;
         }
+        applyDbSource(key);
+        showToast(t('toastDbSaved'));
         closeModal();
       });
       li.appendChild(item);
       list.appendChild(li);
     });
+    syncSelectionUI();
     initIcons(list);
-
-    // Switching tabs (All/SDA) swaps the whole checklist in one go rather
-    // than diffing individual rows (unlike renderSongList's per-row diff),
-    // since a database group only has a handful of entries and a plain
-    // crossfade + height-settle reads just as smoothly for a list this
-    // short. The initial render (opening the modal) skips this — nothing's
-    // on screen yet to fade from, so animating there would just delay the
-    // popup's first paint for no visible benefit.
     if (animate && !prefersReducedMotion()) {
       animateWrapHeightTo(listWrap, listWrap.scrollHeight, startHeight);
       list.classList.remove('db-picker-list-enter');
-      void list.offsetWidth; // restart the animation if a previous tab switch is still mid-flight
+      void list.offsetWidth;
       list.classList.add('db-picker-list-enter');
     }
   };
 
-  DB_GROUP_ORDER.forEach(group => {
+  multi.addEventListener('click', () => {
+    state.multiDbSelect = !state.multiDbSelect;
+    applyDbSelection(state.multiDbSelect ? state.selectedDbSources : [state.activeDbSource]);
+    syncSelectionUI();
+  });
+
+  // Groups come from the registry, including any new groups in later books.
+  const groups = [...new Set([...DB_GROUP_ORDER, ...Object.values(DB_SOURCES).map(source => source.group)])];
+  groups.forEach(group => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'seg-toggle-btn';
@@ -7433,25 +7527,15 @@ function openDbPickerModal() {
     btn.addEventListener('click', () => {
       if (group === currentGroup) return;
       currentGroup = group;
-      tabs.querySelectorAll('.seg-toggle-btn').forEach(b => {
-        b.setAttribute('aria-pressed', String(b === btn));
-      });
+      tabs.querySelectorAll('.seg-toggle-btn').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
       positionSegToggleThumb(tabs);
       renderList({ animate: true });
     });
     tabs.appendChild(btn);
   });
-
-  wrap.appendChild(tabs);
-  wrap.appendChild(listWrap);
+  wrap.append(toolbar, listWrap);
   renderList();
-
   openModal(t('dbPickerTitle'), wrap);
-  // The tabs only just became visible (openModal clears the overlay's
-  // `hidden`), so measuring them any earlier would find offsetParent
-  // still null — see positionSegToggleThumb()'s guard. instant:true
-  // because this is the tab snapping to the already-active database's
-  // group, not a tap that should visibly slide.
   positionSegToggleThumb(tabs, { instant: true });
 }
 
@@ -7527,7 +7611,7 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
       firstRender = false;
       chipsEl.innerHTML = '';
       if (!labels.length) {
-        chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+        chipsEl.innerHTML = '';
       } else {
         labels.forEach(label => chipsEl.appendChild(buildChip(label)));
       }
@@ -7543,13 +7627,12 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
 
     if (!labels.length) {
       existingChips.forEach(chip => chip.remove());
-      chipsEl.innerHTML = `<p class="label-editor-empty">${escapeHtml(t('labelsNoneYet'))}</p>`;
+      chipsEl.innerHTML = '';
       chipsWrap.style.height = 'auto';
       animateWrapHeightTo(chipsWrap, chipsWrap.scrollHeight, startHeight);
       return;
     }
 
-    chipsEl.querySelector('.label-editor-empty')?.remove();
     const fragment = document.createDocumentFragment();
     const keptLabels = new Set();
     labels.forEach(label => {
@@ -7831,7 +7914,7 @@ function openAddSongsModal(playlistId) {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'checklist-item';
-    item.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, sourceKey, song.id)));
+    item.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, songSourceKey(song, sourceKey), song.id)));
     const subtitle = getSongListSubtitle(song);
     item.innerHTML = `
       ${hasNumbers ? `<span class="checklist-badge">${song.number}</span>` : ''}
@@ -7855,8 +7938,8 @@ function openAddSongsModal(playlistId) {
   let firstRender = true;
   const renderItems = () => {
     const q = input.value.trim().toLowerCase();
-    const sourceKey = state.activeDbSource;
-    const songs = filterAndSortSongs(state.sources[sourceKey].songs, q, sourceKey);
+    const sourceKey = SONGBOOK_SOURCE;
+    const songs = filterAndSortSongs(getSongbookSource().songs, q, sourceKey);
     const hasNumbers = sourceHasSongNumbers(sourceKey);
 
     if (firstRender || prefersReducedMotion()) {
@@ -7864,7 +7947,7 @@ function openAddSongsModal(playlistId) {
       // animate its own initial contents in) and for reduced-motion.
       firstRender = false;
       list.innerHTML = '';
-      songs.forEach(song => list.appendChild(buildChecklistItem(song, sourceKey, hasNumbers)));
+      songs.forEach(song => list.appendChild(buildChecklistItem(song, songSourceKey(song, sourceKey), songHasVisibleNumber(song, sourceKey, hasNumbers))));
       initIcons(list);
       return;
     }
@@ -7883,14 +7966,14 @@ function openAddSongsModal(playlistId) {
     const keptKeys = new Set();
 
     songs.forEach(song => {
-      const key = `${sourceKey}:${song.id}`;
+      const key = `${songSourceKey(song, sourceKey)}:${song.id}`;
       keptKeys.add(key);
       let li = existingItems.get(key);
       if (li) {
         cancelRowExit(li);
-        li.firstElementChild.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, sourceKey, song.id)));
+        li.firstElementChild.setAttribute('aria-pressed', String(isSongInPlaylist(playlistId, songSourceKey(song, sourceKey), song.id)));
       } else {
-        li = buildChecklistItem(song, sourceKey, hasNumbers);
+        li = buildChecklistItem(song, songSourceKey(song, sourceKey), songHasVisibleNumber(song, sourceKey, hasNumbers));
         li.classList.add('song-row-enter');
         li.addEventListener('animationend', function onEnd() {
           li.classList.remove('song-row-enter');
@@ -8431,15 +8514,8 @@ function registerServiceWorker() {
   //    memory already matches what just got installed. hadController
   //    below distinguishes a real handoff from that harmless first claim.
   //
-  // 2. reloadApp() (the "Reload app" button) unregisters the old worker,
-  //    wipes caches, and calls location.reload() itself to force a fully
-  //    fresh load — but the fresh load then registers a brand new worker,
-  //    which activates and claims this same page, firing controllerchange
-  //    all over again and triggering a SECOND, redundant reload right on
-  //    top of the one the button already did. skipNextAutoReload (written
-  //    to sessionStorage by reloadApp() just before it reloads, so it
-  //    survives the reload) tells this run "the reload already happened
-  //    on purpose — sit this one cycle out."
+  // 2. Retain the session flag from older manual-reset implementations,
+  //    so an update already in flight does not cause a duplicate reload.
   const hadController = !!navigator.serviceWorker.controller;
   let reloadedForUpdate = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {

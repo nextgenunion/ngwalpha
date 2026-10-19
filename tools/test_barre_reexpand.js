@@ -4,7 +4,7 @@ ctx.document={getElementById(){return null},querySelectorAll(){return []},create
 vm.runInNewContext(fs.readFileSync(__dirname+'/../js/chord-core.js','utf8'),ctx);
 vm.runInNewContext(fs.readFileSync(__dirname+'/../js/guitar-voicings.js','utf8'),ctx);
 let src=fs.readFileSync(__dirname+'/../js/chord-finder.js','utf8');
-src=src.replace('window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });', 'window.__CF_STATE=State; window.__CF_DISPLAY=Display; window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });');
+src=src.replace('window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings, openChord });', 'window.__CF_STATE=State; window.__CF_DISPLAY=Display; window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings, openChord });');
 vm.runInNewContext(src,ctx);
 const S=ctx.__CF_STATE,P=ctx.__CF_DISPLAY; let failed=0;
 function expect(label, cond, detail=''){console.log(cond?'PASS':'FAIL',label,detail); if(!cond)failed++;}

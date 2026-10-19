@@ -27,6 +27,7 @@
                                     (app.js uses it to keep the screen awake)
      ChordFinder.diagramForChord()  preferred diagram for a chord symbol
      ChordFinder.getChordVoicings() several distinct playable positions
+     ChordFinder.openChord()        load a song chord into the editable tool
    ============================================================ */
 (function () {
   'use strict';
@@ -1699,5 +1700,27 @@
 
   function isDisplaying() { return Display.active; }
 
-  window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings });
+  // Load a song's displayed chord into the same editable search pipeline.
+  function openChord(symbol, { instrument = 'guitar', index = 0 } = {}) {
+    init();
+    if (!inited) return false;
+    exitDisplay();
+    setInstrument(instrument);
+    Menu.close(true);
+    State.selection.fill(null);
+    State.muted.fill(false);
+    State.barres = [];
+    PianoState.clear();
+    Search.invalidate();
+    update();
+    const input = Search.els().input;
+    if (input) input.value = String(symbol || '').trim();
+    Search.run(symbol);
+    if (!Search.results.length) return false;
+    Search.index = Number.isInteger(index) ? Math.max(0, Math.min(Search.results.length - 1, index)) : 0;
+    Search.load(Search.results[Search.index]);
+    return true;
+  }
+
+  window.ChordFinder = Object.freeze({ init, refreshLanguage, refreshNoteNames, exitDisplay, isDisplaying, renderDiagram, diagramForChord, getChordVoicings, getPianoChordVoicings, openChord });
 })();

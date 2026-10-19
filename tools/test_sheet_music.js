@@ -93,7 +93,7 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf
   assert.ok(sw.includes("'./data/sheet-music/catalog.js'"), 'Static Sheet Music catalog must be in atomic offline install');
   assert.ok(sw.includes("'./data/sheet-music/assets/sda/h108-amazing-grace.svg'"), 'Packaged proof score must be in atomic offline install');
   assert.ok(!sw.includes('SHEET_MUSIC_ASSET_CACHE'), 'Sheet Music should not reintroduce a separate cache strategy');
-  assert.ok(/cache\.addAll\(REQUIRED_OFFLINE\)/.test(sw), 'Sheet Music must inherit the same atomic offline contract as the rest of the app');
+  assert.ok(/cache\.addAll\(REQUIRED_OFFLINE(?:\.map\(freshRequest\))?\)/.test(sw), 'Sheet Music must inherit the same atomic offline contract as the rest of the app');
 
   console.log(`Sheet Music tests passed: ${manifest.entries.length} entries, ${manifest.entries.reduce((n,e)=>n+e.pages.length,0)} packaged page(s); gating/catalog/atomic-offline checks passed.`);
 })().catch((err) => { console.error(err); process.exit(1); });
