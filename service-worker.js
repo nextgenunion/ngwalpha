@@ -26,6 +26,8 @@ const REQUIRED_OFFLINE = [
   './lang/mn.js',
   './lang/mn2.js',
   './icons/app-icon-192.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
   './icons/app-icon-512.png',
   './icons/app-icon-maskable.png',
   './icons/app-icon.png',

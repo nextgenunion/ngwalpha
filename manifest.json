@@ -23,14 +23,8 @@
       "purpose": "any"
     },
     {
-      "src": "icons/app-icon.png",
-      "sizes": "1920x1920",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
       "src": "icons/app-icon-maskable.png",
-      "sizes": "1920x1920",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }

@@ -3443,18 +3443,43 @@ html.keyboard-open .modal-card {
    settings row. Here it's the modal's own top navigation instead, so it
    needs to span the popup's full width with its tabs sharing that width
    evenly, rather than sizing to its (short) label text. */
-.db-picker-tabs { width: 100%; margin: 2px 0 4px; }
+.db-picker-tabs { width: 100%; margin: 0; }
 .db-picker-tabs .seg-toggle-btn { flex: 1; text-align: center; }
 /* This seg-toggle is the modal's own top navigation, not a compact
    inline control (see the comment above), so give it more presence than
    the base .seg-toggle-btn sizing — taller tap targets and a slightly
    larger label read better spanning the popup's full width. */
-.db-picker-tabs.seg-toggle { --seg-inset: 3px; }
-.db-picker-tabs .seg-toggle-btn { padding: 10px 10px; font-size: 0.85rem; }
-.db-picker-toolbar { display: flex; align-items: center; gap: 8px; }
+/* Toolbar = tab track + multi-select button, built to share ONE height
+   (--db-picker-ctl) instead of two numbers that merely happened to be
+   close. The track's old 2px-top/4px-bottom margin used to sit on the
+   track alone, which pushed it 1px above the button's centre line, so
+   that spacing now lives on the toolbar instead. Both controls use the
+   same flat fill + 1px border; the button is a circle (the app's
+   icon-button shape) rather than a rounded square beside a capsule. */
+.db-picker-toolbar {
+  --db-picker-ctl: 44px;
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 4px;
+}
+.db-picker-tabs.seg-toggle { --seg-inset: 3px; box-sizing: border-box; height: var(--db-picker-ctl); }
+.db-picker-tabs .seg-toggle-btn { padding: 0 10px; font-size: 0.85rem; }
 .db-picker-toolbar .db-picker-tabs { flex: 1; min-width: 0; width: auto; }
-.db-picker-multi.icon-btn { flex: 0 0 44px; width: 44px; height: 44px; border-radius: var(--radius-m); }
-.db-picker-multi[aria-pressed="true"] { color: var(--accent-strong); background: var(--accent-tint); }
+.db-picker-multi.icon-btn {
+  flex: 0 0 var(--db-picker-ctl);
+  width: var(--db-picker-ctl); height: var(--db-picker-ctl);
+  border-radius: 50%;
+  background: var(--paper);   /* same fill as the tab track beside it */
+  box-shadow: none;           /* flat like the track — no lip */
+}
+.db-picker-multi.icon-btn:active { transform: scale(var(--press-scale-icon)); box-shadow: none; }
+/* On state mirrors the tab thumb (.seg-toggle-thumb): solid accent fill,
+   light glyph, inverted pairing in dark mode. The glyph colour is set on
+   the svg's fill because .icon-btn svg hard-codes fill (a plain `color`
+   never reached it, so the old on state kept a grey icon). */
+.db-picker-multi[aria-pressed="true"] { background: var(--accent-strong); border-color: var(--accent-strong); }
+.db-picker-multi[aria-pressed="true"] svg { fill: var(--paper); }
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] svg { fill: var(--paper-dim); }
 .db-picker-multi:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
 /* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
