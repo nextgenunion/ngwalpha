@@ -957,7 +957,11 @@
       if (!wrap) return;
       const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (immediate || reduce) { wrap.remove(); return; }
-      wrap.removeAttribute('id');               // free the id while it animates out
+      // Free the live id so a fast re-open never finds the fading copy, but
+      // hand it a sibling id instead of dropping it: this menu's styling is
+      // scoped to the id in css/style.css, and with no id at all the menu
+      // flashed unstyled (flat) for the length of the exit animation.
+      wrap.id = 'cf-kebab-dropdown-exit';
       wrap.classList.add('kebab-dropdown-exit');
       wrap.addEventListener('animationend', () => wrap.remove(), { once: true });
     },

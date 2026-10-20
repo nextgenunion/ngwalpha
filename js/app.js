@@ -7461,6 +7461,7 @@ function openDbPickerModal() {
 
   const syncSelectionUI = () => {
     multi.setAttribute('aria-pressed', String(state.multiDbSelect));
+    list.classList.toggle('is-multi', state.multiDbSelect);
     list.querySelectorAll('[data-db-source]').forEach(item => {
       const selected = isSelectedDbSource(item.dataset.dbSource);
       item.setAttribute('aria-pressed', String(selected));
@@ -7476,7 +7477,7 @@ function openDbPickerModal() {
       const li = document.createElement('li');
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = 'checklist-item';
+      item.className = 'checklist-item db-picker-item';
       item.dataset.dbSource = key;
       item.innerHTML = `
         <span style="flex:1">${escapeHtml(dbSourceLabel(key))}</span>
