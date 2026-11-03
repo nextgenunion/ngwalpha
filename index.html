@@ -35,22 +35,6 @@
 <!-- Shorter name for the phone/desktop home-screen label -->
 <meta name="apple-mobile-web-app-title" content="NGWorship Alpha">
 
-<!-- Fonts: Cyrillic (Noto Sans, Inter) and Fraunces Latin are self-hosted in
-     /fonts and cached for offline (see css/style.css). The Google Fonts link
-     below is only the online fallback for subsets not shipped yet (Latin for
-     Noto Sans/Inter, IBM Plex Mono, italics). Remove it once /fonts has them. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- crossorigin makes this a real CORS response instead of an opaque one.
-     Without it, service-worker.js's generic fetch handler can never cache
-     this file (its `response.ok` check is always false on an opaque
-     response) — so every fresh app launch had to hit the network again
-     just to find out where the chord font (IBM Plex Mono) lives, before
-     the font file itself could even start downloading. See the mono-font
-     warmup in js/app.js (scheduleFontWarmup) for the other half of this
-     fix. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" crossorigin>
-
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -604,40 +588,9 @@
         <button class="seg-toggle-btn" data-song-view="tiles" id="t-songViewTiles" aria-pressed="false">Tiles</button>
       </div>
     </div>
-    <div class="settings-row settings-row-note-names">
-      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <label class="settings-row-title" for="note-name-select" id="t-noteNamesTitle">Note names</label>
-        <span class="settings-row-sub settings-desc-hideable" id="t-noteNamesSub">Names shown on piano and guitar notes</span>
-      </div>
-      <select class="select-input" id="note-name-select" aria-labelledby="t-noteNamesTitle">
-        <option value="letters">C D E F G A B</option>
-        <option value="solfege">Do Re Mi Fa Sol La Si</option>
-        <option value="mongolian">До Ре Ми Фа Соль Ля Си</option>
-      </select>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-chordStyleGroup">Chord style</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-chordStyleSub">How chords are displayed above lyrics</span>
-      </div>
-      <div class="seg-toggle" role="group" id="chord-style-toggle" aria-label="Chord display style">
-        <div class="seg-toggle-thumb" aria-hidden="true"></div>
-        <button class="seg-toggle-btn" data-chord-style="chip" id="t-chordStyleChip" aria-pressed="true">Chips</button>
-        <button class="seg-toggle-btn" data-chord-style="text" id="t-chordStyleText" aria-pressed="false">Text</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <svg class="settings-row-icon" data-icon="visibility-off" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <span class="settings-row-title" id="t-hideChordsTitle">Hide chords</span>
-        <span class="settings-row-sub settings-desc-hideable" id="t-hideChordsSub">Show lyrics only, without chords</span>
-      </div>
-      <button id="hide-chords-toggle" class="switch" role="switch" aria-checked="false" aria-label="Hide chords">
-        <span class="switch-knob"></span>
-      </button>
-    </div>
+  </section>
+
+  <section class="settings-section">
     <div class="settings-row">
       <svg class="settings-row-icon" data-icon="format-bold" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
@@ -677,6 +630,34 @@
         <button class="seg-toggle-btn" data-lyrics-spacing="loose" id="t-lyricsSpacingLoose" aria-pressed="false">Loose</button>
       </div>
     </div>
+  </section>
+
+  <section class="settings-section">
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-showChordsTitle">Show chords</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-showChordsSub">Show chords above song lyrics</span>
+      </div>
+      <button id="show-chords-toggle" class="switch" role="switch" aria-checked="true" aria-labelledby="t-showChordsTitle" aria-describedby="t-showChordsSub">
+        <span class="switch-knob"></span>
+      </button>
+    </div>
+    <div class="settings-row" id="chord-style-row">
+      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-chordStyleGroup">Chord style</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-chordStyleSub">How chords are displayed above lyrics</span>
+      </div>
+      <div class="seg-toggle" role="group" id="chord-style-toggle" aria-label="Chord display style">
+        <div class="seg-toggle-thumb" aria-hidden="true"></div>
+        <button class="seg-toggle-btn" data-chord-style="chip" id="t-chordStyleChip" aria-pressed="true">Chips</button>
+        <button class="seg-toggle-btn" data-chord-style="text" id="t-chordStyleText" aria-pressed="false">Text</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-section">
     <div class="settings-row">
       <svg class="settings-row-icon" data-icon="format-bold" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
@@ -728,6 +709,22 @@
           <svg data-icon="search" viewBox="0 0 24 24"></svg>
         </button>
       </div>
+      <button id="cf-picker-toggle" class="cf-picker-toggle" type="button" aria-expanded="false" aria-controls="cf-picker">Choose chord ▾</button>
+      <div id="cf-picker" class="cf-picker" hidden>
+        <label class="cf-picker-field" for="cf-picker-root">
+          <span id="cf-picker-note-label">Note</span>
+          <select id="cf-picker-root" aria-labelledby="cf-picker-note-label"></select>
+        </label>
+        <label class="cf-picker-field" for="cf-picker-quality">
+          <span id="cf-picker-quality-label">Type</span>
+          <select id="cf-picker-quality" aria-labelledby="cf-picker-quality-label"></select>
+        </label>
+        <label class="cf-picker-field" for="cf-picker-extra">
+          <span id="cf-picker-extra-label">Extra</span>
+          <select id="cf-picker-extra" aria-labelledby="cf-picker-extra-label"></select>
+        </label>
+        <button id="cf-picker-show" class="cf-picker-show" type="button">Show C</button>
+      </div>
       <div class="cf-search-nav" id="cf-search-nav" hidden>
         <button id="cf-search-prev" type="button" class="cf-search-arrow" aria-label="Previous voicing">‹</button>
         <span id="cf-search-count" class="cf-search-count" aria-live="polite"></span>
@@ -739,6 +736,18 @@
     <div class="cf-board cf-piano" id="cf-piano-board" hidden></div>
     <div class="cf-toolbar">
       <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
+    </div>
+    <div class="settings-row settings-row-note-names">
+      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <label class="settings-row-title" for="note-name-select" id="t-noteNamesTitle">Note names</label>
+        <span class="settings-row-sub settings-desc-hideable" id="t-noteNamesSub">Names shown on piano and guitar notes</span>
+      </div>
+      <select class="select-input" id="note-name-select" aria-labelledby="t-noteNamesTitle">
+        <option value="letters">C D E F G A B</option>
+        <option value="solfege">Do Re Mi Fa Sol La Si</option>
+        <option value="mongolian">До Ре Ми Фа Соль Ля Си</option>
+      </select>
     </div>
   </section>
 
@@ -877,6 +886,17 @@
   </section>
 
   <section class="settings-section">
+    <h3 class="settings-heading" id="t-devAnnouncementPreview">Announcement previews</h3>
+    <div class="settings-row">
+      <div class="settings-row-text"><span class="settings-row-sub" id="t-devAnnouncementPreviewSub">Test sample messages without publishing or changing seen announcements.</span></div>
+      <div class="dev-preview-actions">
+        <button id="dev-preview-dialog-btn" class="btn-secondary" type="button">Preview dialog</button>
+        <button id="dev-preview-banner-btn" class="btn-secondary" type="button">Preview banner</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-section">
     <h3 class="settings-heading" id="t-sectionDevEasterEggs">Easter eggs</h3>
     <div class="settings-row">
       <div class="settings-row-text">
@@ -960,6 +980,13 @@
     </div>
     <div class="settings-row">
       <div class="settings-row-text">
+        <span class="settings-row-title" id="t-devDiagTitle">Copy diagnostics</span>
+        <span class="settings-row-sub" id="t-devDiagSub">Copies the app version, offline status and recent errors so you can paste them into a bug report</span>
+      </div>
+      <button id="dev-diag-btn" class="btn-secondary" type="button"></button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-text">
         <span class="settings-row-title" id="t-devHideDescTitle">Hide setting descriptions</span>
         <span class="settings-row-sub" id="t-devHideDescSub">Hides the description text under some settings rows</span>
       </div>
@@ -974,6 +1001,7 @@
 
 <!-- ===== BOTTOM NAVIGATION ===== -->
 <nav id="bottom-nav" class="bottom-nav" aria-label="Main navigation">
+<div id="app-announcements" class="app-announcements" role="region" aria-label="Announcements" aria-live="polite" hidden></div>
  <div class="bottom-nav-inner">
   <button class="nav-btn is-active" data-nav="songs">
     <svg data-icon="nav-songs" viewBox="0 0 24 24"></svg>
@@ -1042,9 +1070,15 @@
 <script src="js/guitar-voicings.js" defer></script>
 <script src="js/piano-chords.js" defer></script>
 <script src="js/chord-finder.js" defer></script>
+<script src="js/chord-overhang.js" defer></script>
 <script src="js/chord-viewer.js" defer></script>
+<script src="js/presentation.js" defer></script>
 <script src="data/sheet-music/catalog.js" defer></script>
 <script src="js/sheet-music.js" defer></script>
+<script src="js/song-engine.js" defer></script>
+<script src="js/data.js" defer></script>
+<script src="js/settings.js" defer></script>
+<script src="js/ui.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>

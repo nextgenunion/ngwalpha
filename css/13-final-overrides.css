@@ -1,0 +1,25 @@
+/* ---------- touch: no iOS focus-zoom ----------
+   iOS Safari zooms the whole page when a focused field is under 16px and
+   often doesn't zoom back out, which shifts the entire app. These fields
+   were 14-15.4px. Touch devices only, so desktop sizing is unchanged. */
+@media (pointer: coarse) {
+  #search-input,
+  .search-field,
+  .modal-text-input,
+  .editor-lyrics-textarea,
+  .cf-search-input { font-size: 16px; }
+}
+
+/* Fixed-do note formats have longer names than A–G. Preserve the fretboard,
+   but reduce only their marker lettering so Sol♯ / Соль♯ stays inside. */
+html:not([data-note-names="letters"]) .cf-dot { font-size: clamp(.43rem, .9vw, .54rem); letter-spacing: -.045em; }
+html:not([data-note-names="letters"]) .cf-key-label { font-size: clamp(.48rem, 1.2vw, .61rem); letter-spacing: -.045em; }
+html:not([data-note-names="letters"]) .cf-key-black .cf-key-label { font-size: clamp(.4rem, 1vw, .51rem); }
+html:not([data-note-names="letters"]) .cf-pd-label { font-size: 11px; letter-spacing: -.04em; }
+html:not([data-note-names="letters"]) .cf-pd-label.is-black { font-size: 9px; }
+.settings-row-note-names .select-input { max-width: 100%; }
+@media (max-width: 480px) {
+  .settings-row-note-names .select-input { flex: 1 1 100%; width: 100%; }
+}
+
+.label-editor-chips-wrap:has(.label-editor-chips:empty) { display: none; }

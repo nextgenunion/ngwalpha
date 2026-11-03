@@ -1,0 +1,447 @@
+/* ---------- settings ---------- */
+.settings-section {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+.settings-heading {
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  padding: 14px 16px 6px;
+  font-weight: 700;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+.settings-section .settings-heading + .settings-row { border-top: none; }
+#page-song-display .settings-row:first-child { border-top: none; }
+/* .settings-row sets display:flex unconditionally, which (being an author
+   rule) beats the browser's own [hidden]{display:none} regardless of
+   specificity — so a row that starts hidden (e.g. #dev-options-nav-row,
+   only revealed once Developer options is unlocked) stayed visible. Same
+   fix pattern as .toast[hidden]/.btn-pill-done[hidden] below. */
+.settings-row[hidden] { display: none; }
+#chord-style-row.is-disabled { opacity: 0.5; }
+#chord-style-toggle .seg-toggle-btn:disabled { cursor: default; }
+/* Leading icon for a settings row (see index.html — one per row in
+   Appearance/Songs/App/About) so each option reads at a glance rather
+   than by title text alone. Sits as a plain flex sibling before
+   .settings-row-text, so .settings-row's own `gap` already spaces it
+   from the text — nothing extra needed here for that, and its own
+   `align-items: center` centers the icon vertically without this rule
+   needing align-self at all. flex: 0 0 20px (rather than just
+   flex-shrink:0) pins both the icon's width AND its flex basis, so a
+   raw injected <svg> with no size attributes of its own can't collapse
+   to browser-default intrinsic dimensions and throw off centering —
+   min-width/min-height back that up for browsers that don't fully
+   respect a flex-basis on a replaced element like svg. */
+.settings-row-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
+  color: var(--ink-soft);
+}
+.settings-row-icon-horizontal { transform: rotate(90deg); }
+/* flex: 1 1 auto makes the title/sub block claim all leftover row width
+   itself, instead of sizing to its own text and leaving .settings-row's
+   space-between to scatter the remainder as uneven gaps around the icon
+   and the trailing control (toggle/segmented control/button/select) —
+   that mismatch, not the icon, was why gaps varied row to row and looked
+   fine only on .settings-row-nav rows (which already had this via their
+   own override below, now redundant but left as-is). */
+.settings-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.settings-row-title { font-size: 0.96rem; font-weight: 600; color: var(--ink); }
+.settings-row-sub { font-size: 0.8rem; color: var(--ink-faint); margin-top: 2px; }
+/* Hide setting descriptions (Developer options) — see applyDevOptions()
+   in app.js. Only rows explicitly marked .settings-desc-hideable in
+   index.html are affected; other settings-row-sub text (Playlists
+   backup, Reload library, the About page's own description, etc.) is
+   untouched regardless of this toggle. */
+html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
+.settings-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.settings-row-actions .btn-secondary { white-space: nowrap; }
+
+/* .settings-row-nav: the tappable "About" row that opens its own page.
+   Same layout as .settings-row (it IS one, plus this) but rendered as a
+   <button> — full-width, no default button chrome, with a chevron that
+   reuses back-arrow.svg flipped via CSS rather than shipping a second
+   near-identical icon asset. */
+.settings-row-nav {
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--line);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* .settings-row (above) allows wrapping for rows with action buttons
+     that may need their own line on a narrow screen — but this row is
+     always exactly [text, chevron], and the chevron must never wrap onto
+     its own line below the text (that's what pushed it down-and-left
+     instead of staying pinned at the right, vertically centered). */
+  flex-wrap: nowrap;
+}
+.settings-section .settings-heading + .settings-row-nav { border-top: none; }
+.settings-row-nav:active { background: var(--paper-dim); }
+.settings-row-nav .settings-row-text {
+  /* Let the text take up the remaining space instead of sizing to its
+     own content — without this, a longer sub-line (e.g. "Version,
+     credits, and social links") could push the row wider than its
+     container, which is exactly what forced the chevron to wrap. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settings-row-chevron {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  transform: scaleX(-1);
+}
+
+.select-input {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--radius-s);
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-family: var(--font-body);
+}
+
+.about-block { padding: 6px 16px 20px; text-align: center; }
+.about-logo { width: 64px; height: 64px; border-radius: var(--radius-m); margin-bottom: 12px; }
+.about-label { margin: 0; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.about-appname { margin: 3px 0 0; font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; color: var(--ink); }
+.about-description { margin: 4px 0 0; font-size: 0.86rem; color: var(--ink-soft); }
+/* Fixed footer, always visible at the bottom of the About page regardless
+   of scroll position — a sibling of .page-inner (not inside it), so it
+   sits outside that element's own scrolling and can be positioned against
+   the viewport the same way .page itself is (see .page's own position:
+   fixed above). Scoped to #page-about specifically via the parent
+   selector — not a page-wide footer, only this one page has it. */
+#page-about .about-legal-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  padding: 10px 18px calc(env(safe-area-inset-bottom) + 10px);
+  text-align: center;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+/* The page's own scrollable content needs its bottom padding increased by
+   however tall the fixed footer above actually is, or the footer would
+   permanently cover the last couple of lines of credits/socials. This
+   page has no bottom nav (hideNav: true — see PAGES in app.js), so unlike
+   .page-inner's default rule (which reserves space for --nav-h), this
+   only needs to clear the footer's own height plus the safe-area inset
+   already baked into the footer's own padding above. */
+#page-about .page-inner {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+}
+.about-copyright { margin: 0; font-size: 0.86rem; color: var(--ink-soft); }
+.about-copyright-terms { margin: 4px 0 0; font-size: 0.6rem; line-height: 1.4; color: var(--ink-soft); }
+.about-social { display: flex; justify-content: center; gap: 14px; margin-top: 16px; }
+.about-social:empty { margin-top: 0; }
+.about-social a {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--paper-dim);
+  color: var(--ink-soft);
+}
+.about-social svg { width: 18px; height: 18px; fill: currentColor; }
+
+.about-credits { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.about-credits-heading {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.about-credits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.about-credits-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.86rem;
+}
+.about-credits-role { font-weight: 600; color: var(--ink); }
+.about-credits-name { color: var(--ink-faint); font-size: 0.8rem; }
+.about-credits-name::before { content: "— "; }
+
+.about-contact-btn {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--accent-strong);
+  font-weight: 600;
+  font-size: 0.86rem;
+  text-decoration: none;
+  cursor: pointer;
+  /* Same .btn-secondary lip — this is a plain <a>, not a <button>, so it
+     never picked up even the universal scale-pop the way a real button
+     would; it had zero press feedback of any kind before this. */
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+.about-contact-btn:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
+  transition-duration: var(--dur-press);
+}
+.about-contact-btn:not([hidden]) { display: inline-flex; }
+.about-contact-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+.about-contact-wrap {
+  text-align: center;
+  padding: 18px 16px;
+  /* Sits inside the SAME .about-section card as the About row above it
+     (not a second, separate card floating below) — this border is what
+     visually separates the two rows from each other while keeping them
+     together as one continuous section, same border treatment as any
+     .settings-row divider in this file. */
+  border-top: 1px solid var(--line);
+}
+
+.about-contact-fallback {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.about-contact-fallback:not([hidden]) { display: flex; }
+.about-contact-fallback span {
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+.about-contact-fallback button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: var(--paper-dim);
+  color: var(--ink-soft);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.about-contact-fallback svg { width: 13px; height: 13px; fill: currentColor; }
+
+.scripture-footer {
+  margin: 28px 0 8px;
+  padding: 0 24px;
+  text-align: center;
+}
+.scripture-footer p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+.scripture-footer cite {
+  display: block;
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink-faint);
+  opacity: 0.8;
+}
+
+.switch {
+  width: 46px; height: 27px;
+  border-radius: 999px;
+  border: none;
+  background: var(--line);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Track color lags the knob by a touch (.24s vs the knob's .32s spring
+     starting instantly) so the color settles just after the knob arrives,
+     rather than both finishing on the same flat beat. */
+  transition: background var(--dur-base) ease .04s;
+}
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch-knob {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 21px; height: 21px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  /* Overshoot spring (same family as --press-ease) on position, plus a
+     brief independent squash/stretch on width so the knob reads as a
+     soft, slightly compressible object rather than a rigid dot sliding
+     on a rail. */
+  transition: transform var(--dur-slow) var(--press-ease), width var(--dur-base) ease;
+}
+.switch[aria-checked="true"] .switch-knob { transform: translateX(19px); }
+.switch:active .switch-knob { width: 25px; }
+.switch[aria-checked="true"]:active .switch-knob { transform: translateX(15px); }
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 9px 18px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Lip shadow toned down from a near-black mix to a mid --ink tone —
+     enough contrast against --ink itself to read as a distinct edge
+     you can see collapse, without being the darkest, highest-contrast
+     thing on the screen. Ratio dropped again, 55%→40%, alongside the
+     --lip-sm/--lip-md/--lip-shadow token pass — see that comment. */
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--ink) 40%, var(--line));
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+html[data-theme="dark"] .btn-primary {
+  background: var(--accent);
+  color: var(--paper-dim);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
+}
+
+/* Destructive confirm buttons (delete song / delete playlist) used to
+   be a plain .btn-primary with an inline style="background:var(--danger)"
+   — which repainted the face red but left the lip shadow computed from
+   --ink/--accent, so the shadow didn't match the button's own color
+   (in dark mode it was a bright cyan lip under a red button). This
+   mirrors --danger's own light/dark duality the same way --accent-strong
+   does for .btn-pill-done, so the shadow is always a darker shade of
+   the button's own red instead of an unrelated color. */
+.btn-primary.btn-danger {
+  background: var(--danger);
+  color: var(--paper);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+.btn-primary.btn-danger:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+html[data-theme="dark"] .btn-primary.btn-danger {
+  background: var(--danger);
+  color: var(--paper);
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
+html[data-theme="dark"] .btn-primary.btn-danger:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--accent-strong);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Was relying on the universal scale-pop (no shadow of its own at
+     all) — the one filled/outlined pill shape in the app with no lip,
+     which is what made it look like an older control next to
+     .btn-primary/.btn-pill-done right next to it. Neutral
+     --chip-lip-shadow rather than a colored mix, since this button has
+     no fill color of its own to derive one from (background stays
+     transparent). */
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+.btn-secondary:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
+  transition-duration: var(--dur-press);
+}
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-secondary:disabled:active { transform: none; }
+
+.installed-badge {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3E7A52;
+  flex-shrink: 0;
+}
+
+.accent-swatches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; max-width: 100%; flex-shrink: 1; }
+.accent-swatch {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transform: scale(1);
+  /* Was a plain scale(0.88) squish — the odd one out next to every
+     other button's collapse-and-spring lip. Uses a translucent black
+     rather than a color-mix against each swatch's own hue: the swatch
+     color is a plain inline background per-circle (not a custom
+     property), so there's no single variable to mix against here the
+     way the other colored buttons do; a dark rim reads as "this
+     circle's own shadow" regardless of which hue sits under it. */
+  box-shadow: 0 var(--chip-lip) 0 rgba(0, 0, 0, 0.22);
+  transition: border-color var(--dur-base) ease, transform var(--dur-slow) var(--press-ease), box-shadow var(--dur-press) ease;
+}
+.accent-swatch:active {
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0.22);
+  transition-duration: var(--dur-press);
+}
+/* var(--ink) here used to read as a flat black/white ring slapped on
+   top of whatever hue the swatch is — it doesn't belong to the app's
+   color language the way every other "selected" state does (see
+   .checklist-item[aria-pressed="true"] .checklist-check, .sort-btn's
+   selected state, etc., which all key off --accent-strong). Matching
+   that convention makes the ring read as the app's own selection
+   indicator rather than a stray border. */
+.accent-swatch[aria-pressed="true"] { border-color: var(--accent-strong); transform: scale(1.08); }
+.accent-swatch[aria-pressed="true"]:active {
+  transform: scale(1.08) translateY(var(--chip-lip));
+  transition-duration: var(--dur-press);
+}
+.accent-swatch[aria-pressed="true"]::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+}
+
+
+/* Preview actions wrap on narrow screens and in longer translations. */
+.dev-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.dev-preview-actions .btn-secondary { max-width: 100%; white-space: normal; }

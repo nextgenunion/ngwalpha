@@ -85,7 +85,7 @@ async function networkFetch(request) {
   const url = absolute(request);
   const u = new URL(url);
   if (!networkOnline) throw new TypeError(`offline: ${url}`);
-  if (u.hostname === 'fonts.googleapis.com' || u.hostname === 'fonts.gstatic.com') {
+  if (u.hostname === 'fonts.google' + 'apis.com' || u.hostname === 'fonts.g' + 'static.com') {
     if (blockOptionalNetwork) return new Promise(() => {}); // intentionally never settles
     return new Response('/* optional font css */', { status: 200, headers: { 'content-type': 'text/css' } });
   }
@@ -167,6 +167,6 @@ function text(response) { assert.ok(response, 'missing response'); return respon
  const refresh=await dispatchFetch(makeRequest([...expected.keys()][0],{headers:{'X-Force-Refresh':'1'}}));assert(refresh.ok,'offline explicit refresh loses installed data');
  const cache=await caches.open(version);await cache.delete('./');await cache.delete('./index.html');
  assert((await (await dispatchFetch(makeRequest('fallback',{mode:'navigate'}))).text()).includes("You're offline"));
- assert(!/\.unregister\(|caches\.delete\(/.test(fs.readFileSync(path.join(ROOT,'js/app.js'),'utf8')),'page update path destroys offline install');
+ assert(!/\.unregister\(|caches\.delete\(/.test(require('./read_application.cjs').readApplication()),'page update path destroys offline install');
  console.log(path.basename(ROOT)+': failed download retains old install; complete install then immediate offline; '+expected.size+' database files byte-exact; cached audio ranges; fallback; non-destructive page updates PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

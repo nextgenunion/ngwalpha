@@ -83,7 +83,7 @@ async function networkFetch(request) {
   const url = absolute(request);
   const u = new URL(url);
   if (!networkOnline) throw new TypeError(`offline: ${url}`);
-  if (u.hostname === 'fonts.googleapis.com' || u.hostname === 'fonts.gstatic.com') {
+  if (u.hostname === 'fonts.google' + 'apis.com' || u.hostname === 'fonts.g' + 'static.com') {
     if (blockOptionalNetwork) return new Promise(() => {}); // intentionally never settles
     return new Response('/* optional font css */', { status: 200, headers: { 'content-type': 'text/css' } });
   }

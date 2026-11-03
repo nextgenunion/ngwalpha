@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const ROOT = path.resolve(__dirname, '..');
-const app = fs.readFileSync(path.join(ROOT,'js/app.js'),'utf8');
+const app = require('./read_application.cjs').readApplication();
 const sw = fs.readFileSync(path.join(ROOT,'service-worker.js'),'utf8');
 assert.ok(!/persistResponseForOffline/.test(app), 'page still contains old first-load cache bridge');
 assert.ok(/data\/english\/database\.json/.test(sw));

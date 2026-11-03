@@ -4,7 +4,7 @@
 // pinch-zoom -> never treated as a keyboard.
 const fs = require('fs');
 const vm = require('vm');
-const src = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+const src = require('./read_application.cjs').readApplication();
 const start = src.indexOf('function initViewportSync()');
 const end = src.indexOf('// Focuses `input` only after', start);
 if (start < 0 || end < 0) throw new Error('initViewportSync not found');

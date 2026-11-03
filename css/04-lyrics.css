@@ -1,0 +1,314 @@
+/* ---------- lyrics + chords ---------- */
+.lyrics-container {
+  margin-top: 18px;
+  /* Solid to match the transpose bar and other control cards, and to
+     keep the chord/lyric text reading at full, unblurred contrast —
+     glassmorphism here was competing with legibility. */
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  /* Horizontal padding sits between v1.0.2's roomier 20px and a later,
+     tighter 14px pass that traded too much breathing room for line-width
+     on long lyrics. Split the difference rather than reverting outright —
+     still meaningfully narrower than v1.0.2 so long lines keep most of
+     the width they gained, just not as cramped as 14px felt. */
+  padding: 24px 17px 28px;
+  box-shadow: var(--shadow-1);
+  overflow-x: hidden;
+}
+/* Narrow phones only: the card's own inner padding is the other half of
+   the reading-width budget (--page-pad above frees the margin outside
+   the card). Kept roomier on wider screens where width isn't scarce. */
+@media (max-width: 480px) {
+  .lyrics-container { padding-left: 12px; padding-right: 12px; }
+}
+
+.lyric-section { margin-top: var(--lyric-section-gap); }
+.lyric-section:first-child { margin-top: 0; }
+/* Indent is a visual cue (this section repeats/echoes the one above it),
+   not a layout requirement — kept modest so it doesn't eat into the
+   already-scarce line width on narrow phones. Nudged up slightly from a
+   tighter 20px pass (v1.0.2 was 32px) for a bit more breathing room,
+   short of going all the way back. */
+.lyric-section.is-indented { padding-left: 24px; }
+@media (max-width: 480px) {
+  .lyric-section.is-indented { padding-left: 14px; }
+}
+
+.lyric-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  /* Word tokens no longer carry their own embedded space character (see
+     renderLyrics in app.js) — column-gap replaces that spacing between
+     words on the same row. row-gap is deliberately equal to margin-bottom:
+     a lyric line that's long enough to wrap within itself becomes two (or
+     more) flex rows, and if that row-gap doesn't match the margin between
+     *separate* lines, wrapped rows end up visibly closer together than
+     non-wrapped lines sitting right next to them — the "inconsistent
+     vertical spacing" bug. Keep the two values yoked together (see
+     .is-plain below, which needs a bigger row-gap for the same reason). */
+  gap: var(--lyric-line-gap) var(--lyric-word-gap);
+  margin-bottom: var(--lyric-line-mb);
+  line-height: var(--lyric-line-lh);
+  /* Settings → Appearance's line-spacing toggle only swaps the
+     --lyric-line-* custom properties above (see the
+     html[data-lyrics-spacing] overrides below) — it never rebuilds these
+     elements — so without a transition here the rhythm change snaps
+     instantly instead of easing, feeling like a jump cut. */
+  transition: margin-bottom var(--dur-base) ease, line-height var(--dur-base) ease, gap var(--dur-base) ease;
+}
+/* A line with no chords at all (see renderLyrics) has nothing to reserve
+   the chord row's height for, so it drops the tight chord-chart rhythm
+   in favor of normal reading spacing — closer to how a plain lyric or
+   spoken line reads in WorshipLeader/OnSong, and closer to ordinary body
+   text generally, rather than carrying a chord chart's spacing with no
+   chords to justify it. row-gap is bumped to match margin-bottom (see the
+   comment above) so a plain line that wraps onto a second row gets the
+   same breathing room as the gap to the next line down. */
+.lyric-line.is-plain {
+  align-items: baseline;
+  line-height: var(--lyric-line-plain-lh);
+  margin-bottom: var(--lyric-line-plain-mb);
+  gap: var(--lyric-line-plain-gap) var(--lyric-word-gap);
+}
+
+/* Word spacing options (Settings → Display settings → Word spacing).
+   This controls ONLY the horizontal gap between lyric-word tokens. Normal
+   intentionally matches the app's previous fixed 0.3em spacing exactly. */
+html[data-lyrics-word-spacing="tight"] { --lyric-word-gap: 0.15em; }
+html[data-lyrics-word-spacing="loose"] { --lyric-word-gap: 0.5em; }
+
+/* Line spacing options (Settings → Appearance → Line spacing). Only the
+   lyric line rhythm above changes — general app UI spacing is untouched.
+   "Normal" needs no override; it's just the :root defaults above.
+
+   Tight deliberately does NOT shrink --lyric-line-gap/--lyric-line-mb as
+   far down as it first did — that squeezed a line's chord tags right up
+   against the *previous* line's words (the gap that separates one line
+   from the next has to stay a few px no matter how tight, or the two
+   start reading as one smashed-together row). Instead the tightening
+   happens on --lyric-chord-mb, the gap between each chord tag and its
+   OWN word directly beneath it — that pairing can safely get much closer
+   together since they belong to each other, without ever touching (the
+   chord tag's own line-box provides the floor). */
+html[data-lyrics-spacing="tight"] {
+  --lyric-line-gap: 3px;
+  --lyric-line-mb: 3px;
+  --lyric-line-lh: 1.08;
+  --lyric-chord-mb: 0px;
+  --lyric-chord-nudge: 0.04; /* close to the older compact rhythm, with only a tiny bit more breathing room */
+  --lyric-line-plain-lh: 1.34;
+  --lyric-line-plain-mb: 7px;
+  --lyric-line-plain-gap: 7px;
+  --lyric-section-gap: 8px;
+}
+html[data-lyrics-spacing="loose"] {
+  --lyric-line-gap: 8px;
+  --lyric-line-mb: 8px;
+  --lyric-line-lh: 1.3;
+  --lyric-chord-mb: 5px;
+  --lyric-chord-nudge: 0.3;
+  --lyric-line-plain-lh: 1.7;
+  --lyric-line-plain-mb: 16px;
+  --lyric-line-plain-gap: 16px;
+  --lyric-section-gap: 20px;
+}
+
+.lyric-section-number {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  margin-bottom: 5px;
+  opacity: 0.75;
+}
+
+/* Developer options → Display → "Hide verse numbers" (see
+   applyHideVerseNumbers() in app.js). Only the plain "1, 2, 3…" sequence
+   badge (.lyric-section-index) is hidden — .lyric-section-label (an
+   explicit "Bridge:"/"Гүүр:" label) is a different class on the same
+   element type and is deliberately NOT matched here, so it keeps
+   rendering regardless of this setting. */
+html[data-hide-verse-numbers="true"] .lyric-section-index {
+  display: none;
+}
+
+/* .lyric-token is one whole *visual word* — one flex item on the line, so
+   the line's word-gap only ever falls between real words. Most words are
+   a single .lyric-piece. When a chord lands mid-word (see renderLyrics in
+   app.js) the word is split into two or more .lyric-piece columns inside
+   the SAME .lyric-token, joined here with zero gap so the letters stay
+   touching — only the piece boundary gets a chord tag above it, the
+   letters themselves never show a gap. */
+/* js/chord-overhang.js may set an inline translateX on a token (never on its
+   layout box) to reclaim the empty space after a short word under a wide chord
+   chip. It is visual only; clearing it restores the layout below exactly. */
+.lyric-token {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.lyric-piece {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chord-tag {
+  font-family: var(--font-mono);
+  font-size: var(--chord-size);
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--accent);
+  border-radius: 5px;
+  /* Vertical padding trimmed to a hair (was 1px) — a little less chip
+     height, kept easy to read since the font-size itself is unchanged. */
+  padding: 0 5px;
+  margin-bottom: var(--lyric-chord-mb);
+  align-self: flex-start;
+  /* Slide the chord down toward its lyric without moving anything else
+     (see --lyric-chord-nudge). top, not transform: chord-pop below owns
+     transform and its fill-mode would otherwise override this. */
+  position: relative;
+  top: calc(var(--lyric-chord-nudge) * 1em);
+  /* Chords are display-only: selecting/long-pressing lyrics (to copy them)
+     should only ever highlight the words, never the chord chips. The copy
+     handler in app.js (bindLyricsCopy) also strips them from what lands on
+     the clipboard, so this is the visual half of the same behavior. */
+  -webkit-user-select: none;
+  user-select: none;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+  transform: translateY(0);
+  /* Settings → Appearance's Chips/Text toggle (below) and the line-spacing
+     toggle (--lyric-chord-mb) only flip an attribute/custom-property —
+     they never rebuild these elements — so without a transition here the
+     chip-to-text swap snaps instantly instead of easing. transform is
+     deliberately left out of this list: chord-pop's own animation below
+     already drives it on transpose, and mixing a transition into that
+     property would fight it. */
+  transition: color var(--dur-base) ease, background-color var(--dur-base) ease, padding var(--dur-base) ease,
+    border-radius var(--dur-base) ease, box-shadow var(--dur-base) ease, margin-bottom var(--dur-base) ease,
+    top var(--dur-base) ease;
+}
+/* "Text" chord style (opt-in via the Chips/Text toggle in font-controls):
+   the traditional WorshipLeader/OnSong/ChordPro convention — chords sit
+   as plain colored/bold text directly above the lyric, not as a UI-chip
+   badge. This is visually lighter (no shape competing with the word
+   underneath it), so the eye can skim the lyric line as a continuous
+   sentence and only dip up to the chord when needed. Padding drops to 0
+   so the text sits flush left over its word instead of floating in a
+   pill's inset. */
+html[data-chord-style="text"] .chord-tag {
+  color: var(--accent-strong);
+  background: none;
+  border-radius: 0;
+  padding: 0 0 1px;
+  box-shadow: none;
+  /* No chip edge here, so the chord's baseline floats a bit higher above
+     the lyric than a chip's bottom edge does — nudge a touch more so the two
+     styles end up looking equally close. */
+  top: calc((var(--lyric-chord-nudge) + 0.08) * 1em);
+}
+/* Reserves the same vertical space a real chord tag would take (so a
+   chordless word lines up with a chorded one next to it) — tracks the
+   same padding/margin the tag itself now uses, including the
+   --lyric-chord-mb spacing-mode variable, so the two never drift out of
+   sync as the chip or the spacing option above changes. */
+.chord-tag-spacer {
+  -webkit-user-select: none;
+  user-select: none;
+  height: calc(var(--chord-size) + var(--lyric-chord-mb) + 1px);
+  transition: height var(--dur-base) ease; /* keeps pace with .lyric-line's margin/gap transition above when line spacing changes */
+}
+
+/* Hide chords when Show chords is off (above the Chord style toggle):
+   chords stay in the song data and the Chips/Text choice is preserved
+   underneath, but every chord tag is removed from view and its reserved
+   row collapses to 0 so lyric lines pull up tight with no gap left where
+   the chords used to sit. */
+html[data-hide-chords="true"] .chord-tag,
+html[data-hide-chords="true"] .chord-tag-spacer {
+  display: none;
+}
+/* With no chords showing, every line should read like .is-plain already
+   does for lines that never had chords in the first place (see comment
+   above .is-plain below) — not the tight chord-chart rhythm meant to sit
+   close to a chord row that, here, is invisible. Re-apply .is-plain's
+   spacing values to every line rather than just already-chordless ones,
+   so hiding chords gives the same comfortable reading spacing throughout
+   instead of leaving former chord-lines condensed. */
+html[data-hide-chords="true"] .lyric-line {
+  align-items: baseline;
+  line-height: var(--lyric-line-plain-lh);
+  margin-bottom: var(--lyric-line-plain-mb);
+  gap: var(--lyric-line-plain-gap) var(--lyric-word-gap);
+}
+
+/* Subtle "pop" when chords change (transpose up/down/reset). Applied only
+   to the chord tags on a re-render triggered by an actual transpose
+   action — not on first opening a song — and staggered slightly per
+   chord so it reads as a light ripple down the page rather than a flash. */
+@keyframes chord-pop {
+  0%   { transform: translateY(-2px) scale(0.94); opacity: 0.55; }
+  55%  { transform: translateY(0) scale(1.035); opacity: 1; }
+  100% { transform: translateY(0) scale(1); }
+}
+.chord-tag.chord-pop {
+  animation: chord-pop 260ms cubic-bezier(.3,.7,.4,1.05) both;
+  animation-delay: var(--chord-pop-delay, 0ms);
+}
+
+.lyric-word {
+  font-size: var(--lyrics-size);
+  color: var(--ink);
+  font-family: var(--font-lyrics);
+  font-weight: 420;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  /* Settings → Appearance's lyrics-style toggle below only flips an
+     attribute — it never rebuilds these elements — so without a
+     transition the weight change snaps instantly. Numeric font-weight
+     transitions are well supported in current browsers; where they
+     aren't, this just falls back to an instant change, same as before. */
+  transition: font-weight var(--dur-base) ease;
+}
+/* Lyrics style (Settings → Appearance → Lyrics style): exact weights are
+   available because Noto Sans is loaded as a variable font. Chords, chrome,
+   and everything else are untouched. "Normal" is the 420 above. */
+html[data-lyrics-weight="semibold"] .lyric-word { font-weight: 500; }
+html[data-lyrics-weight="bold"] .lyric-word { font-weight: 600; }
+.lyric-md-italic { font-style: italic; }
+.lyric-md-bold { font-weight: 650; }
+.lyric-md-bold-italic { font-weight: 650; font-style: italic; }
+
+.sv-audio { margin-top: 20px; }
+.audio-item { margin-top: 8px; }
+.audio-item + .audio-item { margin-top: 16px; }
+
+.sv-links { flex-direction: column; gap: 8px; margin-top: 12px; }
+.sv-links:not([hidden]) { display: flex; }
+.sv-link-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 11px 14px;
+  color: var(--accent-strong);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+.sv-link-btn::after { content: '↗'; font-weight: 700; }
+

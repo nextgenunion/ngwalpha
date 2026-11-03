@@ -1,0 +1,702 @@
+/* ---------- Trash Bin page ---------- */
+.trash-hint {
+  margin: 0 0 14px;
+  font-size: 0.83rem;
+  color: var(--ink-faint);
+}
+/* Same fixed-select-bar-at-bottom pattern as #page-about's own footer
+   (see that rule's comment above) — a sibling of .page-inner, positioned
+   against the viewport, only ever visible while trashSelectMode is on
+   (toggled via [hidden] in updateTrashSelectionUI()). No bottom nav on
+   this page (hideNav: true in PAGES), so .page-inner's padding only needs
+   to clear this bar's own height, not the nav's too. */
+.trash-select-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px calc(env(safe-area-inset-bottom) + 12px);
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+.trash-select-bar[hidden] { display: none; }
+.trash-selected-count {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+.trash-select-actions { display: flex; gap: 8px; }
+#page-trash .page-inner {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom) + 16px);
+}
+/* Row shape: a plain (non-button) .song-row so it can host both a leading
+   checkmark (select mode) and a trailing "…" menu button as its own
+   independently-clickable children — a <button> row (like the Songbook's
+   own buildSongRow()) can't nest another interactive control inside it
+   without invalid/inaccessible markup. */
+.trash-row {
+  cursor: default;
+  contain: none;
+  overflow: visible;
+}
+span.trash-row-check {
+  display: none; /* shown only in select mode via .is-selecting */
+  flex-shrink: 0;
+}
+#trash-list.is-selecting span.trash-row-check { display: flex; }
+#trash-list.is-selecting .trash-row-menu-btn { display: none; }
+#trash-list.is-selecting .trash-row { cursor: pointer; }
+#trash-list li.is-selected .trash-row {
+  border-color: var(--accent-strong);
+  background: var(--accent-tint);
+}
+#trash-list li.is-selected .trash-row-check {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+#trash-list li.is-selected .trash-row-check svg { opacity: 1; }
+/* Smaller than the default 38px .icon-btn (see that rule) — this one sits
+   inline inside a list row rather than in a page header, so it keeps the
+   same lip-press styling at a size that doesn't dominate the row. */
+.trash-row-menu-btn {
+  width: 32px;
+  height: 32px;
+}
+.trash-row-menu-btn svg { width: 17px; height: 17px; }
+
+/* ---------- modal ---------- */
+/*
+ * --vvh / --vv-top are kept in sync with window.visualViewport by JS
+ * (see syncViewportVars in app.js). On mobile, opening the keyboard
+ * shrinks the *visual* viewport but leaves the *layout* viewport (and
+ * therefore 100vh / inset:0 on a `fixed` element) untouched — the
+ * overlay was sizing itself against real estate the keyboard was now
+ * covering, which is what pushed/clipped the sheet. Falling back to
+ * 100vh/0 keeps desktop and older browsers unaffected.
+ */
+/* opacity/transition here (rather than relying on [hidden]'s display
+   toggle alone) is what lets the dark backdrop fade in/out — see
+   openModal()/closeModal() in app.js, which flip this between 0 and its
+   resting 1 on a rAF so the transition actually has a "from" state to
+   animate out of. Previously there was no transition at all: the
+   backdrop just snapped straight to fully dark the instant the overlay's
+   `hidden` attribute was cleared, and closeModal() removed everything
+   instantly with no animation in either direction — the two together
+   are what read as "sudden" regardless of how smooth a modal's own
+   contents (e.g. openAddSongsModal's search results) are. */
+.modal-overlay {
+  position: fixed;
+  top: var(--vv-top, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vvh, 100vh);
+  box-sizing: border-box;
+  z-index: 50;
+  background: color-mix(in srgb, #000 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  opacity: 1;
+  transition: opacity var(--dur-base) ease;
+}
+.modal-overlay[hidden] { display: none; }
+.modal-overlay:not([hidden]) { display: flex; }
+.modal-card {
+  width: min(100%, 440px);
+  max-width: 440px;
+  max-height: min(78vh, calc(var(--vvh, 100vh) - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-2);
+  padding-bottom: 0;
+  animation: modal-slide-up .34s var(--motion-settle);
+}
+
+/* Keyboard open (class set by initViewportSync in app.js): keep the card
+   where it already was instead of re-centering it in the shorter area.
+   --kb-card-top is measured in JS from the card's own position. */
+html.keyboard-open .modal-overlay {
+  align-items: flex-start;
+  padding-top: var(--kb-card-top, max(12px, env(safe-area-inset-top)));
+}
+html.keyboard-open .modal-card {
+  max-height: calc(var(--vvh, 100vh) - var(--kb-card-top, 12px) - 12px);
+}
+/* The shared dialog now behaves like a centered popup at every viewport
+   size. A small rise + scale gives the card some arrival motion without
+   reading like the old mobile bottom sheet. */
+@keyframes modal-slide-up {
+  from { transform: translateY(12px) scale(.95); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* Added by closeModal() alongside the overlay fade so the centered card
+   settles away instead of disappearing in one frame. */
+.modal-overlay-closing .modal-card {
+  animation: modal-slide-down .18s cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes modal-slide-down {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateY(8px) scale(.97); opacity: 0; }
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 8px;
+  flex-shrink: 0;
+}
+.modal-header h3 { font-size: 1.15rem; font-weight: 600; }
+.modal-body { padding: 4px 18px 22px; overflow-y: auto; }
+
+.modal-text-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-s);
+  padding: 12px 14px;
+  font-size: 0.96rem;
+  font-family: var(--font-body);
+  outline: none;
+  margin-top: 10px;
+}
+.modal-text-input:focus { border-color: var(--accent-strong); }
+
+/* Song info modal (Developer options only — see openSongInfoModal() in
+   app.js) — a plain label/value list, monospaced value so a file path is
+   easy to read and select. */
+.info-list { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.info-row:last-child { border-bottom: none; }
+.info-row-label { font-size: 0.86rem; color: var(--ink-faint); flex-shrink: 0; }
+.info-row-value {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-align: right;
+  word-break: break-all;
+  margin-left: auto;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.modal-hint { font-size: 0.82rem; color: var(--ink-faint); margin: 4px 2px 0; }
+.label-filter-actions { margin-top: 2px; margin-bottom: 4px; }
+
+/* Database-picker modal (openDbPickerModal() in app.js) — reuses the
+   .seg-toggle segmented control (see its own rules above), which
+   elsewhere sits compact and content-sized at the right edge of a
+   settings row. Here it's the modal's own top navigation instead, so it
+   needs to span the popup's full width with its tabs sharing that width
+   evenly, rather than sizing to its (short) label text. */
+.db-picker-tabs { width: 100%; margin: 0; }
+.db-picker-tabs .seg-toggle-btn { flex: 1; text-align: center; }
+/* This seg-toggle is the modal's own top navigation, not a compact
+   inline control (see the comment above), so give it more presence than
+   the base .seg-toggle-btn sizing — taller tap targets and a slightly
+   larger label read better spanning the popup's full width. */
+/* Toolbar = tab track + multi-select button, built to share ONE height
+   (--db-picker-ctl) instead of two numbers that merely happened to be
+   close. The track's old 2px-top/4px-bottom margin used to sit on the
+   track alone, which pushed it 1px above the button's centre line, so
+   that spacing now lives on the toolbar instead. Both controls use the
+   same flat fill + 1px border; the button is a circle (the app's
+   icon-button shape) rather than a rounded square beside a capsule. */
+.db-picker-toolbar {
+  --db-picker-ctl: 44px;
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 4px;
+}
+.db-picker-tabs.seg-toggle { --seg-inset: 3px; }
+.db-picker-tabs .seg-toggle-btn { padding: 0 10px; font-size: 0.85rem; }
+.db-picker-toolbar .db-picker-tabs { flex: 1; min-width: 0; width: auto; box-sizing: border-box; height: var(--db-picker-ctl); }
+.db-picker-multi.icon-btn {
+  flex: 0 0 var(--db-picker-ctl);
+  width: var(--db-picker-ctl); height: var(--db-picker-ctl);
+  border-radius: 50%;
+  background: var(--paper);   /* same fill as the tab track beside it */
+  box-shadow: none;           /* flat like the track — no lip */
+}
+.db-picker-multi.icon-btn:active { transform: scale(var(--press-scale-icon)); box-shadow: none; }
+/* On state mirrors the tab thumb (.seg-toggle-thumb): solid accent fill,
+   light glyph, inverted pairing in dark mode. The glyph colour is set on
+   the svg's fill because .icon-btn svg hard-codes fill (a plain `color`
+   never reached it, so the old on state kept a grey icon). */
+.db-picker-multi[aria-pressed="true"] { background: var(--accent-strong); border-color: var(--accent-strong); }
+.db-picker-multi[aria-pressed="true"] svg { fill: var(--paper); }
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] svg { fill: var(--paper-dim); }
+.db-picker-multi:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.checklist { list-style: none; margin: 8px 0 0; padding: 0; }
+/* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
+   app.js) so switching between the All/SDA tabs can height-animate via
+   animateWrapHeightTo — same pattern as .add-songs-list-wrap below —
+   instead of the popup snapping straight to the new list's size. */
+.db-picker-list-wrap { overflow: hidden; }
+/* Plays once per tab switch (added/removed by renderList's animate:true
+   branch — the initial render skips it, see that comment) so the new
+   group's rows settle in with a soft fade+rise instead of just
+   appearing the instant the old ones are cleared. */
+@keyframes db-picker-list-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.db-picker-list-enter { animation: db-picker-list-enter .22s var(--motion-settle); }
+/* Wraps the Add Songs modal's search results (see openAddSongsModal /
+   animateWrapHeightTo in app.js) so the popup's height can be animated
+   smoothly as the result count changes on every keystroke, instead of the
+   whole modal snapping to its new size. overflow:hidden is what makes the
+   height transition actually clip content rather than just resize an
+   already-visible overflow. */
+.add-songs-list-wrap { overflow: hidden; }
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  transition: transform var(--dur-base) var(--press-ease-soft); /* same subtle spring press feel as .song-row/.playlist-row, not the universal button pop — see that rule's comment */
+}
+.checklist-item:active { transform: scale(0.99); }
+.checklist-item-sub { font-size: 0.78rem; color: var(--ink-faint); font-weight: 400; margin-top: 1px; }
+.checklist-check {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  transition: background-color var(--dur-base) ease-out, border-color var(--dur-base) ease-out;
+}
+.checklist-check svg { width: 14px; height: 14px; fill: var(--paper); opacity: 0; transition: opacity var(--dur-base) ease-out; }
+.checklist-item[aria-pressed="true"] .checklist-check {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+.checklist-item[aria-pressed="true"] .checklist-check svg { opacity: 1; }
+/* Database picker rows. Selected = highlighted row (same accent-tint +
+   accent-strong pairing as the Chord Finder menu's active segment), in both
+   modes. The round check indicator only appears in multi-select mode, where
+   rows act as checkboxes (.is-multi is toggled on the list by
+   syncSelectionUI in app.js); in single-select mode a tap just picks the
+   library, so a checkbox would promise something that isn't there. */
+.db-picker-item[aria-pressed="true"] {
+  background: var(--accent-tint);
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+}
+.db-picker-item .checklist-check { display: none; }
+.checklist.is-multi .db-picker-item .checklist-check { display: flex; animation: db-check-in .18s var(--motion-settle); }
+@keyframes db-check-in {
+  from { opacity: 0; transform: scale(.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+.checklist-item-icon { flex-shrink: 0; color: var(--ink-faint); }
+.checklist-item.is-favorites .checklist-item-icon { color: var(--danger); }
+.checklist-item-icon svg { width: 18px; height: 18px; fill: currentColor; }
+.checklist-badge {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Built by buildLabelEditor() in js/app.js — shared by the song-view
+   "Edit labels" modal (openEditLabelsModal) and the Song Editor's inline
+   Labels field, so this needs to look at home both inside a .modal-body
+   and inline in .editor-form. */
+/* Clips + height-animates around .label-editor-chips (see
+   animateWrapHeightTo/renderChips in js/app.js) so the editor/modal
+   resizes smoothly as chips are added or removed and wrap onto a new
+   line, instead of snapping straight to the new size — same fix as
+   .add-songs-list-wrap above. */
+.label-editor-chips-wrap { overflow: hidden; }
+.label-editor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Individual chip add/remove — a quick pop in on add (matches the spring
+   feel of .label-suggestion-chip's press elsewhere), a quick fade+shrink
+   on remove. Kept short since several chips can enter/exit at once. */
+@keyframes label-chip-enter {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes label-chip-exit {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.8); }
+}
+.label-editor-chip.label-chip-enter { animation: label-chip-enter .22s cubic-bezier(.34, 1.56, .64, 1); }
+.label-editor-chip.label-chip-exit { animation: label-chip-exit .16s ease-out; pointer-events: none; }
+.label-editor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  background: var(--accent-tint);
+  border-radius: 999px;
+  padding: 5px 6px 5px 11px;
+}
+.label-editor-chip button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* Without these resets this is just a bare <button>, so it picks up
+     the browser's native button chrome (grey/white face + border) on
+     top of our flat icon — that's the ring that was showing up instead
+     of a clean "x". Flatten it back down to plain inherited styling. */
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.label-editor-chip button svg { width: 12px; height: 12px; fill: currentColor; }
+.label-editor-chip button:hover { background: rgba(0, 0, 0, 0.08); }
+html[data-theme="dark"] .label-editor-chip button:hover { background: rgba(255, 255, 255, 0.12); }
+
+.label-editor-input-wrap { margin-top: 10px; }
+/* .label-editor-input reuses .modal-text-input's box styling (see that
+   class) — this just removes the top margin it normally adds, since
+   .label-editor-input-wrap above already provides the gap above it. */
+.label-editor-input { margin-top: 0; }
+
+.label-editor-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.label-suggestion-chip {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: transform var(--press-duration-out) var(--press-ease), border-color var(--dur-fast);
+}
+.label-suggestion-new {
+  color: var(--accent-strong);
+  border-color: var(--accent-tint);
+  background: var(--accent-tint);
+}
+
+.modal-new-playlist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px dashed var(--line);
+  background: transparent;
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-top: 4px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+  transition: transform var(--dur-base) var(--press-ease-soft); /* same subtle spring press feel as .checklist-item, not the universal button pop */
+}
+.modal-new-playlist-row:active { transform: scale(0.99); }
+.modal-new-playlist-row svg { width: 16px; height: 16px; fill: currentColor; }
+
+.modal-search {
+  margin-bottom: 4px;
+}
+
+/* =========================================================
+   User Songs + Song Editor (v3)
+   User Songs' own list page (#page-user-songs) reuses .song-list/.song-row/
+   .empty-state/.results-count as-is — see renderSongList()'s listElId/
+   emptyElId/countElId params — so nothing new is needed for those. What
+   follows is only the pieces that ARE new: the editor form itself.
+   ========================================================= */
+
+.editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 0 32px;
+}
+
+.editor-field {
+  display: flex;
+  flex-direction: column;
+}
+.editor-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.editor-field-hint {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+/* Plain info glyph, centered beside the field label; no outer circle. */
+.editor-field-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.editor-field-heading .editor-field-label { line-height: 24px; }
+.editor-info-btn {
+  position: relative;
+  width: 32px; height: 32px; flex: 0 0 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0; background: transparent;
+  color: var(--accent-strong); padding: 0; line-height: 1; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  transition: transform var(--press-duration-out, .15s) var(--press-ease, ease), color var(--dur-fast, .15s);
+}
+.editor-info-btn:hover { color: var(--ink); }
+.editor-info-btn:active { transform: scale(.94); }
+.editor-info-btn:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.editor-info-btn svg { display: block; width: 24px; height: 24px; fill: currentColor; pointer-events: none; }
+@media (pointer: coarse) {
+  .editor-info-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); background: transparent; }
+}
+
+/* Formatting-help modal opened by the info button beside Lyrics & chords.
+   It shows the raw notation next to a real renderLyrics() preview so the
+   explanation is visual without maintaining a second fake renderer. */
+.editor-format-help {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.editor-format-help-intro {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.editor-format-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.editor-format-rule {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.editor-format-step {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.editor-format-rule-copy strong {
+  display: block;
+  font-size: .88rem;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.editor-format-rule-copy p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.editor-format-example {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.editor-format-example-label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--ink-soft);
+  font-size: .76rem;
+  font-weight: 700;
+}
+.editor-format-source {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.editor-format-preview-label { margin-top: 12px; }
+.editor-format-preview {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--paper-dim);
+  box-shadow: none;
+}
+html[data-theme="dark"] .editor-format-preview { background: var(--surface); }
+/* The help example is instructional, so keep its chord markers visible
+   even when the user's normal song-view preference currently hides chords. */
+html[data-hide-chords="true"] .editor-format-preview .chord-tag { display: inline; }
+html[data-hide-chords="true"] .editor-format-preview .chord-tag-spacer { display: block; }
+/* .editor-field already stacks label above input; .modal-text-input's own
+   margin-top gives the label→field gap, reused as-is here. */
+
+.editor-field-row {
+  display: flex;
+  gap: 14px;
+}
+.editor-field-row .editor-field { flex: 1; min-width: 0; }
+
+.editor-lyrics-textarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-s);
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  /* Monospace so bracketed [Chord] markers line up visually with the text
+     they're attached to while typing — matches how this notation is
+     shown throughout the README's own examples. */
+  font-family: var(--font-mono);
+  outline: none;
+  resize: vertical;
+}
+.editor-lyrics-textarea:focus { border-color: var(--accent-strong); }
+
+.editor-preview-section {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+/* .editor-preview sits inside a form that scrolls with the rest of the
+   page, not its own dedicated song-view page, so it doesn't need
+   .lyrics-container's page-edge negative-margin/full-bleed treatment —
+   only the chord/lyric layout rules, which come free from sharing the
+   class. Undoing just the spacing/margin half here. */
+.editor-preview {
+  margin: 10px 0 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--paper-dim);
+  min-height: 60px;
+}
+html[data-theme="dark"] .editor-preview { background: var(--surface); }
+.editor-preview-empty {
+  color: var(--ink-faint);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+.editor-delete-btn {
+  align-self: flex-start;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* ---------- song-view "…" menu (edit/delete a user song) ---------- */
+#sv-menu-btn { flex-shrink: 0; }
+
+/* ---------- coarse-pointer touch targets ----------
+   Keep the visual controls compact, but give the small 26–38px buttons a
+   roughly 44px invisible hit area on touch devices. Adjacent circular
+   controls get enough gap that these hit areas meet rather than overlap,
+   avoiding ambiguous taps while preserving the existing visual sizing. */
+@media (pointer: coarse) {
+  .icon-btn,
+  .chip-btn,
+  .song-row-remove,
+  .trash-row-menu-btn,
+  .drag-handle,
+  .sort-btn {
+    position: relative;
+  }
+
+  .icon-btn::after,
+  .chip-btn::after,
+  .song-row-remove::after,
+  .trash-row-menu-btn::after,
+  .drag-handle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(44px, 100%);
+    height: max(44px, 100%);
+    transform: translate(-50%, -50%);
+    background: transparent;
+  }
+
+  /* Sort pills are already comfortably wide; only their vertical target
+     needs expansion, so neighboring pills never overlap horizontally. */
+  .sort-btn::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+    background: transparent;
+  }
+
+  .sv-header-actions { gap: 10px; }       /* 34px buttons -> 44px centers */
+}
+

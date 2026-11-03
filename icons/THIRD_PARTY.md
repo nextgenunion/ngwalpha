@@ -14,7 +14,8 @@ Simple Icons: https://github.com/simple-icons/simple-icons
 | close.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/navigation/close/materialicons/24px.svg |
 | copy.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/content/content_copy/materialicons/24px.svg |
 | dark-mode.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/image/brightness_3/materialicons/24px.svg |
-| display.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/communication/present_to_all/materialicons/24px.svg |
+| presentation.svg | User-supplied from SVG Repo ("presentation-screen"); recolored to currentColor. Confirm its license on SVG Repo before release | https://www.svgrepo.com/ |
+| reading-mode.svg | User-supplied from SVG Repo (Fluent UI System Icons "reading mode mobile"); recolored to currentColor. Confirm its license on SVG Repo before release | https://www.svgrepo.com/ |
 | download.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/file/file_download/materialicons/24px.svg |
 | filter-tune.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/image/tune/materialicons/24px.svg |
 | format-bold.svg | Replaced unattributed geometry with sourced SVG | https://raw.githubusercontent.com/google/material-design-icons/master/src/editor/format_bold/materialicons/24px.svg |

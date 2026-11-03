@@ -7,7 +7,7 @@ const assert = require('assert');
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const sw = read('service-worker.js');
-const app = read('js/app.js');
+const app = require('./read_application.cjs').readApplication();
 const html = read('index.html');
 const offline = read('offline.html');
 
@@ -49,5 +49,19 @@ assert.ok(!/SONGDATA_CACHE|SHEET_MUSIC_ASSET_CACHE|BEST_EFFORT_ASSETS/.test(sw),
 assert.ok(/cache\.addAll\(REQUIRED_OFFLINE(?:\.map\(freshRequest\))?\)/.test(sw), 'required assets are not installed atomically');
 assert.ok(!/\.catch\(\(\)\s*=>\s*\{?\s*\}?\)/.test(sw), 'install failures must not be swallowed');
 assert.ok(!/<(?:script|link|img)\b[^>]*(?:src|href)=["'](?:https?:|\/|\.\/)/i.test(offline), 'offline.html must be self-contained');
+// Self-repair and never-reject hardening (v5.0.46)
+{
+  const installBlock = sw.slice(sw.indexOf("addEventListener('install'"), sw.indexOf("addEventListener('activate'"));
+  assert.ok(/await precacheAll\(\)/.test(installBlock) && !/\bcatch\s*[({]|\.catch\(/.test(installBlock), 'install must await the full precache with no catch');
+  assert.ok(/function repairCache\(\)/.test(sw) && /event\.waitUntil\(repair\)/.test(sw), 'a missing cache must be rebuilt');
+  assert.ok(/async function installedNavigation\(event\)/.test(sw) && /LAST_RESORT_HTML/.test(sw), 'navigation must always answer, never reject');
+  assert.ok(/installedNavigation\(event\)/.test(sw.slice(sw.indexOf("addEventListener('fetch'"))), 'fetch handler must pass the event to the navigation handler');
+}
+// Manifest identity must come from the start URL so /ngworship/ and /ngwalpha/ install as separate apps.
+{
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.ok(!('id' in manifest), 'a fixed manifest id would make every app on this origin the same app');
+  assert.ok(manifest.start_url === './' && manifest.scope === './', 'start_url and scope must stay folder-relative');
+}
 
 console.log(`Simple offline contract passed: ${required.size} atomic assets, ${icons.size} runtime icons, 4 database snapshots, Sheet Music, and self-contained fallback.`);

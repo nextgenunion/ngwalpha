@@ -5,7 +5,7 @@ const path = require('path');
 const vm = require('vm');
 const ROOT = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT,'index.html'), 'utf8');
-const app = fs.readFileSync(path.join(ROOT,'js/app.js'), 'utf8');
+const app = require('./read_application.cjs').readApplication();
 const sw = fs.readFileSync(path.join(ROOT,'service-worker.js'), 'utf8');
 const translations = fs.readdirSync(path.join(ROOT, 'lang')).filter(n=>/^(?:eng|mn|mn2|kr)\.js$/.test(n));
 for (const name of translations) {

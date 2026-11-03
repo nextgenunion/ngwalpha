@@ -1,0 +1,338 @@
+/* =========================================================
+   Songbook — design tokens
+   Copyright (c) 2026 Next Gen Union. All rights reserved.
+   Proprietary and confidential. No unauthorized copying, modification,
+   or redistribution, in whole or in part, without prior written
+   permission from Next Gen Union. See LICENSE for full terms.
+
+   Palette: neutral ink/paper + selectable pastel accent (chord tokens)
+   Type: Fraunces (display/titles) · Inter (UI) · Noto Sans Variable (lyrics) · IBM Plex Mono (chords)
+   ========================================================= */
+
+/* ---------- self-hosted fonts ----------
+   Files live in /fonts and are part of the service worker's atomic offline
+   cache (see REQUIRED_OFFLINE), so text renders the same online and offline.
+   Each face is split by unicode-range exactly like the Google Fonts CSS, so
+   the browser only fetches a file for the characters actually on screen.
+   Mongolian Cyrillic needs BOTH subsets: Ө/ө and Ү/ү live in cyrillic-ext.
+   Inter and Noto Sans keep their existing "<Name> Variable" family names.
+   Latin UI text, italic lyrics and chord fonts are also self-hosted.
+   Fraunces has no Cyrillic at all (latin only). */
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter_cyrillic-wght-normal.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Fraunces Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/fraunces_latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter_latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter_latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_latin-wght-italic.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_latin-ext-wght-italic.woff2') format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-wght-italic.woff2') format('woff2');
+  unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/noto-sans_cyrillic-ext-wght-italic.woff2') format('woff2');
+  unicode-range: U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('../fonts/ibm-plex-mono_latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('../fonts/ibm-plex-mono_latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* Typed color properties let accent transitions animate. Defaults live in :root. */
+@property --accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #44CAFD;
+}
+@property --accent-strong {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0E86B8;
+}
+@property --accent-tint {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #E1F6FE;
+}
+
+:root {
+  --paper:        #FFFFFF;
+  --paper-dim:     #E7E7E3;
+  --ink:          #23262F;
+  --ink-soft:     #4B4E58;
+  --ink-faint:    #8A8D96;
+  --line:         #E1E1DC;
+  --surface:      #FFFFFF;
+  --danger:       #B4483C;
+
+  /* Accent palette — default aqua; overridden per data-accent value below.
+     The transition lives here (rather than on individual buttons/icons)
+     so every element reading var(--accent...) fades together in one pass
+     whenever the person picks a new swatch in Settings. */
+  --accent:        #44CAFD;
+  --accent-strong: #0E86B8;
+  --accent-tint:   #E1F6FE;
+  transition: --accent 0.35s ease, --accent-strong 0.35s ease, --accent-tint 0.35s ease;
+
+  --shadow-1: 0 1px 2px rgba(31,42,68,0.06), 0 1px 1px rgba(31,42,68,0.04);
+  --shadow-2: 0 6px 20px rgba(31,42,68,0.10);
+
+  --font-display: 'Fraunces Variable', 'Fraunces', Georgia, serif;
+  --font-body: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Lyric text specifically (not UI chrome) uses Noto Sans rather than
+     Inter: Inter is tuned for small-size UI legibility, while Noto Sans
+     is built for continuous multi-script paragraph reading (including
+     Cyrillic from the ground up, not bolted on) — closer to what a full
+     screen of Mongolian Cyrillic lyric text actually is. See .lyric-word
+     below for the variable weight choice (420 for Normal). */
+  --font-lyrics: 'Noto Sans Variable', 'Noto Sans', 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --lyrics-size: 1.05rem;
+  --chord-size: 0.82rem;
+
+  /* Lyric line vertical spacing (Settings → Appearance → Line spacing).
+     "Normal" here reproduces the original hardcoded values .lyric-line /
+     .lyric-line.is-plain used before this became configurable — see the
+     html[data-lyrics-spacing="tight"|"loose"] overrides near .lyric-line
+     below for the other two options. Kept as their own variable group
+     (rather than reusing --lyrics-size etc.) since these are unitless/px
+     spacing values, not font sizes. */
+  --lyric-line-gap: 4px;
+  --lyric-word-gap: 0.3em; /* horizontal gap between lyric word tokens */
+  --lyric-line-mb: 4px;
+  --lyric-line-lh: 1.15;
+  --lyric-chord-mb: 1px;   /* gap between a chord tag and its own word below it */
+  /* Visual-only nudge (in em of the chord's own font size) that slides each
+     chord tag down toward the lyric under it. It uses position:relative +
+     top, so it never touches layout: every line height, gap and margin above
+     stays exactly as it was — the chord just sits closer to its own lyric
+     and a little further from the line above. */
+  --lyric-chord-nudge: 0.16;
+  --lyric-line-plain-lh: 1.5;
+  --lyric-line-plain-mb: 10px;
+  --lyric-line-plain-gap: 10px;
+  --lyric-section-gap: 12px; /* blank-line / verse-section separation; follows the vertical spacing preset */
+
+  /* Motion: three transition speeds plus the press collapse. Component rules
+     use these instead of ad-hoc values (.11/.12/.15/.16/.18/.2/.22/.24...). */
+  --dur-press: .08s;   /* button press collapse */
+  --dur-fast:  .15s;   /* color / background / border changes */
+  --dur-base:  .22s;   /* small movements, fades */
+  --dur-slow:  .3s;    /* larger panels */
+
+  --nav-h: 68px;
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+  --radius-pill: 999px; /* canonical capsule geometry */
+
+  /* "Lip" press feedback for real buttons (icon buttons, the transpose
+     +/- chips, primary CTA, the sort/segmented toggles): a solid
+     bottom-offset shadow that collapses flat on :active and springs
+     back on release, instead of a soft blur shadow + scale.
+     Two things had to move in opposite directions from the first pass
+     at this: the offset needed to get a little BIGGER (1.5–2.5px read
+     as barely-there, not as a press at all — the button and its shadow
+     just shifted together as one rigid block), while the shadow COLOR
+     needed to get softer — a pastel tint of --ink/--accent rather than
+     a near-black color-mix, so the depth is legible without being the
+     loudest, highest-contrast thing on screen. --lip-sm is for icon
+     buttons and small toggles; --lip-md is the slightly deeper amount
+     for the wider primary CTA, so it still reads as the dominant action
+     on its own row.
+     Dialed back a step further since: 3px/4px plus a 22% ink tint still
+     read as a fairly hard-edged mechanical "step" rather than something
+     soft and pastel, especially once every filled pill in the app
+     picked up this same shadow. Thinner offsets and a lighter tint keep
+     the same collapse-and-spring motion legible without it being the
+     heaviest-looking thing on the row. */
+  --lip-sm: 2px;
+  --lip-md: 3px;
+  --lip-shadow: color-mix(in srgb, var(--ink) 14%, var(--line));
+
+  /* .chip-btn (transpose −/+/Буцаах, the A−/A+ pairs) needed its own,
+     lighter lip rather than reusing --lip-sm/--lip-shadow: those were
+     tuned for the heart/menu/back icon buttons, which needed a more
+     visible press. Applied to chip-btn's smaller, denser row of
+     circles that shared depth read as noticeably bolder/darker than
+     before — a thicker shadow band under a smaller circle stands out
+     more than the same thickness under a bigger one. --chip-lip is
+     thinner and --chip-lip-shadow is a much lighter tint, so the press
+     is still visible but stays quiet next to its neighbors. */
+  --chip-lip: 1.5px;
+  --chip-lip-xs: 1px;
+  --chip-lip-shadow: color-mix(in srgb, var(--ink) 8%, var(--line));
+
+  /* Shared "press pop" family (see the universal button-pop rule near the
+     bottom of this file) — one duration/easing pair so every button's
+     press feedback stays in the same family, plus two scale amounts
+     rather than one. A single hardcoded scale for every button looks
+     inconsistent in practice: shrinking a ~30px icon button by 7% moves a
+     couple of pixels and reads as subtle, but shrinking a ~90px pill
+     button (sort chips, segmented control, primary/secondary CTAs) by
+     the same 7% moves several times as many pixels and reads as a much
+     bigger, jumpier animation — same code, very different felt size.
+     --press-scale-icon is for small icon-only controls; --press-scale-pill
+     is the gentler amount for wider text/pill controls, so both feel
+     equally "subtle" despite the size difference. */
+  --press-ease: cubic-bezier(.34, 1.56, .64, 1);
+  --press-duration-in: .08s;
+  --press-duration-out: .24s;
+  --press-scale-icon: 0.93;
+  --press-scale-pill: 0.97;
+  /* Decelerate-only spring: fast out of the gate, then eases into place
+     with a soft, slightly-overlong tail instead of a hard stop — no
+     overshoot past 1, unlike --press-ease. This is the "Pixel" curve:
+     used for transitions where something is arriving/settling into view
+     (page slides, sheets, list rows) rather than reacting to a tap. */
+  --motion-settle: cubic-bezier(.16, 1, .3, 1);
+  /* Gentle overshoot — same family as --press-ease but a smaller bounce,
+     for feedback that should feel alive without being as playful as a
+     tap on a small icon/pill (a whole list row, a bigger surface). */
+  --press-ease-soft: cubic-bezier(.3, 1.2, .5, 1);
+
+  /* Shared side margin for .page-inner (and anything, like the sticky
+     song-view topbar, that needs to break out to full-bleed and match it
+     exactly via a negative margin). Narrowed on small phones — see
+     override below — to reclaim reading width for the lyrics view;
+     kept at the original value on wider screens so cards don't crowd
+     the edge on tablets. */
+  --page-pad: 18px;
+
+  color-scheme: light;
+}
+@media (max-width: 480px) {
+  :root { --page-pad: 10px; }
+}
+
+html[data-theme="dark"] {
+  --paper:        #141A2B;
+  --paper-dim:    #0F1422;
+  --ink:          #ECE9DE;
+  --ink-soft:     #B7BCCB;
+  --ink-faint:    #6C7285;
+  --line:         #2A3247;
+  --accent:        #6FDBFF;
+  --accent-strong: #BEEFFF;
+  --accent-tint:   #113247;
+  --surface:      #1B2237;
+  --danger:       #E08277;
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.35);
+  --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
+  --lip-shadow: color-mix(in srgb, var(--paper) 13%, var(--line));
+  --chip-lip-shadow: color-mix(in srgb, var(--paper) 8%, var(--line));
+  color-scheme: dark;
+}
+
+/* ---------- accent palette options (selectable in Settings) ---------- */
+html[data-accent="periwinkle"] { --accent: #5B7FDE; --accent-strong: #3A56AE; --accent-tint: #E4EAFB; }
+html[data-accent="sage"]       { --accent: #6FA37E; --accent-strong: #3F6350; --accent-tint: #E3EEE6; }
+html[data-accent="lavender"]   { --accent: #8C7FCB; --accent-strong: #5B4FA8; --accent-tint: #EDEAFB; }
+html[data-accent="aqua"]       { --accent: #44CAFD; --accent-strong: #0E86B8; --accent-tint: #E1F6FE; }
+html[data-accent="cinnamon"]   { --accent: #A9762F; --accent-strong: #8C6526; --accent-tint: #F1E4C8; }
+html[data-accent="red"]        { --accent: #E8919E; --accent-strong: #B5586B; --accent-tint: #FBEBEE; }
+html[data-accent="peach"]      { --accent: #E5A982; --accent-strong: #995B39; --accent-tint: #FBEDE3; }
+
+html[data-theme="dark"][data-accent="periwinkle"] { --accent: #8CA6EE; --accent-strong: #C7D4F8; --accent-tint: #1E2A44; }
+html[data-theme="dark"][data-accent="sage"]       { --accent: #8FC29E; --accent-strong: #C8E6D0; --accent-tint: #1C2E22; }
+html[data-theme="dark"][data-accent="lavender"]   { --accent: #B3A8E8; --accent-strong: #DCD5F5; --accent-tint: #241F3D; }
+html[data-theme="dark"][data-accent="aqua"]       { --accent: #6FDBFF; --accent-strong: #BEEFFF; --accent-tint: #113247; }
+html[data-theme="dark"][data-accent="cinnamon"]   { --accent: #D9A94B; --accent-strong: #E7BE6C; --accent-tint: #2C2618; }
+html[data-theme="dark"][data-accent="red"]        { --accent: #F0A3AF; --accent-strong: #FBD6DC; --accent-tint: #3A252A; }
+html[data-theme="dark"][data-accent="peach"]      { --accent: #F0BE9C; --accent-strong: #F7D9C3; --accent-tint: #38271F; }
+

@@ -17,7 +17,7 @@ const context={console,AbortController,setTimeout,clearTimeout,
   if(sweeps===1)signal.addEventListener('abort',()=>setTimeout(()=>{active--;reject(Object.assign(new Error('aborted'),{name:'AbortError'}));},20),{once:true});
   else complete=()=>finish({songs:[{id:'same',title:'Latest'}],hadFailures:false});
  })};
-const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+const app=require('./read_application.cjs').readApplication();
 vm.runInNewContext(app.slice(app.indexOf('async function syncSongDataFromIndividuals('),app.indexOf('function scheduleSongDataSync(')),context);
 (async()=>{
  const first=context.syncSongDataFromIndividuals('future');

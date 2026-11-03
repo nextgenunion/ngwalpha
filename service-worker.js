@@ -11,11 +11,32 @@ const REQUIRED_OFFLINE = [
   './manifest.json',
   './config.js',
   './css/style.css',
+  './css/00-foundation.css',
+  './css/01-shell.css',
+  './css/02-songbook.css',
+  './css/03-song-view.css',
+  './css/04-lyrics.css',
+  './css/05-settings.css',
+  './css/06-navigation-feedback.css',
+  './css/07-playlists-menus.css',
+  './css/08-trash-modals.css',
+  './css/09-chord-finder.css',
+  './css/10-chord-dialogs.css',
+  './css/11-piano.css',
+  './css/12-sheet-music.css',
+  './css/13-final-overrides.css',
+  './css/14-presentation.css',
   './version.js',
   './js/app.js',
+  './js/song-engine.js',
+  './js/data.js',
+  './js/settings.js',
+  './js/ui.js',
   './js/chord-core.js',
   './js/chord-finder.js',
+  './js/chord-overhang.js',
   './js/chord-viewer.js',
+  './js/presentation.js',
   './js/guitar-voicings.js',
   './js/piano-chords.js',
   './js/sheet-music.js',
@@ -39,7 +60,8 @@ const REQUIRED_OFFLINE = [
   './icons/svg/close.svg',
   './icons/svg/copy.svg',
   './icons/svg/dark-mode.svg',
-  './icons/svg/display.svg',
+  './icons/svg/presentation.svg',
+  './icons/svg/reading-mode.svg',
   './icons/svg/download.svg',
   './icons/svg/filter-tune.svg',
   './icons/svg/format-bold.svg',
@@ -74,6 +96,16 @@ const REQUIRED_OFFLINE = [
   './icons/svg/upload.svg',
   './icons/svg/view-list.svg',
   './icons/svg/visibility-off.svg',
+  './fonts/inter_latin-wght-normal.woff2',
+  './fonts/inter_latin-ext-wght-normal.woff2',
+  './fonts/noto-sans_latin-wght-normal.woff2',
+  './fonts/noto-sans_latin-ext-wght-normal.woff2',
+  './fonts/noto-sans_latin-wght-italic.woff2',
+  './fonts/noto-sans_latin-ext-wght-italic.woff2',
+  './fonts/noto-sans_cyrillic-wght-italic.woff2',
+  './fonts/noto-sans_cyrillic-ext-wght-italic.woff2',
+  './fonts/ibm-plex-mono_latin-500-normal.woff2',
+  './fonts/ibm-plex-mono_latin-600-normal.woff2',
   './fonts/fraunces_latin-wght-normal.woff2',
   './fonts/inter_cyrillic-wght-normal.woff2',
   './fonts/noto-sans_cyrillic-ext-wght-normal.woff2',
@@ -97,20 +129,26 @@ const SONG_DB_FOLDERS = [];
 // accidentally receive an older HTML/JS response with a long max-age.
 const freshRequest = path => new Request(new URL(path, self.location.href), { cache: 'reload' });
 
+// Downloads the complete offline copy of this release. Used by installation
+// and, if the cache is ever found missing, by repairCache() below.
+async function precacheAll() {
+  const cache = await caches.open(CACHE_VERSION);
+  await cache.addAll(REQUIRED_OFFLINE.map(freshRequest));
+  // V1–V3 keep their original individual-file loaders. Their manifests
+  // define the full offline library; no database conversion is necessary.
+  for (const folder of SONG_DB_FOLDERS) {
+    const manifest = await cache.match(`./data/${folder}/manifest.json`);
+    const files = await manifest.json();
+    if (!Array.isArray(files) || files.some(file => typeof file !== 'string' || !/^[^/\\]+\.json$/.test(file) || file.includes('..'))) {
+      throw new Error(`Invalid song manifest: ${folder}`);
+    }
+    await cache.addAll(files.map(file => freshRequest(`./data/${folder}/${file}`)));
+  }
+}
+
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_VERSION);
-    await cache.addAll(REQUIRED_OFFLINE.map(freshRequest));
-    // V1–V3 keep their original individual-file loaders. Their manifests
-    // define the full offline library; no database conversion is necessary.
-    for (const folder of SONG_DB_FOLDERS) {
-      const manifest = await cache.match(`./data/${folder}/manifest.json`);
-      const files = await manifest.json();
-      if (!Array.isArray(files) || files.some(file => typeof file !== 'string' || !/^[^/\\]+\.json$/.test(file) || file.includes('..'))) {
-        throw new Error(`Invalid song manifest: ${folder}`);
-      }
-      await cache.addAll(files.map(file => freshRequest(`./data/${folder}/${file}`)));
-    }
+    await precacheAll();
     // Any failed asset rejects installation. Never catch and activate an
     // incomplete release; the previous worker still owns its complete cache.
     await self.skipWaiting();
@@ -124,11 +162,48 @@ self.addEventListener('activate', event => {
   )).then(() => self.clients.claim()));
 });
 
-async function installedNavigation() {
-  const cache = await caches.open(CACHE_VERSION);
-  return await cache.match('./index.html') || await cache.match('./')
-    || await cache.match('./offline.html')
-    || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+// Last resort, only when the saved copy is gone AND there is no connection.
+const LAST_RESORT_HTML = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  + '<title>Offline</title><body style="font:16px/1.5 system-ui,sans-serif;max-width:30em;margin:15vh auto;padding:0 1.2em">'
+  + '<h2>Офлайн · Offline</h2>'
+  + '<p>Аппын хадгалсан хуулбар олдсонгүй. Интернэтэд холбогдоод дахин нээнэ үү.</p>'
+  + '<p>The saved copy of the app is missing. Connect to the internet and open it again.</p>';
+
+// If this worker is alive but its cache has gone missing (storage cleaned by
+// the browser or a phone cleaner), rebuild it the next time there is a
+// connection instead of leaving the app broken until the site data is cleared.
+let repairing = null;
+function repairCache() {
+  if (!repairing) {
+    repairing = (async () => {
+      try { await precacheAll(); }
+      catch (_) { /* best effort: it is retried on the next navigation */ }
+      finally { repairing = null; }
+    })();
+  }
+  return repairing;
+}
+
+// Must never reject: a rejected navigation shows Chrome's own error page.
+async function installedNavigation(event) {
+  try {
+    const cache = await caches.open(CACHE_VERSION);
+    const hit = await cache.match('./index.html') || await cache.match('./');
+    if (hit) return hit;
+    // The saved copy is missing. With a connection, serve the live app and
+    // rebuild the cache in the background.
+    try {
+      const live = await fetch(freshRequest('./index.html'));
+      if (live.ok) {
+        const repair = repairCache();
+        try { event.waitUntil(repair); } catch (_) { /* repair still runs */ }
+        return live;
+      }
+    } catch (_) { /* offline: fall through */ }
+    const offline = await cache.match('./offline.html');
+    if (offline) return offline;
+  } catch (_) { /* Cache Storage unusable: fall through to the last resort. */ }
+  return new Response(LAST_RESORT_HTML, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
 // Bundled audio must support seeking while offline, including suffix ranges.
@@ -151,8 +226,12 @@ async function cachedResponse(request, cached) {
 }
 
 async function installedAssetOrNetwork(request) {
-  const cache = await caches.open(CACHE_VERSION);
-  const cached = await cache.match(request, { ignoreSearch: true });
+  let cache = null, cached = null;
+  // Broken Cache Storage must not reject the request: use the network instead.
+  try {
+    cache = await caches.open(CACHE_VERSION);
+    cached = await cache.match(request, { ignoreSearch: true });
+  } catch (_) { /* fall back to the network below */ }
   const url = new URL(request.url);
   // Keep the existing explicit song-refresh button functional. Network
   // failure retains the installed copy; ordinary app startup is cache-first.
@@ -161,7 +240,7 @@ async function installedAssetOrNetwork(request) {
       const response = await fetch(request);
       if (response.ok) {
         const key = new URL(request.url); key.search = '';
-        await cache.put(key.href, response.clone());
+        if (cache) await cache.put(key.href, response.clone());
         return response;
       }
     } catch (_) { /* Continue with the installed response below. */ }
@@ -172,6 +251,13 @@ async function installedAssetOrNetwork(request) {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+  // Optional notices are live content, never part of the offline app cache.
+  // A removed file or offline launch must not resurrect an old notice.
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && url.pathname === new URL('./announcements.json', self.location.href).pathname) {
+    event.respondWith(fetch(event.request).catch(() => new Response('[]', { headers: { 'Content-Type': 'application/json' } })));
+    return;
+  }
   const navigation = event.request.mode === 'navigate' || event.request.destination === 'document';
-  event.respondWith(navigation ? installedNavigation() : installedAssetOrNetwork(event.request));
+  event.respondWith(navigation ? installedNavigation(event) : installedAssetOrNetwork(event.request));
 });

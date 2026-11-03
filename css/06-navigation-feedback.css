@@ -1,0 +1,358 @@
+/* ---------- bottom nav ---------- */
+.bottom-nav {
+  /* Full viewport width, edge-to-edge — same reasoning as .page/.page-inner
+     above: this element anchors to the browser's actual edges, while
+     .bottom-nav-inner below caps and centers the buttons themselves so the
+     bar doesn't stretch edge-to-edge on wide/desktop screens. */
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  z-index: 20;
+}
+.bottom-nav:not([hidden]) { display: flex; }
+/* Tucked away while the on-screen keyboard is up: it is position:fixed, so
+   it would otherwise float or get covered mid-typing. */
+.bottom-nav { transition: transform var(--dur-fast) ease; }
+html.keyboard-open .bottom-nav { transform: translateY(110%); pointer-events: none; }
+.bottom-nav-inner {
+  /* space-evenly + flex:1 on each button (below) means this distributes
+     however many nav-btns exist — 2 today, up to 5 once User Songs,
+     Playlists, and Sheet Music are added — with no gap/width tuning needed
+     when a button is added; only PAGES + this markup change. */
+  display: flex;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  height: 100%;
+  justify-content: space-evenly;
+  align-items: center;
+}
+
+/* Author display:flex rules otherwise override the browser's built-in
+   [hidden] display rule. Feature-gated nav/icon controls must stay truly hidden. */
+.nav-btn[hidden],
+.icon-btn[hidden] { display: none; }
+.nav-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 110px;
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-btn { transition: color var(--dur-base) ease, transform var(--press-duration-out) var(--press-ease); }
+.nav-btn:active { transform: scale(var(--press-scale-icon)); transition-duration: var(--press-duration-in); }
+.nav-btn svg { width: 23px; height: 23px; fill: var(--ink-faint); transition: fill var(--dur-base) ease, transform var(--dur-base) cubic-bezier(.34, 1.56, .64, 1); }
+.nav-btn.is-active { color: var(--accent-strong); }
+.nav-btn.is-active svg { fill: var(--accent-strong); transform: scale(1.08); }
+
+/* ---------- Landscape mode (Settings → Appearance → Landscape mode; see
+   applyLandscapeMode() in js/app.js) ----------
+   Opt-in. A phone rotated sideways has very little vertical room (roughly
+   360–430px tall) next to the same phone in portrait, so the header/
+   title/nav chrome below — all sized for portrait's much taller screen —
+   ends up crowding out the actual lyrics or song list. This reclaims that
+   space by trimming those same elements' padding/size, and by shrinking
+   --nav-h itself (which every other rule that reserves space for the
+   bottom nav — .page-inner's bottom padding, the toast's bottom offset,
+   .scroll-index's bottom edge — already reads from, the same way
+   --page-pad's narrow-phone override above cascades everywhere it's
+   used) rather than repeating the same shorter number in four places.
+
+   Gated on BOTH html[data-landscape-mode="true"] (the Settings toggle)
+   AND actually being a phone: orientation: landscape + a short viewport
+   + (hover: none) and (pointer: coarse) — that last pair is what a touch-
+   only device reports (no mouse capable of hovering, a coarse/finger
+   pointer) and is the part that actually matters here. max-height alone
+   isn't enough to rule out a PC — an ordinary desktop browser window is
+   "landscape" by aspect ratio, and plenty of real ones (not maximized,
+   devtools docked along the bottom, a smaller monitor) are well under
+   500px tall too, so max-height on its own was flipping this on for
+   mouse/keyboard users it was never meant for. (hover: none) and
+   (pointer: coarse) is what a mouse-driven browser can't ever report,
+   window size aside, so pairing it with max-height is what actually
+   narrows this down to "a phone rotated sideways" specifically. */
+@media (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
+  html[data-landscape-mode="true"] {
+    --nav-h: 46px;
+  }
+
+  html[data-landscape-mode="true"] .page-inner {
+    max-width: 980px;
+    padding-left: calc(var(--page-pad) + env(safe-area-inset-left));
+    padding-right: calc(var(--page-pad) + env(safe-area-inset-right));
+  }
+  /* Rounded corners/notch land on the left or right edge once rotated
+     (whichever was the top in portrait) — env() reports whichever
+     actually applies for the device's current orientation, so this only
+     ever adds real padding on hardware that has something to dodge
+     there; everywhere else it resolves to 0 and changes nothing. */
+  html[data-landscape-mode="true"] .bottom-nav-inner {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Nav bar: labels dropped, icon trimmed slightly — still a full-width
+     strip along the bottom edge (not moved to a side rail). Reading pages
+     (song view, the editor, playlist view) already hide the nav bar
+     entirely via PAGES' hideNav in js/app.js, so this only ever applies
+     on the four scrolling tab pages (Songs/User Songs/Playlists/
+     Settings), where a shorter fixed strip at the bottom is a small,
+     worthwhile trade for that much more of the list on screen at once. */
+  html[data-landscape-mode="true"] .nav-btn span { display: none; }
+  html[data-landscape-mode="true"] .nav-btn svg { width: 21px; height: 21px; }
+
+  html[data-landscape-mode="true"] .page-header { padding: calc(env(safe-area-inset-top) + 8px) 2px 6px; }
+  html[data-landscape-mode="true"] .page-header:has(#sabbath-mascot:not([hidden])) { padding-bottom: 8px; }
+  html[data-landscape-mode="true"] .page-header h1 { font-size: 1.35rem; }
+
+  /* Song view's immersive header is the single biggest win here — title,
+     artist, and the heart/kebab row all stack above the transpose/font
+     controls before any actual lyrics appear, so trimming this is what
+     buys back the most reading room. */
+  html[data-landscape-mode="true"] .sv-header-immersive { padding: calc(env(safe-area-inset-top) + 8px) 2px 10px; }
+  html[data-landscape-mode="true"] .sv-header-immersive::before { height: calc(env(safe-area-inset-top) + 130px); }
+  html[data-landscape-mode="true"] .sv-header-immersive .song-view-title { margin-top: 6px; }
+  html[data-landscape-mode="true"] #sv-title { font-size: 1.18rem; }
+  html[data-landscape-mode="true"] .sv-title-centered .sv-artist { font-size: 0.74rem; margin: 1px 0 0; }
+
+  html[data-landscape-mode="true"] .transpose-bar { margin-top: 8px; padding: 6px 12px; }
+  html[data-landscape-mode="true"] .font-controls { margin-top: 6px; gap: 6px; }
+  html[data-landscape-mode="true"] .font-group { padding: 5px 8px; }
+
+  /* Songbook list — List/Compact (Tiles already grids at 4 columns, see
+     #song-list[data-view="tiles"] above; this just brings List/Compact up
+     to the same layout). Normally each is one song per full-width row —
+     landscape gives roughly four times a portrait phone's width, so a
+     single row wastes most of it. Reuses that same 4-column cap (not
+     more, even on a very wide landscape screen) so rows stay a readable
+     width rather than stretching thin. Scoped to #song-list only, same
+     as every data-view rule above — #user-song-list/#playlist-song-list
+     intentionally keep their own full-row look regardless. */
+  html[data-landscape-mode="true"] #song-list[data-view="list"],
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    align-items: stretch;
+  }
+  /* The actual grid items are #song-list's <li> children (.song-row is a
+     <button> nested one level inside each <li> — see renderSongList() in
+     js/app.js) — so the min-width: 0 override belongs on the <li> itself.
+     Grid items default to min-width: auto, which resolves to their
+     content's min-content size unless overridden; left at that default,
+     a long title/artist forces its <li> wider than the 1fr track it was
+     given, and the whole grid quietly overflows past the screen's right
+     edge instead of actually wrapping inside its column — Tiles (above)
+     never hits this because it hides the title/artist text entirely
+     (song-row-text: none), so it never had a reason to need this fix. */
+  html[data-landscape-mode="true"] #song-list[data-view="list"] > li,
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] > li {
+    min-width: 0;
+  }
+  html[data-landscape-mode="true"] #song-list[data-view="list"] .song-row,
+  html[data-landscape-mode="true"] #song-list[data-view="compact"] .song-row {
+    margin-bottom: 0;
+    height: 100%;
+    min-width: 0;
+  }
+}
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: var(--paper);
+  font-size: 0.85rem;
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: toast-pop-in .34s var(--press-ease) both;
+}
+/* translateX(-50%) is the toast's own horizontal centering (see the base
+   rule above) — kept in every keyframe stop here alongside the vertical
+   motion/scale so the pop doesn't momentarily un-center itself. */
+@keyframes toast-pop-in {
+  from { transform: translateX(-50%) translateY(16px) scale(.9); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.toast.is-leaving {
+  animation: toast-pop-out .2s cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes toast-pop-out {
+  from { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  to   { transform: translateX(-50%) translateY(10px) scale(.92); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Marked !important so this survives the blanket `* { animation: none
+     !important }` reduced-motion rule elsewhere in this file — that
+     blanket rule is what keeps the rest of the app fully static for
+     vestibular/motion-sensitive users, but a toast popping fully instant
+     into existence (rather than just not sliding/scaling) reads as a
+     glitch rather than a calmer version of the animation, so this one
+     component gets a plain opacity crossfade instead of nothing. */
+  .toast { animation: toast-fade-in .12s ease both !important; }
+  .toast.is-leaving { animation: toast-fade-out .12s ease both !important; }
+  @keyframes toast-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes toast-fade-out { from { opacity: 1; } to { opacity: 0; } }
+}
+/* `.toast { display:flex }` above and the `[hidden]` attribute have equal
+   CSS specificity (0-1-0), so without this rule the later author rule wins
+   and the toast stays visually visible even while `hidden` is set — which
+   is why it was showing up as a permanent bar pinned above the nav. */
+.toast[hidden] { display: none; }
+.toast-action {
+  background: none;
+  border: none;
+  color: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 2px 2px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  flex-shrink: 0;
+}
+html[data-theme="dark"] .toast {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper-dim);
+}
+
+/* ---------- focus & motion ---------- */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* ---------- universal button press feedback ----------
+   Every plain <button> gets a quick, subtle "pop": scale down fast on
+   press, then spring back past 1 and settle on release. The overshoot
+   comes entirely from the cubic-bezier's y > 1 control point — a plain
+   transition from the pressed scale back to 1 already produces the
+   bounce, no separate keyframe needed. transition-duration is shortened
+   on :active so the press itself feels immediate; releasing uses the
+   slower, bouncy duration from the base rule.
+   .song-row/.playlist-row/.switch/.checklist-item/.modal-new-playlist-row/
+   .settings-row-nav keep their own existing :active treatment (scale(.99)
+   / knob slide / background change) instead of this, so they're excluded
+   here rather than getting a second, conflicting transform — the 93% pop
+   reads fine on a small icon button but looks like an unpleasant squish
+   on a full-width row like a checklist item (or the About/dev-options
+   settings row). .sort-btn is excluded for a different reason: it already
+   gets a complete, deliberate press animation from .sort-btn-tap (see
+   that class near .sort-btn's own definition), added by JS on every
+   click regardless of which button was previously selected. This generic
+   :active scale used to still apply underneath that on .sort-btn (a
+   leftover from before .sort-btn-tap existed) — same property
+   (transform), so the two didn't blend, they visibly played one after
+   the other: a quick scale-and-snap-back pop, then the sort-btn-tap lip
+   collapse right behind it. Tokens: see --press-* in :root above. */
+button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav):not(.sort-btn)) {
+  transition: transform var(--press-duration-out) var(--press-ease);
+}
+button:where(:not(.song-row):not(.playlist-row):not(.switch):not(.checklist-item):not(.modal-new-playlist-row):not(.settings-row-nav):not(.sort-btn)):active {
+  transform: scale(var(--press-scale-icon));
+  transition-duration: var(--press-duration-in);
+}
+button:disabled { transform: none !important; }
+
+/* Wider text/pill buttons get the same press family as the universal pop
+   above, but the gentler --press-scale-pill amount instead of
+   --press-scale-icon — see the token comment in :root for why: the same
+   percentage shrink moves a lot more pixels on a ~90px pill than a ~30px
+   icon button, so without this override these buttons "pop" much harder
+   than everything else even though they share the same code path
+   (this is what made the sort-row buttons feel oversized before). Class
+   selectors here beat the :where()-based universal rule's zero
+   specificity regardless of source order, so this always wins for the
+   buttons it lists.
+   .sort-btn is deliberately NOT in this list — see .sort-btn-tap near
+   .sort-btn's own definition for why it needs a real keyframe animation
+   instead of a plain :active rule. */
+.seg-toggle-btn:active,
+.label-suggestion-chip:active {
+  transform: scale(var(--press-scale-pill));
+  transition-duration: var(--press-duration-in);
+}
+/* .sort-btn deliberately has no :active rule of its own here — it's
+   excluded from the universal button-pop above (see that comment) and
+   .sort-btn-tap is now its only press animation. An :active scale used
+   to live here too ("safe to leave," the reasoning went, since an
+   unselected button's own visual state doesn't change on click) but
+   that reasoning missed that the *clicked* button's state does change,
+   right as .sort-btn-tap starts playing on it — so every click layered
+   this rule's scale-and-release on top of the tap keyframe, which is
+   the double-animation bug this comment used to cause. */
+/* .btn-primary gets the lip collapse instead of the shared scale-press
+   above — combining a shadow-collapse with a simultaneous scale-down
+   reads as muddy rather than snappy, so this overrides the rule above
+   specifically for .btn-primary (which stays out of that selector
+   list). */
+.btn-primary:active {
+  transform: translateY(var(--lip-md));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--ink) 40%, var(--line));
+  transition-duration: var(--dur-press);
+}
+html[data-theme="dark"] .btn-primary:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
+}
+/* .btn-pill-done (editor Save / playlist Done) gets the identical
+   collapse-to-flat treatment as .btn-primary above, just keyed off its
+   own --accent-strong background instead of --ink/--accent — see the
+   base rule's comment. Kept as its own block, not merged into
+   .btn-primary's selector list, since the two buttons' base box-shadow
+   colors are computed from different variables. */
+.btn-pill-done:active {
+  transform: translateY(var(--lip-md));
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
+  transition-duration: var(--dur-press);
+}
+html[data-theme="dark"] .btn-pill-done:active {
+  box-shadow: 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+@media (min-width: 560px) {
+  .page-header h1 { font-size: 1.9rem; }
+}
+
+
+/* Rare important notices sit inside navigation, never over song content. */
+.bottom-nav.has-announcement { height: auto; flex-direction: column; }
+.bottom-nav.has-announcement .bottom-nav-inner { height: var(--nav-h); flex: 0 0 var(--nav-h); }
+.app-announcements { width: 100%; max-width: 720px; margin: 0 auto; padding: 8px var(--page-pad); border-bottom: 1px solid var(--line); }
+.app-announcements[hidden] { display: none; }
+.announcement { display: flex; align-items: flex-start; gap: 10px; color: var(--ink); }
+.announcement > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.announcement h2 { margin: 0 0 2px; font: 600 .8rem/1.4 var(--font-body); }
+.announcement p { margin: 0; font: 400 .78rem/1.5 var(--font-body); white-space: pre-line; }
+.announcement-dismiss { flex: 0 0 32px; width: 32px; height: 32px; margin: -4px -6px 0 0; padding: 0; background: transparent; border: 0; border-radius: 50%; color: var(--ink-soft); font: 400 1.3rem/1 var(--font-body); cursor: pointer; }
+.announcement-dismiss:hover { background: var(--paper-dim); }
+.announcement-dismiss:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.page:not(.page-no-bottom-nav) > .page-inner { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 40px + var(--announcement-space, 0px)); }
+.announcement-messages > div:not(.modal-actions) + div:not(.modal-actions) { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.announcement-messages h2 { margin: 0 0 6px; font: 600 .95rem/1.4 var(--font-body); }
+.announcement-messages p { margin: 0; font: 400 .9rem/1.6 var(--font-body); white-space: pre-line; overflow-wrap: anywhere; }

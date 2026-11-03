@@ -1,0 +1,157 @@
+/* ==========================================================
+   Chord Finder piano mode
+   Instrument switch + two-octave keyboard (interactive + Display).
+   Keys use fixed ivory/ebony colours so the keyboard reads as a piano in
+   both themes; only the pressed state follows the chosen accent.
+   ========================================================== */
+.cf-instrument {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.cf-instrument[hidden] { display: none; }
+.cf-instrument .seg-toggle-btn {
+  padding: 6px 18px;
+  font-size: .8rem;
+}
+
+.cf-piano {
+  /* One black key is ~62% of a white key; the unit is the keys' own width. */
+  --cf-black-w: calc(100% / var(--cf-white-count, 14) * 0.62);
+  padding: 2px 0 0;
+}
+.cf-keys {
+  position: relative;
+  display: flex;
+  height: clamp(150px, 42vw, 200px);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.cf-key {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0;
+  padding: 0 0 8px;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) var(--press-ease-soft, ease);
+}
+.cf-key:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  z-index: 4;
+}
+.cf-key-label {
+  font-size: clamp(.58rem, 1.6vw, .72rem);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -.02em;
+  pointer-events: none;
+}
+.cf-key-label.cf-key-hint { font-weight: 600; opacity: .55; }
+
+.cf-key-white {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  background: #fbfaf7;
+  border: 1px solid #c4bfc8;
+  border-radius: 0 0 7px 7px;
+  color: #7d7884;
+  box-shadow: none;
+}
+.cf-key-white + .cf-key-white { margin-left: -1px; }
+.cf-key-white.cf-on {
+  z-index: 1;
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  color: var(--paper);
+  box-shadow: none;
+}
+
+.cf-key-black {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  width: var(--cf-black-w);
+  height: 62%;
+  padding-bottom: 7px;
+  border: 0;
+  border-radius: 0 0 6px 6px;
+  background-color: #29262f;
+  color: #cfcad4;
+  box-shadow: none;
+}
+.cf-key-black .cf-key-label { font-size: clamp(.5rem, 1.4vw, .62rem); }
+.cf-key-black.cf-on {
+  background-color: color-mix(in srgb, var(--accent) 78%, #000);
+  color: #fff;
+}
+.cf-key:active { transform: none; }
+@media (hover: hover) {
+  .cf-key-white:not(.cf-on):hover { background: color-mix(in srgb, var(--accent) 12%, #fbfaf7); }
+}
+
+/* Display Mode keyboard (SVG). */
+.cf-display-stage.is-piano { width: min(100%, 760px); }
+.cf-piano-diagram { width: min(100%, 760px); }
+.cf-pd-white { fill: #fbfaf7; stroke: #c4bfc8; stroke-width: 2; }
+.cf-pd-white.is-on { fill: var(--accent); stroke: color-mix(in srgb, var(--accent) 70%, #000); }
+.cf-pd-black { fill: #29262f; stroke: #29262f; stroke-width: 2; }
+.cf-pd-black.is-on { fill: color-mix(in srgb, var(--accent) 78%, #000); }
+.cf-pd-label {
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+.cf-pd-label.is-white { fill: var(--paper); }
+.cf-pd-label.is-black { fill: #fff; }
+
+/* ==========================================================
+   Song chord popup instrument switch
+   Reuses the same .seg-toggle + sliding .seg-toggle-thumb component as
+   the database selector and Chord Finder. Only the dimensions are
+   compacted for the small viewer card.
+   ========================================================== */
+.song-chord-viewer-instrument.seg-toggle {
+  width: min(100%, 188px);
+  margin: 0 auto 4px;
+  flex-shrink: 0;
+}
+.song-chord-viewer-instrument .seg-toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 27px;
+  padding: 4px 10px;
+  font-size: .72rem;
+  font-weight: 650;
+  text-align: center;
+}
+.song-chord-viewer-instrument .seg-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.song-chord-viewer.is-piano .song-chord-viewer-diagram .cf-piano-diagram {
+  width: min(100%, 320px);
+  max-height: 150px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .song-chord-viewer-diagram { transition: none; }
+  .song-chord-viewer-stage { transition: none; animation: none !important; }
+}
+
+/* Keep shared pill controls flat in dark mode. */
+html[data-theme="dark"] .seg-toggle-thumb,
+html[data-theme="dark"] .sort-btn[aria-pressed="true"],
+html[data-theme="dark"] .btn-primary,
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .btn-pill-done,
+html[data-theme="dark"] .chip-btn { box-shadow: none; }
+html[data-theme="dark"] .sort-btn-tap { animation: none; }
+
+

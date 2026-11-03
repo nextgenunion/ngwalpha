@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const app = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
+const app = require('./read_application.cjs').readApplication();
 const code = app.slice(app.indexOf('function scrollIndexLetter('), app.indexOf('// ---- Squishy thumb physics'));
 let rowHeight = 100, columns = 1, header = 0;
 const page = { scrollTop: 0, clientHeight: 100, getBoundingClientRect: () => ({ top: 20 }) };

@@ -1,0 +1,258 @@
+/* ---------- playlists list ---------- */
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-header-row h1 { padding: 0; }
+
+.playlist-list { list-style: none; margin: 16px 0 0; padding: 0; }
+.playlist-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-fast) var(--press-ease-soft), box-shadow var(--dur-fast) ease;
+}
+.playlist-row:active { transform: scale(0.99); }
+.playlist-row:hover { box-shadow: var(--shadow-2); }
+.playlist-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+.playlist-icon svg { width: 19px; height: 19px; fill: currentColor; }
+.playlist-row.is-favorites .playlist-icon { background: #F6DCD9; color: var(--danger); }
+html[data-theme="dark"] .playlist-row.is-favorites .playlist-icon { background: #3A2229; }
+.playlist-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.playlist-row-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.playlist-row-sub { font-size: 0.83rem; color: var(--ink-faint); margin-top: 1px; }
+
+/* Divider between the (always-present, pinned-first) Favorites row and the
+   user's own playlists below it. */
+.playlist-list-divider {
+  list-style: none;
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 4px 4px 16px;
+}
+
+/* ---------- song-view header actions (favorite / add-to-playlist) ---------- */
+.song-view-header { flex-wrap: wrap; }
+#sv-favorite-btn[aria-pressed="true"] svg { fill: var(--paper); }
+/* Favorited fills the whole circle red instead of just tinting the
+   heart icon, so the favorited state reads at a glance without having
+   to look closely at the icon color — same "shadow keyed to the
+   button's own fill" treatment as .btn-danger/.btn-pill-done, rather
+   than leaving this on the neutral --lip-shadow those don't use. */
+#sv-favorite-btn[aria-pressed="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+#sv-favorite-btn[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--line));
+}
+html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"] {
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
+html[data-theme="dark"] #sv-favorite-btn[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--danger) 40%, var(--paper-dim));
+}
+/* Retriggered on every tap (see the sv-favorite-btn click handler in
+   app.js, which swaps heart-outline/heart-filled just before this runs) —
+   a quick, gentle scale pop so the swap reads as an intentional change
+   rather than a silent icon swap, without the rotation the earlier
+   version had (that full spin read as jittery rather than smooth).
+   Targets the svg, not the button itself, so the button's own universal
+   press-pop (scale on :active, see the focus & motion section) keeps
+   working independently without the two transforms fighting. */
+@keyframes heart-pop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+#sv-favorite-btn.heart-pop svg {
+  animation: heart-pop .4s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* ---------- playlist-view header ---------- */
+.pv-header-actions { display: flex; align-items: center; gap: 8px; margin-left: 12px; flex-shrink: 0; }
+/*
+ * Sits to the left of the kebab menu, but ONLY while playlist edit mode
+ * is on (see setPlaylistEditMode in app.js) — hidden the rest of the
+ * time. Gives a direct way out of reorder/remove mode without having to
+ * reopen the kebab dropdown you used to get in.
+ */
+.btn-pill-done {
+  flex-shrink: 0;
+  border: 1px solid var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--paper);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  /* Same lip-collapse family as .btn-primary (see that rule's comment) —
+     this used to fall through to the universal scale-pop instead, which
+     is why the editor's Save button felt like a different, older
+     control next to every other filled pill in the app. --accent-strong
+     mixed with --line/--paper-dim mirrors exactly how .btn-primary
+     derives its own shadow from its own background, so the two filled
+     buttons collapse the same amount and read as one family. */
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
+  transition: transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+html[data-theme="dark"] .btn-pill-done {
+  box-shadow: 0 var(--lip-md) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--paper-dim));
+}
+.btn-pill-done[hidden] { display: none; }
+/* Fade/scale for the Finish pill's own appear/disappear (see
+   showOrHidePillDone in app.js) — [hidden] alone can't transition since
+   it maps straight to display:none, which is why this used to just pop
+   in and out instantly instead of animating like everything else that
+   changes when edit mode toggles. */
+@keyframes pill-done-enter {
+  from { opacity: 0; transform: scale(.85); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pill-done-exit {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(.85); }
+}
+.btn-pill-done.is-entering { animation: pill-done-enter .18s ease; }
+.btn-pill-done.is-exiting { animation: pill-done-exit .18s ease forwards; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .btn-pill-done.is-entering, .btn-pill-done.is-exiting { animation: none; }
+}
+/* ---------- playlist-view song rows (view mode vs. edit mode) ---------- */
+.song-row-with-remove { position: relative; display: flex; align-items: center; gap: 10px; }
+/*
+ * Queue-position number and drag-handle occupy the same fixed-width flex
+ * slot at the start of the row (only one of the two is visible at a time,
+ * toggled by .is-editing) — NOT an absolutely-positioned overlay with a
+ * matching padding-left reserved on the row. An absolute .queue-index +
+ * padding-left combo left a dead gap in edit mode (the padding stayed
+ * reserved even after the number was hidden, so the handle sat behind an
+ * empty strip) and had no equivalent reserved space on the right in view
+ * mode, so the row read as off-center. Giving both the same width (32px,
+ * matching .drag-handle) and letting them sit as normal flex children
+ * keeps the row balanced in both modes with a single mechanism.
+ */
+.queue-index {
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-faint);
+  line-height: 1;
+  pointer-events: none;
+}
+.song-row-with-remove .song-row { flex: 1; padding-right: 8px; }
+.drag-handle {
+  flex-shrink: 0;
+  width: 32px; height: 44px;
+  border: none;
+  background: transparent;
+  display: none; /* shown only in edit mode via .is-editing */
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  color: var(--ink-faint);
+}
+.drag-handle svg { width: 18px; height: 18px; fill: currentColor; }
+.song-row-remove {
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: none; /* shown only in edit mode via .is-editing */
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.song-row-remove svg { width: 15px; height: 15px; fill: var(--danger); }
+#playlist-song-list.is-editing .drag-handle,
+#playlist-song-list.is-editing .song-row-remove { display: flex; }
+#playlist-song-list.is-editing .song-row { pointer-events: none; } /* rows don't open the song while editing */
+#playlist-song-list.is-editing .queue-index { display: none; } /* drag handle takes over ordering cues in edit mode */
+.song-row-with-remove.is-dragging {
+  position: relative;
+  z-index: 30;
+  box-shadow: var(--shadow-2);
+  transition: box-shadow var(--dur-base) ease;
+}
+
+/* ---------- kebab dropdown menu ---------- */
+.kebab-dropdown {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  z-index: 220;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-2);
+  min-width: 160px;
+  overflow: hidden;
+  /* Anchored under the kebab button it opens from, so the pop reads as
+     coming from that button rather than from the middle of the menu. */
+  transform-origin: top right;
+  animation: kebab-pop-in .18s cubic-bezier(.2, .8, .2, 1) both;
+}
+/* Added by closePlaylistMenu()/closeSongViewMenu() instead of removing the
+   element outright — gives the menu an actual close animation (a quick
+   shrink-and-fade back toward the button) rather than just vanishing. A
+   little faster than the open, and eased the other way (accelerating
+   in), which is what makes a dismissal read as intentional rather than
+   as a delayed version of the same open motion. */
+.kebab-dropdown.kebab-dropdown-exit {
+  animation: kebab-pop-out .14s cubic-bezier(.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+@keyframes kebab-pop-in {
+  from { opacity: 0; transform: scale(.9) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes kebab-pop-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(.92) translateY(-4px); }
+}
+.kebab-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.kebab-dropdown button:active { background: var(--paper-dim); }
+.kebab-dropdown button svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+.kebab-dropdown button.is-danger { color: var(--danger); }
+

@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.38-alpha)
+# Next Gen Worship — Worship Song App (v5.0.59-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,16 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.57–59 presentation mode
+
+- New **Presentation mode** item in the song "…" menu, directly below Reading mode. It opens full-screen lyric slides without chords: a title slide, then 1, 2, 3, 4 lines or a whole section per slide (default 2). Section labels such as "Дахилт:" show small above their slides.
+- Built desktop-first: Right/Down/Space/PageDown/Enter next, Left/Up/PageUp/Backspace previous, Home/End, **B** (or `.`) blanks the screen, **F** toggles fullscreen, **Esc** exits. Click/tap the left third to go back and the right third to go forward; the middle only shows the controls (a second tap hides them on touch) and never changes the slide. Swipe works on touch. The control bar and mouse cursor hide after a short idle and return on mouse move.
+- Text is auto-fitted to the window and keeps each lyric line on one row where readable. Lines-per-slide and text size are remembered (`sb-pres-lines`, `sb-pres-scale`). The screen is kept awake while presenting where the browser allows it.
+- Back/Escape/X close it and return to the same song. It has its own history entry.
+- Planned, not built: changeable background (picture, animated, video) via the separate `.pres-bg` layer, and PNG export (slides are plain data from `buildSlides()`).
+- 5.0.58: Presentation mode uses `presentation.svg`; Reading mode (song menu and Chord Finder menu) uses `reading-mode.svg`. The old `display.svg` is removed.
+- `tools/verify_presentation_browser.cjs` covers menu order, slide building, keyboard/click navigation, fit, history and phone/desktop sizes.
 
 ## v5.0.38 interaction and visual audit fixes
 

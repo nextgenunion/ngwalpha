@@ -10,6 +10,11 @@ window.SONGBOOK_APP_CONFIG = {
   features: {
     sheetMusic: false,
   },
+  // showCopyrightNotice: the "© … All rights reserved / Proprietary" lines on
+  // the About page. Off while the rights to every song in the libraries are
+  // still being confirmed, because that notice also claims the app's
+  // "contents". Set to true to bring it back; nothing else needs to change.
+  showCopyrightNotice: false,
   orgName: "Next Gen Union",
   contactEmail: "nextgenunionmn@gmail.com",
 

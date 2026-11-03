@@ -1,0 +1,789 @@
+/* ---------- search ---------- */
+/* Main Songbook search. Labels and list/tile view are intentionally grouped
+   behind ONE compact control inside the field's trailing edge, matching the
+   familiar search-filter/tune pattern instead of adding sibling toolbar
+   buttons that make the search box feel detached from its own options. */
+.song-search-main {
+  width: 100%;
+  min-width: 0;
+}
+.song-search-main #search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.search-tools-btn {
+  position: relative;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  margin-right: 0;
+  border: 0;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--dur-base) var(--press-ease);
+}
+.search-tools-btn svg { width: 19px; height: 19px; fill: currentColor; }
+.search-db-btn { margin-right: -7px; }
+.search-tools-btn:hover { background: var(--surface-2); color: var(--ink); }
+.search-tools-btn:active { transform: scale(.92); }
+.search-tools-btn[aria-pressed="true"] {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+html[data-theme="dark"] .search-tools-btn[aria-pressed="true"] { color: var(--accent); }
+.search-tools-count {
+  position: absolute;
+  right: -3px;
+  top: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-strong);
+  color: var(--paper);
+  border: 2px solid var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+html[data-theme="dark"] .search-tools-count { background: var(--accent); }
+.search-tools-count[hidden] { display: none; }
+
+.song-search-tools-section + .song-search-tools-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.song-search-tools-heading {
+  margin: 0 0 8px;
+  color: var(--ink-faint);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 0 14px;
+  box-shadow: var(--shadow-1);
+  transform: scale(1);
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-base) ease, transform var(--dur-slow) var(--press-ease);
+}
+.search-bar:focus-within {
+  transform: scale(1.012);
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.search-icon { width: 18px; height: 18px; fill: var(--ink-faint); flex-shrink: 0; }
+#search-input, .search-field {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 13px 10px;
+  font-size: 0.96rem;
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-appearance: none;
+  appearance: none;
+}
+#search-input::-webkit-search-decoration,
+#search-input::-webkit-search-cancel-button,
+#search-input::-webkit-search-results-button,
+#search-input::-webkit-search-results-decoration,
+.search-field::-webkit-search-decoration,
+.search-field::-webkit-search-cancel-button,
+.search-field::-webkit-search-results-button,
+.search-field::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  display: none;
+}
+#search-input::placeholder, .search-field::placeholder { color: var(--ink-faint); }
+/* .search-bar itself draws the focus highlight (border + soft ring above);
+   suppress the input's own outline so we don't get a second, square box
+   that doesn't match the pill shape. */
+#search-input:focus, .search-field:focus,
+#search-input:focus-visible, .search-field:focus-visible { outline: none; box-shadow: none; }
+
+/* Quiet progress track beneath search; fixed space prevents layout shifts. */
+.song-sync-progress {
+  position: relative;
+  height: 3px;
+  margin: 6px 4px -2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--dur-slow) ease;
+  pointer-events: none;
+}
+.song-sync-progress.is-active {
+  opacity: .68;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.song-sync-progress-bar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent-strong) 48%, transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-fast) linear;
+  will-change: transform;
+}
+.song-sync-progress.is-indeterminate .song-sync-progress-bar {
+  width: 34%;
+  transform: translateX(-120%);
+  animation: song-sync-indeterminate 1.8s ease-in-out infinite;
+}
+@keyframes song-sync-indeterminate {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(390%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .song-sync-progress { transition: none; }
+  .song-sync-progress-bar { transition: none; }
+  .song-sync-progress.is-indeterminate .song-sync-progress-bar {
+    width: 100%;
+    transform: scaleX(.18);
+    transform-origin: left center;
+    animation: none;
+  }
+}
+
+/* ---------- sort row ---------- */
+.sort-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+  padding-bottom: 2px;
+  /* This row used to be its own horizontal scroller. With flex-wrap already
+     enabled that nested scroller is unnecessary, and it steals drag gestures
+     from the Songs page. Keep the controls in the normal page flow so a swipe
+     that starts on a sort chip scrolls the Songs page, not this row. */
+  overflow: visible;
+  touch-action: pan-y;
+}
+.sort-group {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sort-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+/* Pressed/selected state: a pastel fill in the app's own accent (not a
+   flat --ink/--paper swap) plus a soft lip, so the active pill reads as
+   a raised, tappable choice rather than a plain color inversion — same
+   press family as the icon buttons/CTA above, sized down to match this
+   control's smaller scale. Offset thinned 2px→1.5px and the shadow
+   mixed down to a paler accent tint (was solid --accent) alongside the
+   rest of the lip pass, so a small pill's shadow doesn't read bolder
+   than the bigger buttons around it. */
+.sort-btn[aria-pressed="true"] {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint));
+}
+/* The lip-collapse used to live on :active, but :active only lasts for
+   as long as the mouse button is physically held down — and the click
+   handler (which flips aria-pressed to "true") doesn't run until
+   *after* mouseup, by which point :active has already ended. On a
+   normal quick click that meant the newly-selected button never showed
+   its own press at all: you'd only ever see the previously-selected
+   button's collapse if you happened to hold the mouse down on it,
+   which read as "the old button's animation plays instead of the new
+   one's". renderSongList's click handler (see js/app.js) now adds
+   .sort-btn-tap to the clicked button itself and removes it on
+   animationend, so the collapse-and-spring plays as a real, visible
+   animation on whichever button was just clicked — independent of how
+   long the mouse was actually held down for. */
+@keyframes sort-btn-press {
+  0%   { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
+  40%  { transform: translateY(1.5px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
+  100% { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 55%, var(--accent-tint)); }
+}
+.sort-btn-tap {
+  animation: sort-btn-press .22s ease;
+}
+html[data-theme="dark"] .sort-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black);
+}
+@keyframes sort-btn-press-dark {
+  0%   { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black); }
+  40%  { transform: translateY(1.5px); box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 40%, black); }
+  100% { transform: translateY(0); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--accent) 40%, black); }
+}
+html[data-theme="dark"] .sort-btn-tap {
+  animation-name: sort-btn-press-dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sort-btn { transition: none; }
+  .sort-btn-tap { animation: none; }
+}
+
+.results-count {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  margin: 14px 2px 6px;
+}
+
+/* Fallback flash (see animateListRefresh() in app.js) used only for the
+   rare "source failed to load" branch of renderSongList, where there's no
+   per-song list to diff against — just the list/empty-state/count settling
+   in together. Ordinary search and sort updates use the per-row
+   song-row-enter/song-row-exit animations below instead (see
+   renderSongList's diffed render). */
+@keyframes list-refresh-flash {
+  from { opacity: .3; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+.list-refresh-flash {
+  animation: list-refresh-flash .32s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* Per-row fade for search/sort updates (see renderSongList's diffed
+   render in app.js): only songs actually entering or leaving the visible
+   results animate — rows that match both before and after are just
+   reused/reordered in place with no fade at all. Slower and gentler than
+   the old whole-list flash (which retriggered on every keystroke) so
+   typing quickly in search doesn't strobe. */
+@keyframes song-row-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes song-row-exit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.song-row-enter {
+  animation: song-row-enter .42s cubic-bezier(.25, .1, .25, 1);
+}
+.song-row-exit {
+  animation: song-row-exit .32s ease-out;
+  pointer-events: none;
+}
+
+/* ---------- song list ---------- */
+.song-list { list-style: none; margin: 0; padding: 0; }
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-fast) var(--press-ease-soft), box-shadow var(--dur-fast) ease;
+  /* Keep interactive rows fully laid out. content-visibility:auto used
+     an estimated height until focus materialized an unseen row. After
+     a fast-scroll jump that could shrink the button between pointerdown
+     and pointerup, moving its hit area away from the pending click.
+     Combined databases have varied badges/subtitles/wrapping, so one
+     intrinsic-height estimate cannot keep those hit areas stable. */
+}
+.song-row:hover { box-shadow: var(--shadow-2); }
+/* Plain :active alone wasn't reliable here — clicking a row navigates
+   to the song view almost immediately, so by the time anything
+   painted, the row was often already gone. Same timing issue
+   .sort-btn-tap documents above; same fix, a real class-driven
+   animation the click handler gives a beat to actually play (see
+   tapSongRowThenOpen in app.js) — just the row's own scale settling
+   back with the app's usual overshoot spring, no lip/shadow involved. */
+@keyframes song-row-press {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+.song-row-tap {
+  animation: song-row-press .32s var(--press-ease);
+}
+
+.song-badge {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+/* A solid heart at the badge edge, clear of the centered number. Offsets
+   are kept equal (top === right) so the heart hangs evenly off the
+   circle's top-right corner instead of drifting toward one side —
+   previously right was 1px more negative than top, which read as
+   slightly off-center. */
+#song-list .song-badge-heart {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 13px;
+  height: 13px;
+  fill: #B5586B;
+  pointer-events: none;
+}
+html[data-theme="dark"] #song-list .song-badge-heart { fill: #F0A3AF; }
+#song-list[data-view="compact"] .song-badge-heart { width: 11px; height: 11px; top: -3px; right: -3px; }
+
+html[data-show-text-size="false"] #page-song-view > .page-inner > .font-controls { display: none; }
+
+.song-row-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.song-row-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.song-row-sub {
+  font-size: 0.83rem;
+  color: var(--ink-faint);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.song-row-sub mark, .song-row-title mark {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* ---------- Songbook list view (Settings → Songs → Display settings) ----------
+   Three ways to lay out the Songbook's own list — 'list' (default; the
+   plain .song-row rules above, untouched), 'compact' (denser rows: no
+   artist line, smaller badge, tighter spacing), and 'tiles' (a numbered
+   grid, four per row, reusing the exact same circular .song-badge —
+   colors, font, and shape — as the list view rather than a separate
+   look). Chosen via applySongListView() in app.js, which sets the active
+   choice as a data-view attribute directly on #song-list — scoped to
+   that one id (not the shared .song-list class also used by
+   #user-song-list/#playlist-song-list), so User Songs and playlist
+   song-pickers keep their existing full-row look no matter what's chosen
+   here. .has-badge is set on each .song-row by updateSongRowContent() in
+   app.js (true when that song has a number to show) — used below so a
+   number-less source (see DB_SOURCES' hasNumbers) still shows its title
+   in tiles mode instead of an empty tile. */
+#song-list[data-view="compact"] .song-row {
+  gap: 10px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+}
+#song-list[data-view="compact"] .song-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 0.68rem;
+}
+#song-list[data-view="compact"] .song-row-title {
+  font-size: 0.92rem;
+  -webkit-line-clamp: 1;
+}
+#song-list[data-view="compact"] .song-row-sub {
+  display: none;
+}
+
+#song-list[data-view="tiles"] {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+#song-list[data-view="tiles"] .song-row {
+  margin-bottom: 0;
+  min-height: 56px;
+  justify-content: center;
+  padding: 8px 6px;
+}
+/* .song-badge itself is deliberately left untouched here — same circle,
+   background/color, and font as the list view (see the base .song-badge
+   rule above); tiles mode only changes the row around it. */
+#song-list[data-view="tiles"] .song-row-text {
+  display: none;
+}
+/* Fallback for sources with no song numbers (e.g. hasNumbers: false) —
+   there's no badge to show, so show the (shrunk, centered) title instead
+   of leaving the tile empty. */
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-text {
+  display: flex;
+  align-items: center;
+  flex: none;
+  width: 100%;
+}
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-title {
+  font-size: 0.72rem;
+  text-align: center;
+  width: 100%;
+  -webkit-line-clamp: 3;
+}
+#song-list[data-view="tiles"] .song-row:not(.has-badge) .song-row-sub {
+  display: none;
+}
+/* A numbered database normally uses the number badge as the tile's whole
+   content. Once sorting switches to Alphabet, that visual no longer explains
+   the order, so show the title instead. Number sorting remains unchanged. */
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-badge {
+  display: none;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-text {
+  display: flex;
+  align-items: center;
+  flex: none;
+  width: 100%;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-title {
+  font-size: 0.72rem;
+  text-align: center;
+  width: 100%;
+  -webkit-line-clamp: 3;
+}
+#song-list[data-view="tiles"][data-sort-by="alpha"] .song-row .song-row-sub {
+  display: none;
+}
+
+.empty-state {
+  position: relative;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.92rem;
+  margin-top: 48px;
+  padding: 106px 20px 0;
+  line-height: 1.5;
+}
+/* Every .empty-state in the app (#empty-state, #user-songs-empty-state,
+   #playlists-empty-state, #playlist-view-empty-state) is a single <p>
+   whose text is set via textContent from app.js — there's no icon slot
+   in the markup. Two stacked pseudo-elements build the illustration
+   above the text instead of touching markup or JS: ::before draws the
+   plain tinted circle, ::after draws the music-note glyph on top of it
+   as a masked shape (mask-image, not background-image) so the glyph's
+   color comes from a real CSS custom property — --accent-strong —
+   rather than a hex baked into a data URI. That's what makes the icon
+   follow whichever accent swatch the person has picked in Settings,
+   light or dark, the same way every other accent-colored element in the
+   app already does. This shared music-note icon covers three of the
+   four empty states — Songs search, User songs, and Playlists/inside a
+   regular playlist; the fourth, Favorites specifically, swaps to a
+   heart via .empty-state--favorites below. padding-top
+   on .empty-state (rather than margin on ::before) is what reserves the
+   space without the absolutely-positioned pseudo-elements collapsing it. */
+.empty-state::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background-color: var(--accent-tint);
+}
+.empty-state::after {
+  content: '';
+  position: absolute;
+  top: 25px; left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 38px;
+  background-color: var(--accent-strong);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+html[data-theme="dark"] .empty-state::before {
+  background-color: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+/* #playlist-view-empty-state gets this class from openPlaylistView()
+   (see app.js) when the open playlist is Favorites specifically — the
+   note glyph above fits "no playlists yet" / "no user songs yet" /
+   "this playlist's empty", but reads oddly next to "no favorites yet",
+   so that one case swaps ::after's mask to the same heart-outline glyph
+   already used for the Favorites row icon elsewhere in the app, instead
+   of the music note every other empty state shares. */
+.empty-state--favorites::after {
+  width: 34px;
+  height: 34px;
+  -webkit-mask-image: url("../icons/svg/heart-outline.svg");
+  mask-image: url("../icons/svg/heart-outline.svg");
+}
+/* .playlists-empty-state--pinned still sits directly under the pinned
+   Favorites row, so it should stay more compact than a fully empty page,
+   but the old inline variant looked like a stray suffix glyph rather than
+   a proper empty-state icon and felt inconsistent next to User Songs and
+   the other empty views. Keep the same shared accent-circle + music-note
+   treatment, just scaled down a bit so it reads like the same family
+   without creating an oversized gap under Favorites. */
+.playlists-empty-state--pinned {
+  margin-top: 22px;
+  padding-top: 76px;
+}
+.playlists-empty-state--pinned::before {
+  width: 58px;
+  height: 58px;
+}
+.playlists-empty-state--pinned::after {
+  top: 16px;
+  width: 25px;
+  height: 25px;
+}
+
+/* ---------- song list fast-scroll indicator ----------
+   A small One-UI/Pixel-style scrollbar thumb along the right edge of the
+   Songbook list (#song-list specifically — see js/app.js's
+   updateSongScrollIndex/bindScrollIndexInteraction), not a permanently-
+   visible A-Z rail: it rests as a faint, still-touchable sliver while the
+   list is still, brightens to fully solid the instant the list scrolls —
+   by an ordinary touch-swipe OR by dragging the thumb itself — and only
+   pops up a letter/number bubble while the thumb is actually being
+   dragged (see .scroll-index-bubble below).
+
+   .scroll-index itself is only the (invisible) touch target — a slim
+   fixed-position column along the right edge, tall enough to be easy to
+   grab without needing to be visually wide itself. It floats directly
+   over the list's own trailing edge (the same way a native OS scrollbar
+   or the reference screenshot's own thumb does) rather than reserving
+   layout space, since at this width/opacity it's not competing with the
+   list content the way a bigger, always-visible index would.
+
+   A fixed sibling of .page-inner (not inside it), so it stays anchored to
+   the viewport rather than the scrolled content, spanning from just under
+   the status bar to just above the bottom nav. Clicking empty track space
+   deliberately does nothing; JS only begins a scrub when the pointer is on
+   the thumb's vertical hit area, so this behaves like grabbing a handle
+   rather than a tap-to-jump rail. */
+.scroll-index {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px);
+  right: 0;
+  width: 26px;
+  z-index: 12;
+  /* Purely a tap/drag surface, not a scrollable area of its own — this
+     stops touch drags along the strip from also scrolling the page
+     underneath it on mobile. */
+  touch-action: none;
+}
+.scroll-index[hidden] { display: none; }
+
+/* The visible part: a small pill, not the full width of the touch target
+   above it — kept slim and quiet on purpose (Samsung/One-UI's own fast-
+   scroll thumb is a thin sliver, not a wide bar) so it reads as a subtle
+   scrollbar accent rather than another button-like control. Its resting
+   opacity is low but non-zero — "not so noticeable" per the reference,
+   not invisible — so it's still discoverable and tappable while idle
+   (see .is-active below for the brightened state). */
+.scroll-thumb {
+  position: absolute;
+  right: 8px;
+  width: 5px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  opacity: 0.3;
+  /* JS (see renderThumbTransform() in js/app.js) always writes the full
+     translateY(...) scaleY(...) scaleX(...) triplet together — the scale
+     pair is a tiny damped spring layered on top of the position translate
+     for a squishy, fluid feel on grab and while scrubbing (see
+     nudgeThumbSquish()). transform itself is deliberately left out of the
+     transition list below: it's driven every frame from JS/rAF, and a CSS
+     transition racing its own per-frame updates would just fight itself
+     and read as jank rather than smoothness. */
+  transform: translateY(0) scaleY(1) scaleX(1);
+  transition: opacity var(--dur-slow) ease, background-color var(--dur-base) ease, width var(--dur-base) var(--press-ease-soft);
+  will-change: transform;
+}
+/* --accent-strong inverts to a pale text-tint in dark mode (readable as
+   text on a dark surface — see .btn-secondary) rather than a fill; using
+   it as a solid background here would leave the thumb washed-out pale
+   against the dark chrome, the same mismatch .btn-primary/.seg-toggle-thumb
+   already correct for by switching to --accent in dark mode. Mirrored here
+   so the thumb reads as a solid, on-brand fill in both themes. */
+html[data-theme="dark"] .scroll-thumb { background: var(--accent); }
+/* Toggled by JS on scroll/drag start and removed a moment after either
+   stops (see setScrollIndexActive()/scheduleScrollIndexFade() in
+   js/app.js) — "when you scroll the handle appears... when you stop it
+   goes into transparent" from the brief. */
+.scroll-index.is-active .scroll-thumb {
+  opacity: 0.95;
+}
+/* A further, more deliberate cue than is-active alone: the thumb visibly
+   plumps up the instant it's actually gripped (not just during an
+   ordinary swipe-scroll of the list), on top of the squash/stretch spring
+   above — toggled alongside scrollIndexDragging in
+   bindScrollIndexInteraction()'s pointerdown/endDrag. */
+.scroll-index.is-dragging .scroll-thumb {
+  width: 7px;
+}
+
+/* The small "you are here" popup that appears only while the thumb is
+   being dragged (see bindScrollIndexInteraction()'s pointerdown/pointerup
+   in js/app.js) — never during a plain swipe-scroll, matching the
+   reference screenshot's own behavior. A modest gap from the thumb
+   (unlike the reference image's much larger gap, per the brief) rather
+   than sitting right on top of it, so it doesn't cover the row currently
+   under the finger. Number labels use the same monospace font as the
+   song-number badges (.song-badge) elsewhere in this list; letter labels
+   use the app's own default UI font — see .scroll-index-bubble.is-numeric
+   below for the switch between the two.
+   Tinted glassmorphism rather than a flat fill: a translucent wash of the
+   current accent (so it re-tints itself automatically with every
+   data-accent option above, light or dark) over backdrop-filter blur, a
+   faint light-catching top edge, and a soft outer border — so the row
+   scrolling underneath stays dimly visible through it instead of being
+   fully hidden. color-mix() + backdrop-filter both need a fallback for
+   browsers without them (older Safari/Firefox): @supports below swaps
+   back to the old solid fill there rather than leaving a blurry glass
+   pane behind non-blurred, potentially low-contrast text. */
+.scroll-index-bubble {
+  position: fixed;
+  right: 40px;
+  z-index: 13;
+  min-width: 40px;
+  padding: 7px 13px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent-strong) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--paper) 45%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 0.96rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper) 35%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.7) translateX(6px);
+  transform-origin: right center;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-base) var(--press-ease), background-color .35s ease, border-color .35s ease, width var(--dur-base) var(--press-ease-soft);
+}
+/* Browsers with neither color-mix() nor backdrop-filter (support always
+   comes as a pair on the engines that lack them) fall back to the
+   original flat, fully-opaque fill so the label stays legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .scroll-index-bubble {
+    background: var(--accent-strong);
+    border-color: transparent;
+  }
+  html[data-theme="dark"] .scroll-index-bubble { background: var(--accent); }
+}
+/* Same --accent-strong-as-a-fill correction as .scroll-thumb above — see
+   that comment for why dark mode needs --accent/--paper-dim instead. The
+   border/inset-highlight stay mixed against --paper-dim (dark mode's
+   actual light-on-dark edge) rather than --paper, so the glass edge still
+   reads as a highlight and not a near-invisible near-black line. */
+html[data-theme="dark"] .scroll-index-bubble {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: color-mix(in srgb, var(--paper-dim) 55%, transparent);
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--paper-dim) 40%, transparent);
+  color: var(--paper-dim);
+}
+.scroll-index-bubble.is-numeric {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+}
+/* Swapped in by applyDrag() (js/app.js) once the thumb is dragged above
+   the very first letter/number bucket — that scroll range is the
+   header/search-bar area at the top of the Songbook page, so a bucket
+   label wouldn't mean anything there; the search icon marks it instead.
+   The icon is a plain sibling (not injected fresh each drag), so this
+   just toggles which of the two is shown rather than swapping markup. */
+.scroll-index-bubble-icon {
+  display: none;
+  width: 18px;
+  height: 18px;
+}
+.scroll-index-bubble.is-search .scroll-index-bubble-icon { display: block; }
+.scroll-index-bubble.is-search .scroll-index-bubble-label { display: none; }
+.scroll-index-bubble.is-visible {
+  opacity: 1;
+  transform: scale(1) translateX(0);
+}
+/* A small extra "tick" pop layered on top of is-visible's resting scale
+   each time the drag crosses into a new letter/number bucket (added/
+   removed per bucket-change in applyDrag(), js/app.js) — a satisfying
+   little thump as each new section arrives, rather than the label just
+   silently swapping underneath a static bubble. Animating (not
+   transitioning) so it always plays the same quick pop regardless of
+   which direction the value just changed, then hands back to is-visible's
+   plain resting transform once it finishes. */
+@keyframes scroll-bubble-tick {
+  0% { transform: scale(1) translateX(0); }
+  45% { transform: scale(1.18) translateX(0); }
+  100% { transform: scale(1) translateX(0); }
+}
+.scroll-index-bubble.is-visible.is-ticking {
+  animation: scroll-bubble-tick .3s var(--press-ease);
+}
+
+/* Playlists page: when Favorites is the only playlist, this text sits right
+   under the divider drawn after it, so it needs the tight spacing of a
+   sub-section note rather than the large centered gap of a fully empty page. */
+.playlists-empty-state--pinned {
+  margin-top: 12px;
+}
+.load-error {
+  text-align: center;
+  color: var(--danger);
+  font-size: 0.9rem;
+  margin-top: 48px;
+  padding: 0 20px;
+  line-height: 1.5;
+  list-style: none;
+}
+

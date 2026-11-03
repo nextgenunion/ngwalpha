@@ -75,11 +75,11 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js', 'sheet-music.js'), 'utf
   assert.ok(!html.includes('sheet-music-dev-note'), 'Removed WIP preview description must not remain');
   assert.ok(html.indexOf('data/sheet-music/catalog.js') < html.indexOf('js/sheet-music.js'), 'Catalog data must load before catalog API');
 
-  const css = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+  const css = require('./read_stylesheet.cjs').readStylesheet().css;
   assert.ok(/\.nav-btn\[hidden\][\s\S]*?display:\s*none/.test(css), 'nav-btn[hidden] override missing');
   assert.ok(/\.icon-btn\[hidden\][\s\S]*?display:\s*none/.test(css), 'icon-btn[hidden] override missing');
 
-  const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  const app = require('./read_application.cjs').readApplication();
   assert.ok(/devSheetMusic:\s*false/.test(app), 'Sheet Music developer preview must default OFF');
   const unlock = app.slice(app.indexOf('function unlockDevOptions()'), app.indexOf('function bindDevOptionsUnlock()'));
   assert.ok(!/devSheetMusic\s*=/.test(unlock), 'Unlocking Developer Options must not enable Sheet Music');

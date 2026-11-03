@@ -881,7 +881,7 @@
 
       wrap.innerHTML =
         `<button type="button" id="cf-kebab-display-mode" class="cf-menu-primary" aria-pressed="${Display.active}">` +
-          `<svg data-icon="display" viewBox="0 0 24 24"></svg>${escapeHtmlLocal(label)}</button>` +
+          `<svg data-icon="reading-mode" viewBox="0 0 24 24"></svg>${escapeHtmlLocal(label)}</button>` +
         `<div class="cf-menu-settings">` +
           (isPiano ? '' :
           `<div class="cf-menu-section">` +
@@ -1567,6 +1567,7 @@
       this.index = 0;
       this.symbol = parsed.canonical;
       if (input) input.value = parsed.canonical;
+      Picker.syncFromSymbol(parsed);
       if (status) status.textContent = '';
       this.load(results[0]);
     },
@@ -1585,6 +1586,131 @@
       if (next) next.disabled = this.results.length < 2;
       if (count) count.textContent = hasResults ? `${this.index + 1} / ${this.results.length}` : '';
       if (!hasResults && status && !status.textContent) status.textContent = '';
+    },
+  };
+
+  /* ---------- MODULE 6d — CLICK-TO-CHOOSE CHORD ----------
+     A short, intentionally curated list of useful chord qualities/extensions.
+     Every suffix is checked against ChordCore so the selector never builds an
+     unsupported chord. The ordinary text search remains unchanged. */
+  const Picker = {
+    // All roots use the same chromatic pitch classes as ChordCore. Flat names
+    // appear next to sharps so the 12-note list stays approachable.
+    roots: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'],
+    rootLabels: ['C', 'C♯ / D♭', 'D', 'D♯ / E♭', 'E', 'F', 'F♯ / G♭', 'G', 'G♯ / A♭', 'A', 'A♯ / B♭', 'B'],
+    qualities: [
+      { id: 'major', label: 'cfPickerMajor', extras: { '': '', '7': '7', 'maj7': 'maj7', '6': '6', 'add9': 'add9', '9': '9' } },
+      { id: 'minor', label: 'cfPickerMinor', extras: { '': 'm', '7': 'm7', 'maj7': 'mMaj7', '6': 'm6', 'add9': 'madd9', '9': 'm9' } },
+      { id: 'sus2', label: 'cfPickerSus2', extras: { '': 'sus2' } },
+      { id: 'sus4', label: 'cfPickerSus4', extras: { '': 'sus4', '7': '7sus4', '9': '9sus4' } },
+      { id: 'dim', label: 'cfPickerDim', extras: { '': 'dim', '7': 'dim7' } },
+      { id: 'aug', label: 'cfPickerAug', extras: { '': 'aug' } },
+      { id: 'power', label: 'cfPickerPower', extras: { '': '5' } },
+    ],
+    extraLabels: { '': 'cfPickerNone', '7': '7', 'maj7': 'maj7', '6': '6', 'add9': 'add9', '9': '9' },
+    els() {
+      return {
+        toggle: document.getElementById('cf-picker-toggle'),
+        container: document.getElementById('cf-picker'),
+        root: document.getElementById('cf-picker-root'),
+        quality: document.getElementById('cf-picker-quality'),
+        extra: document.getElementById('cf-picker-extra'),
+        show: document.getElementById('cf-picker-show'),
+      };
+    },
+    // Rebuild native selects rather than adding heavy custom dropdown widgets.
+    setOptions(select, entries, selected) {
+      if (!select) return;
+      select.replaceChildren();
+      entries.forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.append(option);
+      });
+      if (entries.some(([value]) => value === selected)) select.value = selected;
+    },
+    quality() {
+      const { quality } = this.els();
+      return this.qualities.find(item => item.id === (quality && quality.value)) || this.qualities[0];
+    },
+    rebuildExtras(keep = '') {
+      const { extra } = this.els();
+      const choices = Object.entries(this.quality().extras)
+        .filter(([, suffix]) => Core.TYPES.some(type => type.suffix === suffix))
+        .map(([value]) => [value, tr(this.extraLabels[value])]);
+      this.setOptions(extra, choices, keep);
+    },
+    symbol() {
+      const { root, extra } = this.els();
+      const note = root && this.roots.includes(root.value) ? root.value : 'C';
+      const suffix = this.quality().extras[extra ? extra.value : ''];
+      return note + (suffix || '');
+    },
+    preview() {
+      const { show } = this.els();
+      if (show) show.textContent = tr('cfPickerShow', this.symbol());
+    },
+    updateInput() {
+      const { input } = Search.els();
+      if (input) input.value = this.symbol();
+      this.preview();
+    },
+    // If someone typed a supported symbol or opened a chord from a song,
+    // opening the chooser begins at that chord rather than a stale choice.
+    syncFromSymbol(parsed) {
+      if (!parsed || parsed.bassName) return;
+      const quality = this.qualities.find(item =>
+        Object.values(item.extras).includes(parsed.suffix));
+      if (!quality) return;
+      const { root, quality: qualitySelect, extra } = this.els();
+      if (!root || !qualitySelect || !extra) return;
+      root.value = this.roots[parsed.root];
+      qualitySelect.value = quality.id;
+      const chosenExtra = Object.keys(quality.extras).find(key => quality.extras[key] === parsed.suffix) || '';
+      this.rebuildExtras(chosenExtra);
+      this.preview();
+    },
+    applyLanguage() {
+      const { toggle, container, root, quality, extra } = this.els();
+      if (!container) return;
+      document.getElementById('cf-picker-note-label').textContent = tr('cfPickerNote');
+      document.getElementById('cf-picker-quality-label').textContent = tr('cfPickerType');
+      document.getElementById('cf-picker-extra-label').textContent = tr('cfPickerExtra');
+      if (toggle) toggle.textContent = tr(container.hidden ? 'cfPickerOpen' : 'cfPickerClose');
+      const currentRoot = root.value || 'C';
+      const currentQuality = quality.value || 'major';
+      const currentExtra = extra.value;
+      this.setOptions(root, this.roots.map((note, pc) =>
+        [note, noteStyle() === 'letters' ? this.rootLabels[pc] : displayNote(pc)]), currentRoot);
+      this.setOptions(quality, this.qualities.map(item => [item.id, tr(item.label)]), currentQuality);
+      this.rebuildExtras(currentExtra);
+      this.preview();
+    },
+    toggle() {
+      const { toggle, container } = this.els();
+      if (!toggle || !container) return;
+      if (container.hidden) {
+        this.syncFromSymbol(parseChordSymbol(Search.els().input?.value));
+        container.hidden = false;
+      } else {
+        container.hidden = true;
+      }
+      toggle.setAttribute('aria-expanded', String(!container.hidden));
+      toggle.textContent = tr(container.hidden ? 'cfPickerOpen' : 'cfPickerClose');
+    },
+    init() {
+      const { toggle, root, quality, extra, show } = this.els();
+      if (!toggle || !root || !quality || !extra || !show) return;
+      this.applyLanguage();
+      toggle.addEventListener('click', () => this.toggle());
+      root.addEventListener('change', () => this.updateInput());
+      quality.addEventListener('change', () => {
+        this.rebuildExtras(extra.value);
+        this.updateInput();
+      });
+      extra.addEventListener('change', () => this.updateInput());
+      show.addEventListener('click', () => Search.run(this.symbol()));
     },
   };
 
@@ -1662,6 +1788,7 @@
     }
 
     Search.applyLanguage();
+    Picker.init();
     View.buildBoard();
     View.buildPiano();
     View.applyInstrument();
@@ -1677,6 +1804,7 @@
       window.positionSegToggleThumb(View.els.instrument, { instant: true });
     }
     Search.applyLanguage();
+    Picker.applyLanguage();
     View.renderResult(analyze());
     Menu.close(true);
     if (Display.active) Display.render();
@@ -1691,6 +1819,7 @@
     });
     View.applyLabels();
     View.applyPianoLabels();
+    Picker.applyLanguage();
     update();
   }
 

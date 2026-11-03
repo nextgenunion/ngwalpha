@@ -1,5 +1,5 @@
 const fs=require('fs');
-const css=fs.readFileSync(__dirname+'/../css/style.css','utf8');
+const css=require('./read_stylesheet.cjs').readStylesheet().css;
 let failed=0;
 const check=(ok,msg)=>{console.log(ok?'PASS':'FAIL',msg);if(!ok)failed++;};
 const overlay=(css.match(/\.modal-overlay\s*\{[\s\S]*?\n\}/)||[''])[0];

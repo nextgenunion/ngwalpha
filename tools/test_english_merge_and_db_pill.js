@@ -25,11 +25,11 @@ for (const [folder, count] of Object.entries(databases)) {
 }
 const registry = read('js/song-sources.js');
 assert.match(registry, /english:\s*Object\.freeze\([\s\S]*?bundlePrimary:\s*true/);
-const app = read('js/app.js');
+const app = require('./read_application.cjs').readApplication();
 assert.match(app, /if \(DB_SOURCES\[sourceKey\]\.bundlePrimary\) \{/);
 assert.match(app, /const shouldSync = !bundlePrimary &&/);
 assert.match(app, /if \(bundlePrimary\) \{[\s\S]*?await fetchSongBundleSnapshot\(sourceKey\)/);
-const css = read('css/style.css');
+const css = require('./read_stylesheet.cjs').readStylesheet().css;
 assert.match(css, /\.seg-toggle \{[^}]*--seg-inset:\s*2px;[^}]*padding:\s*var\(--seg-inset\);/);
 assert.match(css, /\.seg-toggle-thumb \{[^}]*top:\s*var\(--seg-inset\);\s*bottom:\s*var\(--seg-inset\);\s*left:\s*var\(--seg-inset\);/);
 assert.match(css, /\.db-picker-tabs\.seg-toggle\s*\{\s*--seg-inset:\s*3px;\s*\}/);
