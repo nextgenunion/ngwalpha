@@ -711,19 +711,9 @@
       </div>
       <button id="cf-picker-toggle" class="cf-picker-toggle" type="button" aria-expanded="false" aria-controls="cf-picker">Choose chord ▾</button>
       <div id="cf-picker" class="cf-picker" hidden>
-        <label class="cf-picker-field" for="cf-picker-root">
-          <span id="cf-picker-note-label">Note</span>
-          <select id="cf-picker-root" aria-labelledby="cf-picker-note-label"></select>
-        </label>
-        <label class="cf-picker-field" for="cf-picker-quality">
-          <span id="cf-picker-quality-label">Type</span>
-          <select id="cf-picker-quality" aria-labelledby="cf-picker-quality-label"></select>
-        </label>
-        <label class="cf-picker-field" for="cf-picker-extra">
-          <span id="cf-picker-extra-label">Extra</span>
-          <select id="cf-picker-extra" aria-labelledby="cf-picker-extra-label"></select>
-        </label>
-        <button id="cf-picker-show" class="cf-picker-show" type="button">Show C</button>
+        <select id="cf-picker-root" aria-label="Note"></select>
+        <select id="cf-picker-quality" aria-label="Type"></select>
+        <select id="cf-picker-extra" aria-label="Extra"></select>
       </div>
       <div class="cf-search-nav" id="cf-search-nav" hidden>
         <button id="cf-search-prev" type="button" class="cf-search-arrow" aria-label="Previous voicing">‹</button>
@@ -735,19 +725,7 @@
     <div class="cf-board" id="cf-board"></div>
     <div class="cf-board cf-piano" id="cf-piano-board" hidden></div>
     <div class="cf-toolbar">
-      <button class="btn-secondary" id="cf-clear-btn" type="button">Clear all</button>
-    </div>
-    <div class="settings-row settings-row-note-names">
-      <svg class="settings-row-icon" data-icon="music-note" viewBox="0 0 24 24" aria-hidden="true"></svg>
-      <div class="settings-row-text">
-        <label class="settings-row-title" for="note-name-select" id="t-noteNamesTitle">Note names</label>
-        <span class="settings-row-sub settings-desc-hideable" id="t-noteNamesSub">Names shown on piano and guitar notes</span>
-      </div>
-      <select class="select-input" id="note-name-select" aria-labelledby="t-noteNamesTitle">
-        <option value="letters">C D E F G A B</option>
-        <option value="solfege">Do Re Mi Fa Sol La Si</option>
-        <option value="mongolian">До Ре Ми Фа Соль Ля Си</option>
-      </select>
+      <button class="cf-clear" id="cf-clear-btn" type="button">Clear all</button>
     </div>
   </section>
 
@@ -977,6 +955,17 @@
       <button id="dev-credits-toggle" class="switch" role="switch" aria-checked="false" aria-label="Show credits">
         <span class="switch-knob"></span>
       </button>
+    </div>
+    <div class="settings-row settings-row-note-names">
+      <div class="settings-row-text">
+        <label class="settings-row-title" for="note-name-select" id="t-noteNamesTitle">Note names</label>
+        <span class="settings-row-sub settings-desc-hideable" id="t-noteNamesSub">Names shown on piano and guitar notes</span>
+      </div>
+      <select class="select-input" id="note-name-select" aria-labelledby="t-noteNamesTitle">
+        <option value="letters">C D E F G A B</option>
+        <option value="solfege">Do Re Mi Fa Sol La Si</option>
+        <option value="mongolian">До Ре Ми Фа Соль Ля Си</option>
+      </select>
     </div>
     <div class="settings-row">
       <div class="settings-row-text">

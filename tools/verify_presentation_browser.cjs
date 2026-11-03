@@ -103,12 +103,9 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   await page.keyboard.press('ArrowRight');
   ok(await q(() => !document.querySelector('.pres-stage').classList.contains('is-blank')), 'navigating un-blanks');
 
-  // Size controls persist.
-  const before = await q(() => parseFloat(document.querySelector('.pres-slide').style.fontSize));
+  // Size controls persist (details are covered by verify_presentation_size_browser.cjs).
   await page.click('[data-pres="larger"]');
-  const after = await q(() => parseFloat(document.querySelector('.pres-slide').style.fontSize));
-  ok(after >= before || after > 0, `A+ does not shrink text (${before.toFixed(0)} -> ${after.toFixed(0)}px)`);
-  ok(await q(() => localStorage.getItem('sb-pres-lines') === '2' && localStorage.getItem('sb-pres-scale') !== null), 'line and size choices are remembered');
+  ok(await q(() => localStorage.getItem('sb-pres-lines') === '2' && localStorage.getItem('sb-pres-size') === '5'), 'line and size choices are remembered');
   await page.click('[data-pres="smaller"]');
 
   // Controls auto-hide, and the cursor hides with them.

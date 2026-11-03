@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.59-alpha)
+# Next Gen Worship — Worship Song App (v5.0.61-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,20 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.61 presentation text size fix
+
+- Text size is now a real, absolute setting: 10 steps (about 20% apart) on a unit that follows the screen, instead of a starting size that was shrunk to fit one row. Every A+/A- press visibly changes the text, A- exactly retraces A+, and `+` / `-` keys work on PC. Saved as `sb-pres-size` (the old `sb-pres-scale` is no longer used).
+- Long lines wrap (balanced) instead of shrinking, so phone text is large (about 40px default). Lyric lines have extra space between them so the song's line breaks stay visible when a line wraps.
+- Only when a slide cannot fit at the chosen size is that one slide reduced, to the largest size that fits.
+- `tools/verify_presentation_size_browser.cjs` checks phone portrait, phone landscape and desktop.
+
+## v5.0.60 chord finder cleanup
+
+- The "Choose chord" panel is now three plain fields (Note, Type, Extra) in one row, styled like the search box. No gray container, labels or "Show" button: every change shows the chord straight away.
+- "Clear all" is a quiet text button instead of an outlined pill with a lip. Mongolian label is now "Арилгах"; the Extra "None" option reads "No extra" / "Нэмэлтгүй".
+- The Note names setting (C D E / Do Re Mi / До Ре Ми) moved from the Chord Finder to Settings → Developer options. Same ids, same saved preference.
+- `tools/verify_chord_picker_browser.cjs` covers instant choose, Clear, and the moved setting.
 
 ## v5.0.57–59 presentation mode
 

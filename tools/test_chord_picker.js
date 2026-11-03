@@ -31,13 +31,13 @@ for (const quality of picker.qualities) {
   }
 }
 const html = read('index.html');
-for (const id of ['cf-picker-toggle', 'cf-picker', 'cf-picker-root', 'cf-picker-quality', 'cf-picker-extra', 'cf-picker-show']) {
+for (const id of ['cf-picker-toggle', 'cf-picker', 'cf-picker-root', 'cf-picker-quality', 'cf-picker-extra']) {
   assert(html.includes(`id="${id}"`), `missing ${id}`);
 }
 const langKeys = [
   'cfPickerOpen', 'cfPickerClose', 'cfPickerNote', 'cfPickerType', 'cfPickerExtra',
   'cfPickerNone', 'cfPickerMajor', 'cfPickerMinor', 'cfPickerSus2',
-  'cfPickerSus4', 'cfPickerDim', 'cfPickerAug', 'cfPickerPower', 'cfPickerShow',
+  'cfPickerSus4', 'cfPickerDim', 'cfPickerAug', 'cfPickerPower',
 ];
 for (const lang of ['eng', 'mn', 'mn2', 'kr']) {
   vm.runInNewContext(read(`lang/${lang}.js`), ctx);

@@ -256,7 +256,19 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   gap: 12px;
   margin-top: 10px;
 }
-.cf-toolbar .btn-secondary { flex: 0 0 auto; }
+.cf-clear {
+  border: 0;
+  padding: 6px 2px;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+.cf-clear:hover { color: var(--accent-strong); }
+.cf-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The identified chord now lives BELOW the fretboard. Its minimum height is
    stable, so changing from hint → chord → alternatives never kicks the neck

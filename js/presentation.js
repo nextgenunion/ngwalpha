@@ -21,12 +21,16 @@
   'use strict';
 
   const LS_LINES = 'sb-pres-lines';
-  const LS_SCALE = 'sb-pres-scale';
+  const LS_SIZE = 'sb-pres-size';
   const LINE_CHOICES = [1, 2, 3, 4, 0]; // 0 = whole section
   const DEFAULT_LINES = 2;
-  const SCALE_MIN = 0.6;
-  const SCALE_MAX = 1.6;
-  const SCALE_STEP = 0.1;
+  // Text size is a real, absolute setting (not a starting point that gets
+  // shrunk to fit). Each step is ~20% bigger than the last, so every press
+  // visibly changes the text; the multiplier applies to a unit that follows the
+  // screen size (see baseUnit()).
+  const SIZE_STEPS = [0.45, 0.55, 0.67, 0.82, 1.0, 1.2, 1.45, 1.75, 2.1, 2.5];
+  const DEFAULT_SIZE = 4;
+  const MIN_FONT_PX = 12;
   const CONTROLS_IDLE_MS = 2500;
   const SWIPE_PX = 50;
 
@@ -35,7 +39,7 @@
   let slides = [];
   let index = 0;
   let linesPerSlide = DEFAULT_LINES;
-  let scale = 1;
+  let sizeIndex = DEFAULT_SIZE;
   let blanked = false;
   let idleTimer = null;
   let wakeLock = null;
@@ -47,8 +51,8 @@
     try {
       const lines = parseInt(localStorage.getItem(LS_LINES), 10);
       if (LINE_CHOICES.includes(lines)) linesPerSlide = lines;
-      const sc = parseFloat(localStorage.getItem(LS_SCALE));
-      if (Number.isFinite(sc)) scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, sc));
+      const size = parseInt(localStorage.getItem(LS_SIZE), 10);
+      if (Number.isInteger(size) && size >= 0 && size < SIZE_STEPS.length) sizeIndex = size;
     } catch (_) {}
   }
   function savePref(key, value) {
@@ -187,39 +191,39 @@
     fitText();
   }
 
-  // Largest text that fits the stage. Each lyric line is kept on one row
-  // while that stays readable (so line breaks in the song stay visible to the
-  // audience); only a very long line is allowed to wrap.
+  // One unit for the whole screen: ~7% of the geometric mean of width and
+  // height, so a desktop window and a phone both get a comfortable default
+  // (about 67px on 1280x720, 40px on a phone) and the step multipliers feel
+  // the same everywhere.
+  function baseUnit() {
+    return Math.sqrt(window.innerWidth * window.innerHeight) * 0.07;
+  }
+
+  // The chosen size is applied exactly. Only if a slide cannot fit on the
+  // screen at that size is that one slide reduced, to the largest size that
+  // fits (binary search, so the result never wobbles between steps).
   function fitText() {
     if (!root) return;
     const stage = root.querySelector('.pres-stage');
     const card = stage.firstElementChild;
     if (!card) return;
-    const base = Math.min(window.innerWidth * 0.075, window.innerHeight * 0.17) * scale;
-    const start = card.classList.contains('is-title') ? base * 0.9 : base;
-    const min = 14;
+    const chosen = baseUnit() * SIZE_STEPS[sizeIndex] * (card.classList.contains('is-title') ? 0.9 : 1);
     // The stage has padding; the slide must fit inside its content box.
     const cs = getComputedStyle(stage);
     const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    const overflows = () => card.scrollWidth > availW + 1 || card.scrollHeight > availH + 1;
-    const shrink = (from, floor) => {
-      let size = from, guard = 60;
-      card.style.fontSize = size + 'px';
-      while (guard-- > 0 && size > floor && overflows()) {
-        size *= 0.95;
-        card.style.fontSize = size + 'px';
-      }
-      return size;
+    const fits = (px) => {
+      card.style.fontSize = px + 'px';
+      return card.scrollWidth <= availW + 1 && card.scrollHeight <= availH + 1;
     };
-    card.classList.add('is-nowrap');
-    const single = shrink(start, Math.max(min, start * 0.45));
-    if (overflows()) {
-      card.classList.remove('is-nowrap');
-      shrink(start, min);
-    } else if (single < min) {
-      card.style.fontSize = min + 'px';
+    if (fits(chosen)) return;
+    let lo = MIN_FONT_PX, hi = chosen;
+    if (!fits(lo)) { card.style.fontSize = lo + 'px'; return; }
+    for (let i = 0; i < 12 && hi - lo > 0.5; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid; else hi = mid;
     }
+    card.style.fontSize = lo + 'px';
   }
 
   function syncControls() {
@@ -227,8 +231,8 @@
     root.querySelectorAll('[data-pres-lines]').forEach(btn => {
       btn.setAttribute('aria-pressed', String(parseInt(btn.dataset.presLines, 10) === linesPerSlide));
     });
-    root.querySelector('[data-pres="smaller"]').disabled = scale <= SCALE_MIN + 0.001;
-    root.querySelector('[data-pres="larger"]').disabled = scale >= SCALE_MAX - 0.001;
+    root.querySelector('[data-pres="smaller"]').disabled = sizeIndex <= 0;
+    root.querySelector('[data-pres="larger"]').disabled = sizeIndex >= SIZE_STEPS.length - 1;
   }
 
   // ---------- navigation ----------
@@ -262,9 +266,11 @@
     renderSlide();
   }
 
-  function setScale(next) {
-    scale = Math.min(SCALE_MAX, Math.max(SCALE_MIN, Math.round(next * 10) / 10));
-    savePref(LS_SCALE, scale);
+  function setSize(next) {
+    const clamped = Math.min(SIZE_STEPS.length - 1, Math.max(0, next));
+    if (clamped === sizeIndex) return;
+    sizeIndex = clamped;
+    savePref(LS_SIZE, sizeIndex);
     syncControls();
     fitText();
   }
@@ -315,6 +321,8 @@
       case 'b': case 'B': case '.':
         blanked = !blanked; renderSlide(); break;
       case 'f': case 'F': toggleFullscreen(); break;
+      case '+': case '=': setSize(sizeIndex + 1); break;
+      case '-': case '_': setSize(sizeIndex - 1); break;
       case 'Escape': requestClose(); break;
       default: handled = false;
     }
@@ -331,8 +339,8 @@
     e.stopPropagation();
     if (btn.dataset.presLines != null) setLines(parseInt(btn.dataset.presLines, 10));
     else if (btn.dataset.pres === 'close') requestClose();
-    else if (btn.dataset.pres === 'smaller') setScale(scale - SCALE_STEP);
-    else if (btn.dataset.pres === 'larger') setScale(scale + SCALE_STEP);
+    else if (btn.dataset.pres === 'smaller') setSize(sizeIndex - 1);
+    else if (btn.dataset.pres === 'larger') setSize(sizeIndex + 1);
     showControls();
   }
 

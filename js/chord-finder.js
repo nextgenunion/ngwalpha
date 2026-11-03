@@ -1615,7 +1615,6 @@
         root: document.getElementById('cf-picker-root'),
         quality: document.getElementById('cf-picker-quality'),
         extra: document.getElementById('cf-picker-extra'),
-        show: document.getElementById('cf-picker-show'),
       };
     },
     // Rebuild native selects rather than adding heavy custom dropdown widgets.
@@ -1647,14 +1646,14 @@
       const suffix = this.quality().extras[extra ? extra.value : ''];
       return note + (suffix || '');
     },
-    preview() {
-      const { show } = this.els();
-      if (show) show.textContent = tr('cfPickerShow', this.symbol());
-    },
     updateInput() {
       const { input } = Search.els();
       if (input) input.value = this.symbol();
-      this.preview();
+    },
+    // Choosing is instant: every change shows the chord, no extra button.
+    choose() {
+      this.updateInput();
+      Search.run(this.symbol());
     },
     // If someone typed a supported symbol or opened a chord from a song,
     // opening the chooser begins at that chord rather than a stale choice.
@@ -1669,14 +1668,13 @@
       qualitySelect.value = quality.id;
       const chosenExtra = Object.keys(quality.extras).find(key => quality.extras[key] === parsed.suffix) || '';
       this.rebuildExtras(chosenExtra);
-      this.preview();
     },
     applyLanguage() {
       const { toggle, container, root, quality, extra } = this.els();
       if (!container) return;
-      document.getElementById('cf-picker-note-label').textContent = tr('cfPickerNote');
-      document.getElementById('cf-picker-quality-label').textContent = tr('cfPickerType');
-      document.getElementById('cf-picker-extra-label').textContent = tr('cfPickerExtra');
+      root.setAttribute('aria-label', tr('cfPickerNote'));
+      quality.setAttribute('aria-label', tr('cfPickerType'));
+      extra.setAttribute('aria-label', tr('cfPickerExtra'));
       if (toggle) toggle.textContent = tr(container.hidden ? 'cfPickerOpen' : 'cfPickerClose');
       const currentRoot = root.value || 'C';
       const currentQuality = quality.value || 'major';
@@ -1685,7 +1683,6 @@
         [note, noteStyle() === 'letters' ? this.rootLabels[pc] : displayNote(pc)]), currentRoot);
       this.setOptions(quality, this.qualities.map(item => [item.id, tr(item.label)]), currentQuality);
       this.rebuildExtras(currentExtra);
-      this.preview();
     },
     toggle() {
       const { toggle, container } = this.els();
@@ -1700,17 +1697,16 @@
       toggle.textContent = tr(container.hidden ? 'cfPickerOpen' : 'cfPickerClose');
     },
     init() {
-      const { toggle, root, quality, extra, show } = this.els();
-      if (!toggle || !root || !quality || !extra || !show) return;
+      const { toggle, root, quality, extra } = this.els();
+      if (!toggle || !root || !quality || !extra) return;
       this.applyLanguage();
       toggle.addEventListener('click', () => this.toggle());
-      root.addEventListener('change', () => this.updateInput());
+      root.addEventListener('change', () => this.choose());
       quality.addEventListener('change', () => {
         this.rebuildExtras(extra.value);
-        this.updateInput();
+        this.choose();
       });
-      extra.addEventListener('change', () => this.updateInput());
-      show.addEventListener('click', () => Search.run(this.symbol()));
+      extra.addEventListener('change', () => this.choose());
     },
   };
 
