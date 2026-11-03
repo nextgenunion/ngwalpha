@@ -27,7 +27,7 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
     });
     await page.waitForTimeout(300);
     await page.keyboard.press('ArrowRight');
-    const size = () => page.evaluate(() => parseFloat(document.querySelector('.pres-slide').style.fontSize));
+    const size = () => page.evaluate(() => parseFloat(document.querySelector('.pres-slide.is-current').style.fontSize));
     const press = (sel) => page.evaluate((s) => document.querySelector(s).click(), sel);
     const def = await size();
     ok(vp.w > 600 || def >= 30, `${vp.n}: default size is readable (${def.toFixed(0)}px)`);
@@ -50,7 +50,7 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
     for (let i = 0; i < 9; i++) {
       await press('[data-pres="larger"]');
       const inside = await page.evaluate(() => {
-        const st = document.querySelector('.pres-stage'), c = st.firstElementChild;
+        const st = document.querySelector('.pres-stage'), c = st.querySelector('.pres-slide.is-current');
         const r = c.getBoundingClientRect(), sr = st.getBoundingClientRect();
         return r.top >= sr.top - 1 && r.bottom <= sr.bottom + 1 && r.left >= sr.left - 1 && r.right <= sr.right + 1;
       });

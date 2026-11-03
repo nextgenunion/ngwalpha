@@ -3,6 +3,8 @@
 // Covers: menu item below Reading mode, slide building (no chords, labels,
 // 1-4 lines/whole section), keyboard + click + swipe-free navigation, blank,
 // size controls, history (Back closes, song stays), desktop and phone sizes.
+// (5.0.62: the control panel is hidden until S / top edge, so the checks reveal it first.
+// Fill, the clean launch and the crossfade are covered by verify_presentation_v5062_browser.cjs.)
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
 const root = path.join(__dirname, '..');
@@ -47,34 +49,38 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   await page.waitForSelector('#presentation-overlay');
 
   const q = async (fn, arg) => page.evaluate(fn, arg);
+  const showPanel = async () => { if (!(await q(() => document.getElementById('presentation-overlay').classList.contains('controls-visible')))) await page.keyboard.press('s'); };
   ok(await q(() => SongPresentation.isOpen()), 'overlay opens');
   ok(await q(() => history.length) === histBefore + 1 && await q(() => history.state.presentation === true), 'opening adds one history entry');
 
   // Title slide first, then lyrics without chords.
-  ok(await q(() => !!document.querySelector('.pres-slide.is-title')), 'first slide is the title slide');
+  ok(await q(() => !!document.querySelector('.pres-slide.is-current.is-title')), 'first slide is the title slide');
   await page.keyboard.press('ArrowRight');
-  const s1 = await q(() => ({ txt: document.querySelector('.pres-slide').textContent, lines: document.querySelectorAll('.pres-line').length }));
+  const s1 = await q(() => ({ txt: document.querySelector('.pres-slide.is-current').textContent, lines: document.querySelectorAll('.pres-slide.is-current .pres-line').length }));
   ok(!/\[|\]/.test(s1.txt), 'no chord brackets on lyric slides');
   ok(s1.lines === 2, `default is 2 lines per slide (got ${s1.lines})`);
 
   // Lines per slide.
   for (const n of [1, 3, 4]) {
+    await showPanel();
     await page.click(`[data-pres-lines="${n}"]`);
-    const got = await q(() => document.querySelectorAll('.pres-line').length);
+    const got = await q(() => document.querySelectorAll('.pres-slide.is-current .pres-line').length);
     ok(got >= 1 && got <= n, `${n} line(s) per slide -> ${got} lines shown`);
   }
+  await showPanel();
   await page.click('[data-pres-lines="0"]');
-  const whole = await q(() => document.querySelectorAll('.pres-line').length);
-  ok(whole >= 2, `whole section shows the full part (${whole} lines)`);
+  const whole = await q(() => document.querySelectorAll('.pres-slide.is-current .pres-line').length);
+  ok(whole >= 2, `Fill shows several lines of the part (${whole} lines)`);
+  await showPanel();
   await page.click('[data-pres-lines="2"]');
 
   // Fit: text never overflows the stage.
-  const fits = await q(() => { const st = document.querySelector('.pres-stage'), c = st.firstElementChild; const cs = getComputedStyle(st), w = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); const r = c.getBoundingClientRect(), sr = st.getBoundingClientRect(); return c.scrollHeight <= h + 1 && c.scrollWidth <= w + 1 && r.left >= sr.left && r.right <= sr.right + 1; });
+  const fits = await q(() => { const st = document.querySelector('.pres-stage'), c = st.querySelector('.pres-slide.is-current'); const cs = getComputedStyle(st), w = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); const r = c.getBoundingClientRect(), sr = st.getBoundingClientRect(); return c.scrollHeight <= h + 1 && c.scrollWidth <= w + 1 && r.left >= sr.left && r.right <= sr.right + 1; });
   ok(fits, 'slide text fits the stage');
 
   // Navigation: keys.
   await page.keyboard.press('Home');
-  ok(await q(() => !!document.querySelector('.pres-slide.is-title')), 'Home goes to first slide');
+  ok(await q(() => !!document.querySelector('.pres-slide.is-current.is-title')), 'Home goes to first slide');
   await page.keyboard.press('End');
   const last = await q(() => document.querySelector('.pres-counter').textContent.split(' / '));
   ok(last[0] === last[1], `End goes to last slide (${last.join('/')})`);
@@ -89,11 +95,12 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   await page.keyboard.press('Home');
   await page.mouse.click(900, 400);
   ok(await q(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]) === 2, 'click on the right third advances');
+  await page.waitForTimeout(2800); // let the panel (opened earlier with S) hide itself first
   await page.mouse.click(640, 400);
   await page.mouse.click(640, 400);
   await page.mouse.click(640, 400);
   ok(await q(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]) === 2, 'clicking the middle never changes the slide');
-  ok(await q(() => document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'middle click shows the controls');
+  ok(await q(() => !document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'a mouse click in the middle does not show the controls');
   await page.mouse.click(100, 400);
   ok(await q(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]) === 1, 'click on the left third goes back');
 
@@ -104,21 +111,26 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   ok(await q(() => !document.querySelector('.pres-stage').classList.contains('is-blank')), 'navigating un-blanks');
 
   // Size controls persist (details are covered by verify_presentation_size_browser.cjs).
+  await showPanel();
   await page.click('[data-pres="larger"]');
   ok(await q(() => localStorage.getItem('sb-pres-lines') === '2' && localStorage.getItem('sb-pres-size') === '5'), 'line and size choices are remembered');
+  await showPanel();
   await page.click('[data-pres="smaller"]');
 
-  // Controls auto-hide, and the cursor hides with them.
+  // Controls: never from plain mouse movement; S shows them; they hide again by themselves.
   await page.mouse.move(640, 300);
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(3200);
   ok(await q(() => !document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'controls hide when idle');
   await page.mouse.move(650, 310);
-  ok(await q(() => document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'mouse move shows controls');
+  await page.mouse.move(700, 350);
+  ok(await q(() => !document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'mouse move does not show controls');
+  await page.keyboard.press('s');
+  ok(await q(() => document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'S shows controls');
 
   // Resize keeps fit.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(150);
-  const fitsPhone = await q(() => { const st = document.querySelector('.pres-stage'), c = st.firstElementChild; const cs = getComputedStyle(st), w = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); const r = c.getBoundingClientRect(), sr = st.getBoundingClientRect(); return c.scrollHeight <= h + 1 && c.scrollWidth <= w + 1 && r.left >= sr.left && r.right <= sr.right + 1; });
+  const fitsPhone = await q(() => { const st = document.querySelector('.pres-stage'), c = st.querySelector('.pres-slide.is-current'); const cs = getComputedStyle(st), w = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); const r = c.getBoundingClientRect(), sr = st.getBoundingClientRect(); return c.scrollHeight <= h + 1 && c.scrollWidth <= w + 1 && r.left >= sr.left && r.right <= sr.right + 1; });
   ok(fitsPhone, 'slide still fits at phone size');
   await page.screenshot({ path: '/tmp/pres-phone.png' });
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -141,7 +153,7 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   ok(await q(() => !SongPresentation.isOpen()) && await q(() => state.currentPage === 'song-view'), 'Escape closes and stays on the song');
   await page.click('#sv-menu-btn'); await page.click('#sv-kebab-presentation');
   await page.waitForSelector('#presentation-overlay');
-  await page.mouse.move(600, 200);
+  await page.keyboard.press('s');
   await page.click('[data-pres="close"]');
   await page.waitForTimeout(300);
   ok(await q(() => !SongPresentation.isOpen()) && await q(() => state.currentPage === 'song-view'), 'X button closes and stays on the song');

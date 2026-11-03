@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.61-alpha)
+# Next Gen Worship — Worship Song App (v5.0.62-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,17 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.62 presentation: Fill, clean launch, quiet controls, crossfade
+
+- **Fill** replaces **All** (Mongolian "Дүүргэх", Korean "채우기"; key `presentationFillLines`). It packs as many lines as fit on the screen at the chosen text size, without crossing into the next part of the song, so bigger text means fewer lines per slide. It re-groups when the text size, window size or fonts change and stays on the lyric being shown. A saved "All" (`sb-pres-lines` = 0) simply becomes Fill.
+- **Launch** is a clean black title slide: no control panel, counter, hint text or mouse cursor.
+- **Controls on PC** no longer appear when the mouse moves (a nudged mouse on a projector would flash them). They show only when the mouse is pushed to the top edge (held about 0.15 s) or **S** is pressed (S again hides). A click in the middle of the screen does nothing with a mouse; on touch a middle tap still shows/hides them. The cursor is hidden except while the panel is visible.
+- **Control panel** is a small, quiet floating panel with Lines, Size and Transition (plus the exit button and slide counter). It hides itself after about 2 s, but not while the mouse is over it.
+- **Transitions**: **Cut** swaps instantly. **Fade** is a true 0.3 s crossfade (the old slide fades out while the new one fades in; it used to only fade in with a slight drift). Both choices are remembered (`sb-pres-transition`); devices with reduced motion always get Cut and the Transition group is hidden.
+- Long lines already wrap (5.0.61); line spacing is now slightly larger (0.5em, tighter leading inside a wrapped line) so the song's own line breaks still read. Lines wrap between words only: a single word wider than the screen is never cut in half, that one slide is reduced just enough to fit it. The reduced size is found on a fixed 0.5px grid so it no longer wobbles between steps.
+- New strings in all four `lang/*.js` files: `presentationFillLines`, `presentationTransitionLabel`, `presentationCut`, `presentationFade`; `presentationAllLines` is removed and the hint mentions **S**. The Mongolian/Korean wording is a first draft.
+- `tools/verify_presentation_browser.cjs` and `tools/verify_presentation_size_browser.cjs` are updated, and `tools/verify_presentation_v5062_browser.cjs` covers Fill, the clean launch, the controls rules and the crossfade.
 
 ## v5.0.61 presentation text size fix
 

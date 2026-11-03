@@ -3,8 +3,14 @@
 //
 // Built desktop-first (most presentations are run from a computer: keyboard,
 // mouse, fullscreen on a projector or second screen) while staying usable by
-// touch. Chords are never shown. Lyrics are split into slides of N lines
-// (1-4, or a whole section), shown large and centered.
+// touch. Chords are never shown. Lyrics are split into slides of 1-4 lines, or
+// "Fill": as many lines as fit on the screen at the chosen text size, without
+// crossing into the next part of the song.
+//
+// Built for a projector: it opens on a clean black title slide with nothing
+// else on screen (no controls, counter, hint or cursor). The control panel is
+// never shown by mouse movement alone — only by pushing the mouse to the top
+// edge, or by pressing S (or by tapping the middle of the screen on a phone).
 //
 // This module owns only the overlay. ui.js decides how it is opened/closed
 // (history entry, popstate) and passes in what it needs — see
@@ -15,15 +21,20 @@
 //     background lives in its own layer (.pres-bg) so it can be swapped
 //     without touching the lyric stage.
 //   - PNG export: buildSlides() returns plain data (label + lines), separate
-//     from the DOM in renderSlide(), so a canvas exporter can reuse it.
+//     from the DOM in buildCard(), so a canvas exporter can reuse it.
 // ============================================================================
 (function () {
   'use strict';
 
   const LS_LINES = 'sb-pres-lines';
   const LS_SIZE = 'sb-pres-size';
-  const LINE_CHOICES = [1, 2, 3, 4, 0]; // 0 = whole section
+  const LS_TRANSITION = 'sb-pres-transition';
+  const FILL = 0; // lines setting: pack as many lines as fit (was "All" before 5.0.62)
+  const LINE_CHOICES = [1, 2, 3, 4, FILL];
   const DEFAULT_LINES = 2;
+  const TRANSITIONS = ['cut', 'fade'];
+  const DEFAULT_TRANSITION = 'fade';
+  const FADE_MS = 300;
   // Text size is a real, absolute setting (not a starting point that gets
   // shrunk to fit). Each step is ~20% bigger than the last, so every press
   // visibly changes the text; the multiplier applies to a unit that follows the
@@ -31,8 +42,12 @@
   const SIZE_STEPS = [0.45, 0.55, 0.67, 0.82, 1.0, 1.2, 1.45, 1.75, 2.1, 2.5];
   const DEFAULT_SIZE = 4;
   const MIN_FONT_PX = 12;
-  const CONTROLS_IDLE_MS = 2500;
+  const CONTROLS_IDLE_MS = 2200;
+  const EDGE_PX = 3;        // mouse this close to the top edge asks for the controls...
+  const EDGE_DWELL_MS = 150; // ...and has to stay there briefly, so a fly-by doesn't flash them
   const SWIPE_PX = 50;
+
+  const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 
   let root = null;        // overlay element while open
   let cfg = null;         // options passed to open()
@@ -40,8 +55,12 @@
   let index = 0;
   let linesPerSlide = DEFAULT_LINES;
   let sizeIndex = DEFAULT_SIZE;
+  let transition = DEFAULT_TRANSITION;
   let blanked = false;
   let idleTimer = null;
+  let edgeTimer = null;
+  let panelHover = false;
+  let refreshFrame = 0;
   let wakeLock = null;
   let restoreFocus = null;
   let swipe = null;
@@ -53,10 +72,20 @@
       if (LINE_CHOICES.includes(lines)) linesPerSlide = lines;
       const size = parseInt(localStorage.getItem(LS_SIZE), 10);
       if (Number.isInteger(size) && size >= 0 && size < SIZE_STEPS.length) sizeIndex = size;
+      const tr = localStorage.getItem(LS_TRANSITION);
+      if (TRANSITIONS.includes(tr)) transition = tr;
     } catch (_) {}
   }
   function savePref(key, value) {
     try { localStorage.setItem(key, String(value)); } catch (_) {}
+  }
+
+  // Devices that ask for reduced motion always get Cut; the saved choice is
+  // left alone so it comes back if the setting is turned off.
+  function reducedMotion() { return !!(motionQuery && motionQuery.matches); }
+  function effectiveTransition() { return reducedMotion() ? 'cut' : transition; }
+  function canAnimate() {
+    return effectiveTransition() === 'fade' && typeof Element.prototype.animate === 'function';
   }
 
   // ---------- slide model (plain data, no DOM) ----------
@@ -98,16 +127,47 @@
     return out;
   }
 
-  function buildSlides(song, perSlide, titleInfo) {
+  // perSlide: 1-4 = that many lines per slide; 0 (FILL) = as many lines as
+  // fit. "Fits" is decided by the optional fits(label, lines) callback, because
+  // it depends on the screen and text size; without it (tests, a future PNG
+  // exporter) Fill keeps a whole section together. A part never spills into the
+  // next one, and every lyric slide records where it came from (section, start)
+  // so the audience can be kept on the same lyric when the grouping changes.
+  function buildSlides(song, perSlide, titleInfo, fits) {
     const result = [];
     if (titleInfo && titleInfo.title) result.push({ kind: 'title', number: titleInfo.number, title: titleInfo.title, artist: titleInfo.artist });
-    buildSections(song.lyrics).forEach(section => {
-      const size = perSlide > 0 ? perSlide : section.lines.length;
-      for (let i = 0; i < section.lines.length; i += size) {
-        result.push({ kind: 'lyrics', label: section.label, lines: section.lines.slice(i, i + size) });
+    buildSections(song.lyrics).forEach((section, si) => {
+      const total = section.lines.length;
+      let start = 0;
+      while (start < total) {
+        let end;
+        if (perSlide > 0) end = Math.min(total, start + perSlide);
+        else if (typeof fits !== 'function') end = total;
+        else {
+          // The first line always gets a slide (it is shrunk later if it is
+          // taller than the screen); more lines join while they still fit.
+          end = start + 1;
+          while (end < total && fits(section.label, section.lines.slice(start, end + 1))) end++;
+        }
+        result.push({ kind: 'lyrics', label: section.label, lines: section.lines.slice(start, end), section: si, start });
+        start = end;
       }
     });
     return result;
+  }
+
+  function anchorOf(slide) {
+    return slide && slide.kind === 'lyrics' ? { section: slide.section, line: slide.start } : null;
+  }
+  function locate(list, anchor) {
+    if (!anchor) return 0;
+    const found = list.findIndex(s => s.kind === 'lyrics' && s.section === anchor.section &&
+      anchor.line >= s.start && anchor.line < s.start + s.lines.length);
+    return found >= 0 ? found : 0;
+  }
+  function sameSlides(a, b) {
+    return a.length === b.length && a.every((s, i) => s.kind === b[i].kind && s.section === b[i].section &&
+      s.start === b[i].start && (s.lines ? s.lines.length : 0) === (b[i].lines ? b[i].lines.length : 0));
   }
 
   // ---------- DOM ----------
@@ -118,6 +178,11 @@
     return node;
   }
 
+  function escapeHtmlLocal(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  const escapeAttr = escapeHtmlLocal;
+
   function addLyricText(parent, rawLine) {
     if (typeof encodeLyricMarkdown === 'function' && typeof appendFormattedLyricText === 'function') {
       appendFormattedLyricText(parent, encodeLyricMarkdown(rawLine).replace(/\s+/g, ' ').trim(),
@@ -125,11 +190,31 @@
     } else parent.textContent = plainLine(rawLine);
   }
 
+  function buildLine(rawLine) {
+    const p = el('p', 'pres-line');
+    addLyricText(p, rawLine);
+    return p;
+  }
+
+  function buildCard(slide) {
+    const card = el('div', 'pres-slide ' + (slide.kind === 'title' ? 'is-title' : 'is-lyrics'));
+    if (slide.kind === 'title') {
+      if (slide.number != null && slide.number !== '') card.appendChild(el('div', 'pres-title-number', '#' + slide.number));
+      card.appendChild(el('div', 'pres-title-text', slide.title));
+      if (slide.artist) card.appendChild(el('div', 'pres-title-artist', slide.artist));
+    } else {
+      if (slide.label) card.appendChild(el('div', 'pres-label', slide.label));
+      slide.lines.forEach(line => card.appendChild(buildLine(line)));
+    }
+    return card;
+  }
+
   function buildOverlay() {
     const t = cfg.t;
     const o = el('div', 'pres-overlay');
     o.id = 'presentation-overlay';
     o.tabIndex = -1;
+    o.dataset.transition = effectiveTransition();
     o.setAttribute('role', 'dialog');
     o.setAttribute('aria-modal', 'true');
     o.setAttribute('aria-label', t('presentationModeBtn'));
@@ -139,18 +224,27 @@
     stage.setAttribute('aria-live', 'polite');
     o.appendChild(stage);
 
+    const chip = (attr, value, text, extra) =>
+      `<button type="button" class="pres-btn pres-chip" ${attr}="${value}" aria-pressed="false"${extra || ''}>${escapeHtmlLocal(text)}</button>`;
     const bar = el('div', 'pres-bar');
     bar.innerHTML = `
-      <button type="button" class="pres-btn pres-icon-btn" data-pres="close" aria-label="${escapeAttr(t('presentationExit'))}"><svg data-icon="close" viewBox="0 0 24 24"></svg></button>
-      <span class="pres-counter" aria-hidden="true"></span>
+      <div class="pres-head">
+        <button type="button" class="pres-btn pres-icon-btn" data-pres="close" aria-label="${escapeAttr(t('presentationExit'))}"><svg data-icon="close" viewBox="0 0 24 24"></svg></button>
+        <span class="pres-counter" aria-hidden="true"></span>
+      </div>
       <div class="pres-group" role="group" aria-label="${escapeAttr(t('presentationLinesLabel'))}">
         <span class="pres-group-label">${escapeHtmlLocal(t('presentationLinesLabel'))}</span>
-        ${LINE_CHOICES.map(n => `<button type="button" class="pres-btn pres-chip" data-pres-lines="${n}" aria-pressed="false">${n === 0 ? escapeHtmlLocal(t('presentationAllLines')) : n}</button>`).join('')}
+        ${LINE_CHOICES.map(n => chip('data-pres-lines', n, n === FILL ? t('presentationFillLines') : String(n))).join('')}
       </div>
       <div class="pres-group" role="group" aria-label="${escapeAttr(t('presentationTextSize'))}">
         <span class="pres-group-label">${escapeHtmlLocal(t('presentationTextSize'))}</span>
         <button type="button" class="pres-btn pres-chip" data-pres="smaller" aria-label="${escapeAttr(t('presentationSmaller'))}">A−</button>
         <button type="button" class="pres-btn pres-chip" data-pres="larger" aria-label="${escapeAttr(t('presentationLarger'))}">A+</button>
+      </div>
+      <div class="pres-group" data-pres-transition-group role="group" aria-label="${escapeAttr(t('presentationTransitionLabel'))}">
+        <span class="pres-group-label">${escapeHtmlLocal(t('presentationTransitionLabel'))}</span>
+        ${chip('data-pres-transition', 'cut', t('presentationCut'))}
+        ${chip('data-pres-transition', 'fade', t('presentationFade'))}
       </div>`;
     o.appendChild(bar);
 
@@ -160,37 +254,7 @@
     return o;
   }
 
-  function escapeHtmlLocal(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-  const escapeAttr = escapeHtmlLocal;
-
-  function renderSlide() {
-    if (!root) return;
-    const stage = root.querySelector('.pres-stage');
-    const slide = slides[index];
-    stage.textContent = '';
-    stage.classList.toggle('is-blank', blanked);
-    if (slide) {
-      const card = el('div', 'pres-slide ' + (slide.kind === 'title' ? 'is-title' : 'is-lyrics'));
-      if (slide.kind === 'title') {
-        if (slide.number != null && slide.number !== '') card.appendChild(el('div', 'pres-title-number', '#' + slide.number));
-        card.appendChild(el('div', 'pres-title-text', slide.title));
-        if (slide.artist) card.appendChild(el('div', 'pres-title-artist', slide.artist));
-      } else {
-        if (slide.label) card.appendChild(el('div', 'pres-label', slide.label));
-        slide.lines.forEach(line => {
-          const p = el('p', 'pres-line');
-          addLyricText(p, line);
-          card.appendChild(p);
-        });
-      }
-      stage.appendChild(card);
-    }
-    root.querySelector('.pres-counter').textContent = slides.length ? `${index + 1} / ${slides.length}` : '';
-    fitText();
-  }
-
+  // ---------- sizing ----------
   // One unit for the whole screen: ~7% of the geometric mean of width and
   // height, so a desktop window and a phone both get a comfortable default
   // (about 67px on 1280x720, 40px on a phone) and the step multipliers feel
@@ -199,69 +263,181 @@
     return Math.sqrt(window.innerWidth * window.innerHeight) * 0.07;
   }
 
-  // The chosen size is applied exactly. Only if a slide cannot fit on the
-  // screen at that size is that one slide reduced, to the largest size that
-  // fits (binary search, so the result never wobbles between steps).
+  // The area a slide must fit in (the stage minus its padding) and the chosen
+  // lyric text size.
+  function metrics() {
+    const stage = root.querySelector('.pres-stage');
+    const cs = getComputedStyle(stage);
+    return {
+      px: baseUnit() * SIZE_STEPS[sizeIndex],
+      availW: stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      availH: stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom),
+    };
+  }
+
+  // The chosen size is applied exactly. Long lines wrap between words (they
+  // never shrink the text). Only if a slide still cannot fit on the screen at
+  // that size - too tall, or one word wider than the screen - is that one slide
+  // reduced, to the largest size that fits (binary search, so the result never
+  // wobbles between steps).
   function fitText() {
     if (!root) return;
-    const stage = root.querySelector('.pres-stage');
-    const card = stage.firstElementChild;
+    const card = root.querySelector('.pres-slide.is-current');
     if (!card) return;
-    const chosen = baseUnit() * SIZE_STEPS[sizeIndex] * (card.classList.contains('is-title') ? 0.9 : 1);
-    // The stage has padding; the slide must fit inside its content box.
-    const cs = getComputedStyle(stage);
-    const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const m = metrics();
+    const chosen = m.px * (card.classList.contains('is-title') ? 0.9 : 1);
+    card.style.overflowWrap = '';
     const fits = (px) => {
       card.style.fontSize = px + 'px';
-      return card.scrollWidth <= availW + 1 && card.scrollHeight <= availH + 1;
+      return card.scrollWidth <= m.availW + 1 && card.scrollHeight <= m.availH + 1;
     };
     if (fits(chosen)) return;
-    let lo = MIN_FONT_PX, hi = chosen;
-    if (!fits(lo)) { card.style.fontSize = lo + 'px'; return; }
-    for (let i = 0; i < 12 && hi - lo > 0.5; i++) {
-      const mid = (lo + hi) / 2;
-      if (fits(mid)) lo = mid; else hi = mid;
+    // Search a fixed 0.5px grid, so the result is always "the largest size on
+    // the grid that fits" and does not depend on where the search started.
+    let lo = Math.min(Math.ceil(MIN_FONT_PX * 2), Math.floor(chosen * 2));
+    let hi = Math.floor(chosen * 2) + 1; // never fits: it is at or above the chosen size
+    // Not even the smallest size fits (an absurdly long word): only now break inside words.
+    if (!fits(lo / 2)) { card.style.overflowWrap = 'anywhere'; card.style.fontSize = (lo / 2) + 'px'; return; }
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (fits(mid / 2)) lo = mid; else hi = mid;
     }
-    card.style.fontSize = lo + 'px';
+    card.style.fontSize = (lo / 2) + 'px';
+  }
+
+  // Measures candidate groups of lines in a hidden card that has exactly the
+  // width, text size and styling of a real slide, for Fill. Lines are added one
+  // at a time to the previous measurement, so a part costs one layout per line.
+  function createFitter() {
+    const m = metrics();
+    if (m.availW <= 0 || m.availH <= 0) return { fits: () => false, done() {} };
+    const stage = root.querySelector('.pres-stage');
+    const card = el('div', 'pres-slide is-lyrics pres-measure');
+    card.setAttribute('aria-hidden', 'true');
+    card.style.fontSize = m.px + 'px';
+    card.style.width = m.availW + 'px';
+    stage.appendChild(card);
+    let label = null, measured = [];
+    return {
+      fits(lbl, lines) {
+        const grows = lbl === label && lines.length === measured.length + 1 && measured.every((l, i) => l === lines[i]);
+        if (grows) card.appendChild(buildLine(lines[lines.length - 1]));
+        else {
+          card.textContent = '';
+          if (lbl) card.appendChild(el('div', 'pres-label', lbl));
+          lines.forEach(l => card.appendChild(buildLine(l)));
+          label = lbl;
+        }
+        measured = lines;
+        return card.scrollHeight <= m.availH + 1;
+      },
+      done() { card.remove(); },
+    };
+  }
+
+  function computeSlides() {
+    if (linesPerSlide !== FILL) return buildSlides(cfg.song, linesPerSlide, cfg.titleInfo);
+    const fitter = createFitter();
+    try { return buildSlides(cfg.song, FILL, cfg.titleInfo, fitter.fits); }
+    finally { fitter.done(); }
+  }
+
+  // Regroup the slides (the lines setting, or the screen/text size behind Fill,
+  // changed) and stay on the lyric the audience is looking at.
+  function regroup() {
+    const anchor = anchorOf(slides[index]);
+    slides = computeSlides();
+    index = locate(slides, anchor);
+  }
+
+  // Window resized or fonts finished loading. Fill depends on both; anything
+  // else only needs the current slide re-fitted.
+  function scheduleRefresh() {
+    if (refreshFrame || !root) return;
+    refreshFrame = requestAnimationFrame(() => {
+      refreshFrame = 0;
+      if (!root) return;
+      if (linesPerSlide === FILL) {
+        const before = slides;
+        regroup();
+        if (!sameSlides(before, slides)) { renderSlide(); return; }
+      }
+      fitText();
+    });
+  }
+
+  // ---------- rendering ----------
+  // A slide change in Fade mode is a true crossfade: the new slide is laid over
+  // the old one (same grid cell), the old fades out while the new fades in, and
+  // the old is removed when done. Cut swaps instantly. Settings changes
+  // (regrouping, size) never animate.
+  function retire(node) {
+    let from = parseFloat(getComputedStyle(node).opacity);
+    if (!(from >= 0)) from = 1;
+    node.getAnimations().forEach(a => a.cancel());
+    node.classList.remove('is-current');
+    node.classList.add('is-leaving');
+    node.setAttribute('aria-hidden', 'true');
+    const anim = node.animate([{ opacity: from }, { opacity: 0 }], { duration: FADE_MS, easing: 'ease-in-out', fill: 'forwards' });
+    anim.onfinish = () => node.remove();
+  }
+
+  function renderSlide(opts) {
+    if (!root) return;
+    const stage = root.querySelector('.pres-stage');
+    const slide = slides[index];
+    const card = slide ? buildCard(slide) : null;
+    const fade = !!(opts && opts.animate) && !!card && canAnimate();
+    const old = stage.querySelector('.pres-slide.is-current');
+    if (old) {
+      if (fade) retire(old);
+      else old.remove();
+    }
+    if (!fade) stage.querySelectorAll('.pres-slide.is-leaving').forEach(n => n.remove());
+    if (card) {
+      card.classList.add('is-current');
+      stage.appendChild(card);
+      fitText();
+      if (fade) card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: 'ease-in-out' });
+    }
+    root.querySelector('.pres-counter').textContent = slides.length ? `${index + 1} / ${slides.length}` : '';
+  }
+
+  function setBlank(value) {
+    blanked = value;
+    if (root) root.querySelector('.pres-stage').classList.toggle('is-blank', blanked);
   }
 
   function syncControls() {
     if (!root) return;
+    root.dataset.transition = effectiveTransition();
     root.querySelectorAll('[data-pres-lines]').forEach(btn => {
       btn.setAttribute('aria-pressed', String(parseInt(btn.dataset.presLines, 10) === linesPerSlide));
     });
+    root.querySelectorAll('[data-pres-transition]').forEach(btn => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.presTransition === effectiveTransition()));
+    });
+    root.querySelector('[data-pres-transition-group]').hidden = reducedMotion();
     root.querySelector('[data-pres="smaller"]').disabled = sizeIndex <= 0;
     root.querySelector('[data-pres="larger"]').disabled = sizeIndex >= SIZE_STEPS.length - 1;
   }
 
-  // ---------- navigation ----------
+  // ---------- navigation and settings ----------
   function go(to) {
     if (!slides.length) return;
     const next = Math.max(0, Math.min(slides.length - 1, to));
-    blanked = false;
-    if (next === index) { renderSlide(); return; }
+    setBlank(false);
+    if (next === index) return;
     index = next;
-    renderSlide();
+    renderSlide({ animate: true });
   }
 
   function setLines(n) {
     if (!LINE_CHOICES.includes(n) || n === linesPerSlide) return;
-    // Keep the audience on the same lyric: find the first line of the current
-    // slide and land on whichever new slide contains it.
-    const current = slides[index];
-    const anchor = current && current.kind === 'lyrics' ? current.lines[0] : null;
-    const anchorLabel = current ? current.label : null;
     linesPerSlide = n;
     savePref(LS_LINES, n);
-    slides = buildSlides(cfg.song, linesPerSlide, cfg.titleInfo);
-    let target = 0;
-    if (anchor != null) {
-      const found = slides.findIndex(s => s.kind === 'lyrics' && s.label === anchorLabel && s.lines.includes(anchor));
-      target = found >= 0 ? found : 0;
-    }
-    index = target;
-    blanked = false;
+    regroup();
+    setBlank(false);
     syncControls();
     renderSlide();
   }
@@ -272,7 +448,15 @@
     sizeIndex = clamped;
     savePref(LS_SIZE, sizeIndex);
     syncControls();
-    fitText();
+    if (linesPerSlide === FILL) { regroup(); renderSlide(); }
+    else fitText();
+  }
+
+  function setTransition(next) {
+    if (!TRANSITIONS.includes(next) || next === transition) return;
+    transition = next;
+    savePref(LS_TRANSITION, next);
+    syncControls();
   }
 
   function toggleFullscreen() {
@@ -284,22 +468,42 @@
   }
 
   // ---------- controls visibility ----------
+  // Hidden at launch and never shown by mouse movement alone. They appear for
+  // the top edge, S, or (touch only) a tap in the middle, and hide again by
+  // themselves — but not while the pointer is on the panel.
+  function controlsVisible() {
+    return !!root && root.classList.contains('controls-visible');
+  }
+
+  function scheduleHide() {
+    clearTimeout(idleTimer);
+    if (panelHover) return;
+    idleTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);
+  }
+
   function showControls() {
     if (!root) return;
     root.classList.add('controls-visible');
-    root.classList.remove('cursor-idle');
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      if (!root) return;
-      root.classList.remove('controls-visible');
-      root.classList.add('cursor-idle');
-    }, CONTROLS_IDLE_MS);
+    scheduleHide();
   }
 
   function hideControls() {
-    if (!root) return;
     clearTimeout(idleTimer);
-    root.classList.remove('controls-visible');
+    clearTimeout(edgeTimer);
+    edgeTimer = null;
+    if (root) root.classList.remove('controls-visible');
+  }
+
+  function onPointerMove(e) {
+    if (e.pointerType !== 'mouse') return;
+    if (e.clientY > EDGE_PX) {
+      clearTimeout(edgeTimer);
+      edgeTimer = null;
+      return;
+    }
+    if (controlsVisible()) { scheduleHide(); return; }
+    if (edgeTimer) return;
+    edgeTimer = setTimeout(() => { edgeTimer = null; showControls(); }, EDGE_DWELL_MS);
   }
 
   // ---------- events ----------
@@ -319,8 +523,11 @@
       case 'Home': go(0); break;
       case 'End': go(slides.length - 1); break;
       case 'b': case 'B': case '.':
-        blanked = !blanked; renderSlide(); break;
+        setBlank(!blanked); break;
       case 'f': case 'F': toggleFullscreen(); break;
+      case 's': case 'S':
+        if (!e.repeat) { if (controlsVisible()) hideControls(); else showControls(); }
+        break;
       case '+': case '=': setSize(sizeIndex + 1); break;
       case '-': case '_': setSize(sizeIndex - 1); break;
       case 'Escape': requestClose(); break;
@@ -329,7 +536,6 @@
     if (handled) {
       e.preventDefault();
       e.stopPropagation();
-      if (e.key !== 'Escape') showControls();
     }
   }
 
@@ -338,10 +544,14 @@
     if (!btn) return;
     e.stopPropagation();
     if (btn.dataset.presLines != null) setLines(parseInt(btn.dataset.presLines, 10));
+    else if (btn.dataset.presTransition != null) setTransition(btn.dataset.presTransition);
     else if (btn.dataset.pres === 'close') requestClose();
     else if (btn.dataset.pres === 'smaller') setSize(sizeIndex - 1);
     else if (btn.dataset.pres === 'larger') setSize(sizeIndex + 1);
-    showControls();
+    // After a mouse/touch click give focus back to the slide, so the panel's
+    // focus doesn't keep it open and Space/arrows keep changing slides.
+    if (e.detail > 0 && root) root.focus({ preventScroll: true });
+    if (controlsVisible()) scheduleHide();
   }
 
   function onStagePointerDown(e) {
@@ -358,19 +568,24 @@
       return;
     }
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
-    // A click/tap: left third goes back, right third goes forward, and the
-    // middle only shows the controls (a second tap hides them on touch; with a
-    // mouse they show on any movement anyway). It never changes the slide, so a
-    // stray tap in the middle can't move the presentation).
+    // A click/tap: left third goes back, right third goes forward. The middle
+    // never changes the slide; on touch it shows the controls (and hides them
+    // again on the next tap). With a mouse it does nothing at all, so a
+    // projector never flashes controls at the audience.
     const x = e.clientX / window.innerWidth;
     if (x < 1 / 3) go(index - 1);
     else if (x > 2 / 3) go(index + 1);
-    else if (e.pointerType !== 'mouse' && root.classList.contains('controls-visible')) hideControls();
-    else showControls();
+    else if (e.pointerType !== 'mouse') {
+      if (controlsVisible()) hideControls(); else showControls();
+    }
   }
 
   function onVisibility() {
     if (document.visibilityState === 'visible' && root) acquireWakeLock();
+  }
+
+  function onMotionChange() {
+    if (root) syncControls();
   }
 
   async function acquireWakeLock() {
@@ -393,26 +608,37 @@
     loadPrefs();
     index = 0;
     blanked = false;
-    slides = buildSlides(cfg.song, linesPerSlide, cfg.titleInfo);
+    panelHover = false;
     restoreFocus = document.activeElement;
 
     root = buildOverlay();
     document.body.appendChild(root);
     if (typeof initIcons === 'function') initIcons(root);
+    // Fill measures real layout, so the slides are built once the overlay is in
+    // the page.
+    slides = computeSlides();
     syncControls();
     renderSlide();
 
-    root.querySelector('.pres-bar').addEventListener('click', onBarClick);
+    const bar = root.querySelector('.pres-bar');
+    bar.addEventListener('click', onBarClick);
+    bar.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { panelHover = true; clearTimeout(idleTimer); } });
+    bar.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { panelHover = false; if (controlsVisible()) scheduleHide(); } });
     root.addEventListener('pointerdown', onStagePointerDown);
     root.addEventListener('pointerup', onStagePointerUp);
     root.addEventListener('pointercancel', () => { swipe = null; });
-    root.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') showControls(); });
+    root.addEventListener('pointermove', onPointerMove);
     document.addEventListener('keydown', onKeydown, true);
-    window.addEventListener('resize', fitText);
+    window.addEventListener('resize', scheduleRefresh);
     document.addEventListener('visibilitychange', onVisibility);
+    if (document.fonts) {
+      // Lyric fonts can arrive after the first layout; Fill depends on them.
+      document.fonts.addEventListener('loadingdone', scheduleRefresh);
+      if (document.fonts.ready) document.fonts.ready.then(scheduleRefresh);
+    }
+    if (motionQuery && motionQuery.addEventListener) motionQuery.addEventListener('change', onMotionChange);
 
     document.documentElement.classList.add('pres-open');
-    showControls();
     root.focus({ preventScroll: true });
     acquireWakeLock();
   }
@@ -426,9 +652,14 @@
   function close() {
     if (!root) return;
     clearTimeout(idleTimer);
+    clearTimeout(edgeTimer);
+    idleTimer = edgeTimer = null;
+    if (refreshFrame) { cancelAnimationFrame(refreshFrame); refreshFrame = 0; }
     document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('resize', fitText);
+    window.removeEventListener('resize', scheduleRefresh);
     document.removeEventListener('visibilitychange', onVisibility);
+    if (document.fonts) document.fonts.removeEventListener('loadingdone', scheduleRefresh);
+    if (motionQuery && motionQuery.removeEventListener) motionQuery.removeEventListener('change', onMotionChange);
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
     releaseWakeLock();
     root.remove();

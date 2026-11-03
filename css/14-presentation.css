@@ -1,6 +1,8 @@
 /* =========================================================
    Presentation mode — full-screen lyric slides (js/presentation.js)
    Always dark on purpose: it is projected, so it ignores the app theme.
+   Nothing but the slide is visible at launch: the control panel (.pres-bar),
+   hint and mouse cursor only appear with .controls-visible.
    The .pres-bg layer is separate so a picture/animation/video background
    can be added later without touching the stage.
    ========================================================= */
@@ -18,9 +20,11 @@ html.pres-open, html.pres-open body { overflow: hidden; }
   -webkit-user-select: none;
   touch-action: pan-y;
   overscroll-behavior: contain;
-  animation: pres-in var(--dur-base) ease-out;
+  /* A projector must never show a pointer: it is hidden until the panel is. */
+  cursor: none;
 }
-.pres-overlay.cursor-idle { cursor: none; }
+.pres-overlay.controls-visible { cursor: default; }
+.pres-overlay[data-transition="fade"] { animation: pres-in var(--dur-base) ease-out; }
 @keyframes pres-in { from { opacity: 0; } to { opacity: 1; } }
 
 .pres-bg { position: absolute; inset: 0; background: #000; }
@@ -28,28 +32,45 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-stage {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* Every slide sits in the same grid cell, so while changing slides the old
+     and new one overlap and crossfade (js/presentation.js). */
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
   padding: max(4vh, env(safe-area-inset-top)) max(5vw, env(safe-area-inset-right)) max(4vh, env(safe-area-inset-bottom)) max(5vw, env(safe-area-inset-left));
   overflow: hidden;
   transition: opacity var(--dur-fast) ease;
 }
 .pres-stage.is-blank { opacity: 0; }
+.pres-overlay[data-transition="cut"] .pres-stage { transition: none; }
 
 .pres-slide {
+  grid-area: 1 / 1;
+  min-width: 0;
   max-width: 100%;
   max-height: 100%;
   text-align: center;
   line-height: 1.22;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  /* Lines wrap between words. A single word wider than the screen is never
+     cut in half: fitText() makes that one slide a little smaller instead. */
+  overflow-wrap: normal;
   text-wrap: balance;
-  animation: pres-slide-in var(--dur-base) ease-out;
 }
-@keyframes pres-slide-in { from { opacity: 0; transform: translateY(0.12em); } to { opacity: 1; transform: none; } }
+.pres-slide.is-leaving { pointer-events: none; }
+/* Hidden copy used by Fill to measure how many lines fit (never visible). */
+.pres-measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-height: none;
+  visibility: hidden;
+  pointer-events: none;
+}
 
-.pres-line { margin: 0 0 0.36em; }
+/* Extra space between lyric lines, tighter leading inside a wrapped line, so
+   the song's own line breaks still read when a long line wraps. */
+.pres-line { margin: 0 0 0.5em; line-height: 1.18; }
 .pres-line:last-child { margin-bottom: 0; }
 .pres-line .lyric-md-italic { font-style: italic; }
 .pres-line .lyric-md-bold { font-weight: 800; }
@@ -69,69 +90,85 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-title-text { line-height: 1.2; }
 .pres-title-artist { font-size: 0.45em; font-weight: 500; opacity: 0.6; margin-top: 0.6em; }
 
-/* ---------- control bar ---------- */
+/* ---------- control panel ----------
+   Small, quiet, floating at the top centre. Hidden until .controls-visible
+   (top edge / S / middle tap on touch) and it hides itself again quickly. */
 .pres-bar {
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 16px);
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 10px 18px;
-  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 14px max(14px, env(safe-area-inset-left));
-  background: linear-gradient(to bottom, rgba(0,0,0,0.78), rgba(0,0,0,0));
+  gap: 6px 14px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(20,20,24,0.78);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   font-family: var(--font-body);
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translate(-50%, -6px);
   pointer-events: none;
   transition: opacity var(--dur-base) ease, transform var(--dur-base) ease;
 }
 .pres-overlay.controls-visible .pres-bar,
 .pres-bar:focus-within {
   opacity: 1;
-  transform: none;
+  transform: translate(-50%, 0);
   pointer-events: auto;
 }
+.pres-head { display: flex; align-items: center; gap: 8px; }
 .pres-counter {
-  margin-right: auto;
-  font-size: 0.85rem;
+  min-width: 3.4em;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.55);
 }
-.pres-group { display: flex; align-items: center; gap: 6px; }
-.pres-group-label { font-size: 0.78rem; color: rgba(255,255,255,0.55); margin-right: 2px; }
+.pres-group { display: flex; align-items: center; gap: 4px; }
+.pres-group[hidden] { display: none; }
+.pres-group-label { font-size: 0.68rem; color: rgba(255,255,255,0.4); margin-right: 3px; }
 
 .pres-btn {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.22);
-  background: rgba(255,255,255,0.08);
-  color: #fff;
+  border: 0;
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.85);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease, transform var(--dur-press) ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease, transform var(--dur-press) ease;
 }
-.pres-btn:hover { background: rgba(255,255,255,0.16); }
+.pres-btn:hover { background: rgba(255,255,255,0.14); }
 .pres-btn:active { transform: scale(var(--press-scale-pill)); }
-.pres-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pres-btn:disabled { opacity: 0.35; cursor: default; }
-.pres-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #0b1020; }
+.pres-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pres-btn:disabled { opacity: 0.3; cursor: default; }
+.pres-btn[aria-pressed="true"] { background: rgba(255,255,255,0.88); color: #111; }
 
 .pres-chip {
-  min-width: 36px;
-  height: 34px;
-  padding: 0 12px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 10px;
   border-radius: var(--radius-pill);
 }
 .pres-icon-btn {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
 }
-.pres-icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.pres-icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+@media (pointer: coarse) {
+  .pres-chip { height: 36px; min-width: 38px; }
+  .pres-icon-btn { width: 38px; height: 38px; }
+}
 
 .pres-hint {
   position: absolute;
@@ -141,8 +178,8 @@ html.pres-open, html.pres-open body { overflow: hidden; }
   text-align: center;
   text-wrap: balance;
   font-family: var(--font-body);
-  font-size: 0.78rem;
-  color: rgba(255,255,255,0.45);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.4);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-base) ease;
@@ -152,9 +189,9 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 
 @media (max-width: 560px) {
   .pres-group-label { display: none; }
-  .pres-chip { min-width: 32px; padding: 0 9px; }
+  .pres-chip { min-width: 30px; padding: 0 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pres-overlay, .pres-slide { animation: none; }
+  .pres-overlay { animation: none; }
   .pres-stage, .pres-bar, .pres-hint { transition: none; }
 }
