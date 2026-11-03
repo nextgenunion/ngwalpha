@@ -207,7 +207,7 @@ window.SONGBOOK_LANG.kr = {
   presentationTransitionLabel: "전환",
   presentationCut: "즉시",
   presentationFade: "페이드",
-  presentationHint: "← → 또는 양옆 클릭으로 슬라이드 이동 · B 화면 끄기 · F 전체 화면 · S 설정 · +/− 크기 · Esc 종료",
+  presentationHint: "← → 또는 양옆 클릭으로 슬라이드 이동 · B 화면 끄기 · F 전체 화면 · S 또는 가운데 더블클릭 설정 · 1–9 파트 이동 · +/− 크기 · Esc 종료",
   addSongsTitle: "곡 추가",
   removeFromPlaylist: "재생목록에서 제거",
   menuDelete: "삭제",

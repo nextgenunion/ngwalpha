@@ -24,7 +24,7 @@ async function newPage(browser, opts) {
   await page.waitForFunction(() => typeof openSong === 'function' && document.querySelectorAll('#song-list > *').length > 5, null, { timeout: 30000 });
   return page;
 }
-// A song with a long part (>= 8 lines), no markdown, to make Fill interesting.
+// A song with a long part (>= 8 lines) and at least 3 parts, no markdown: interesting for Fill and for the number keys.
 const openPres = (page, prefs) => page.evaluate((p) => {
   try { SongPresentation.close(); } catch (_) {}
   localStorage.setItem('sb-pres-lines', String(p.lines));
@@ -32,7 +32,7 @@ const openPres = (page, prefs) => page.evaluate((p) => {
   localStorage.setItem('sb-pres-transition', p.transition || 'cut');
   const songs = state.sources[state.activeDbSource].songs;
   const song = songs.find(s => s.lyrics && !s.lyrics.some(l => /[*_]/.test(l)) &&
-    SongPresentation.buildSlides(s, 0, null).some(x => x.lines.length >= 8));
+    SongPresentation.buildSlides(s, 0, null).some(x => x.lines.length >= 8) && SongPresentation.buildSlides(s, 0, null).length >= 3);
   window.__song = song;
   SongPresentation.open({ song, titleInfo: { number: song.number, title: song.title, artist: song.artist }, t, onRequestClose() { SongPresentation.close(); } });
   return song.title;
@@ -160,6 +160,42 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   ok(JSON.stringify(labels.lines) === JSON.stringify(['1', '2', '3', '4', 'Fill']) || labels.lines.slice(0, 4).join() === '1,2,3,4' && labels.lines.length === 5, `Lines choices: ${labels.lines.join(' ')}`);
   ok(!labels.lines.some(l => /^(All|Бүгд|전체)$/.test(l)), 'no "All" choice any more');
   ok(labels.transition.length === 2 && labels.size, `Size and Transition present (${labels.transition.join(' / ')})`);
+
+  // ---------------- 5.0.63: double-click and number keys ----------------
+  await openPres(page, { lines: 2, size: 4, transition: 'cut' });
+  await sleep(200);
+  await page.mouse.move(640, 400);
+  await page.mouse.dblclick(640, 400);
+  ok((await overlayState(page)).visible, 'double-click in the middle shows the controls');
+  await page.mouse.dblclick(640, 400);
+  ok(!(await overlayState(page)).visible, 'double-click again hides them');
+  await page.mouse.click(640, 400);
+  await sleep(500);
+  await page.mouse.click(640, 400);
+  ok(!(await overlayState(page)).visible, 'two slow middle clicks are not a double-click');
+  const cnt = () => page.evaluate(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]);
+  const before = await cnt();
+  await page.mouse.dblclick(1000, 400);
+  ok((await cnt()) === Math.min(before + 2, await page.evaluate(() => +document.querySelector('.pres-counter').textContent.split(' / ')[1])) && !(await overlayState(page)).visible, 'double-click on a side just advances (no controls)');
+  // Number keys -> parts.
+  const parts = await page.evaluate(() => SongPresentation.buildSlides(window.__song, 0, null).filter(s => s.kind === 'lyrics').map(s => ({ section: s.section, first: s.lines[0].replace(/\s+/g, ' ').trim() })));
+  const firstLine = () => page.evaluate(() => { const l = document.querySelector('.pres-slide.is-current .pres-line'); return l ? l.textContent.replace(/\s+/g, ' ').trim() : null; });
+  await page.keyboard.press('2');
+  ok((await firstLine()) === parts[1].first, 'key 2 jumps to the first line of the second part');
+  await page.keyboard.press('1');
+  ok((await firstLine()) === parts[0].first, 'key 1 jumps to the first part');
+  await page.keyboard.press('0');
+  ok(await page.evaluate(() => !!document.querySelector('.pres-slide.is-current.is-title')), 'key 0 goes to the title slide');
+  await page.keyboard.press('1');
+  const at1 = await cnt();
+  await page.keyboard.press('9');
+  ok((await cnt()) === at1 || parts.length >= 9, 'a part number the song does not have does nothing');
+  ok(!(await overlayState(page)).visible, 'number keys do not show the controls');
+  // Parts stay the same whatever the grouping: with 1 line per slide, key 2 still lands on part 2.
+  await openPres(page, { lines: 1, size: 4, transition: 'cut' });
+  await sleep(200);
+  await page.keyboard.press('2');
+  ok((await firstLine()) === parts[1].first, 'key 2 lands on part 2 with 1 line per slide as well');
 
   // ---------------- Fill ----------------
   const song = await openPres(page, { lines: 0, size: 4, transition: 'cut' });

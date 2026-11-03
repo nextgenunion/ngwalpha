@@ -207,7 +207,7 @@ window.SONGBOOK_LANG.mn = {
   presentationTransitionLabel: "Шилжилт",
   presentationCut: "Шууд",
   presentationFade: "Бүдгэрэх",
-  presentationHint: "← → эсвэл хажуу талыг дарж слайд солино · B хоосон дэлгэц · F бүтэн дэлгэц · S удирдлага · +/− хэмжээ · Esc гарах",
+  presentationHint: "← → эсвэл хажуу талыг дарж слайд солино · B хоосон дэлгэц · F бүтэн дэлгэц · S эсвэл дунд давхар дарж удирдлага · 1–9 хэсэг рүү · +/− хэмжээ · Esc гарах",
   addSongsTitle: "Дуу нэмэх",
   removeFromPlaylist: "Жагсаалтаас хасах",
   menuDelete: "Устгах",

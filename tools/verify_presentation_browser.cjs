@@ -96,9 +96,8 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
   await page.mouse.click(900, 400);
   ok(await q(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]) === 2, 'click on the right third advances');
   await page.waitForTimeout(2800); // let the panel (opened earlier with S) hide itself first
-  await page.mouse.click(640, 400);
-  await page.mouse.click(640, 400);
-  await page.mouse.click(640, 400);
+  // (slowly: two quick middle clicks are a double-click, which toggles the controls)
+  for (let i = 0; i < 3; i++) { await page.mouse.click(640, 400); await page.waitForTimeout(500); }
   ok(await q(() => +document.querySelector('.pres-counter').textContent.split(' / ')[0]) === 2, 'clicking the middle never changes the slide');
   ok(await q(() => !document.getElementById('presentation-overlay').classList.contains('controls-visible')), 'a mouse click in the middle does not show the controls');
   await page.mouse.click(100, 400);

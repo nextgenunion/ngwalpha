@@ -10,7 +10,11 @@
 // Built for a projector: it opens on a clean black title slide with nothing
 // else on screen (no controls, counter, hint or cursor). The control panel is
 // never shown by mouse movement alone — only by pushing the mouse to the top
-// edge, or by pressing S (or by tapping the middle of the screen on a phone).
+// edge, pressing S, double-clicking the middle of the screen (or, on a phone,
+// tapping the middle).
+// Keys 1-9 jump to the Nth part of the song (0 = title slide). Parts, not slide
+// numbers: the number of slides changes with Lines / Fill / text size, the parts
+// of a song do not, and a song rarely has more than nine.
 //
 // This module owns only the overlay. ui.js decides how it is opened/closed
 // (history entry, popstate) and passes in what it needs — see
@@ -46,6 +50,7 @@
   const EDGE_PX = 3;        // mouse this close to the top edge asks for the controls...
   const EDGE_DWELL_MS = 150; // ...and has to stay there briefly, so a fly-by doesn't flash them
   const SWIPE_PX = 50;
+  const DOUBLE_CLICK_MS = 350; // two middle clicks this close together = double-click
 
   const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 
@@ -64,6 +69,7 @@
   let wakeLock = null;
   let restoreFocus = null;
   let swipe = null;
+  let lastMiddleClick = null;
 
   // ---------- preferences ----------
   function loadPrefs() {
@@ -432,6 +438,14 @@
     renderSlide({ animate: true });
   }
 
+  // Jump to the first slide of the Nth part of the song (1 = first part). A
+  // part is a verse/chorus block, as in buildSections(); a number the song
+  // doesn't have does nothing.
+  function goToPart(n) {
+    const target = slides.findIndex(s => s.kind === 'lyrics' && s.section === n - 1);
+    if (target >= 0) go(target);
+  }
+
   function setLines(n) {
     if (!LINE_CHOICES.includes(n) || n === linesPerSlide) return;
     linesPerSlide = n;
@@ -520,7 +534,9 @@
         go(index + 1); break;
       case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': case 'p': case 'P':
         go(index - 1); break;
-      case 'Home': go(0); break;
+      case 'Home': case '0': go(0); break;
+      case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+        goToPart(parseInt(e.key, 10)); break;
       case 'End': go(slides.length - 1); break;
       case 'b': case 'B': case '.':
         setBlank(!blanked); break;
@@ -570,13 +586,22 @@
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
     // A click/tap: left third goes back, right third goes forward. The middle
     // never changes the slide; on touch it shows the controls (and hides them
-    // again on the next tap). With a mouse it does nothing at all, so a
-    // projector never flashes controls at the audience.
+    // again on the next tap). With a mouse a single click there does nothing,
+    // so a stray click never flashes controls at the audience; a double-click
+    // there toggles them (only the middle: on the sides each click of a
+    // double-click would already have changed the slide).
     const x = e.clientX / window.innerWidth;
     if (x < 1 / 3) go(index - 1);
     else if (x > 2 / 3) go(index + 1);
     else if (e.pointerType !== 'mouse') {
       if (controlsVisible()) hideControls(); else showControls();
+    } else {
+      const now = performance.now();
+      const last = lastMiddleClick;
+      if (last && now - last.t <= DOUBLE_CLICK_MS && Math.abs(e.clientX - last.x) <= 10 && Math.abs(e.clientY - last.y) <= 10) {
+        lastMiddleClick = null;
+        if (controlsVisible()) hideControls(); else showControls();
+      } else lastMiddleClick = { t: now, x: e.clientX, y: e.clientY };
     }
   }
 

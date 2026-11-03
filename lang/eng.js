@@ -211,7 +211,7 @@ window.SONGBOOK_LANG.en = {
   presentationTransitionLabel: "Transition",
   presentationCut: "Cut",
   presentationFade: "Fade",
-  presentationHint: "← → or click the sides to change slides · B blank · F fullscreen · S controls · +/− size · Esc exit",
+  presentationHint: "← → or click the sides to change slides · B blank · F fullscreen · S or double-click the middle for controls · 1–9 jump to part · +/− size · Esc exit",
   addSongsTitle: "Add songs",
   removeFromPlaylist: "Remove from playlist",
   menuDelete: "Delete",

@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.62-alpha)
+# Next Gen Worship — Worship Song App (v5.0.63-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,12 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.63 presentation: double-click and number keys
+
+- **Double-click the middle of the screen** (mouse) toggles the control panel, like **S**. Only the middle: on the left/right thirds every click changes the slide, so a double-click there would skip two slides. A single mouse click in the middle still does nothing.
+- **Keys 1-9 jump to the Nth part of the song** (the first slide of that verse/chorus block); **0** goes to the title slide (same as Home). Parts, not slide numbers, because the slide count changes with Lines / Fill / text size while a song's parts do not. A number the song doesn't have does nothing. Songs with more than nine parts use the arrows/Home/End for the rest.
+- The hint text lists both (all four `lang/*.js` files).
 
 ## v5.0.62 presentation: Fill, clean launch, quiet controls, crossfade
 
