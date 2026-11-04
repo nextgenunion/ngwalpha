@@ -28,6 +28,12 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 @keyframes pres-in { from { opacity: 0; } to { opacity: 1; } }
 
 .pres-bg { position: absolute; inset: 0; background: #000; }
+.pres-bg img, .pres-bg video { width: 100%; height: 100%; object-fit: cover; }
+.pres-bg::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,.35); pointer-events: none; }
+.pres-background-preview { position: relative; aspect-ratio: 16 / 9; margin-top: 20px; overflow: hidden; border-radius: var(--radius-m); background: #000; }
+.pres-background-sample { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: white; font: 600 1.3rem var(--font-lyrics); }
+.pres-background-choices { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+.pres-background-choices button[aria-pressed="true"] { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 
 .pres-stage {
   position: absolute;
@@ -92,7 +98,7 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 
 /* ---------- control panel ----------
    Small, quiet, floating at the top centre. Hidden until .controls-visible
-   (top edge / S / middle tap on touch) and it hides itself again quickly. */
+   (top edge / S / middle double-tap) and it hides itself again quickly. */
 .pres-bar {
   position: absolute;
   top: max(8px, env(safe-area-inset-top));
@@ -157,6 +163,7 @@ html.pres-open, html.pres-open body { overflow: hidden; }
   border-radius: var(--radius-pill);
 }
 .pres-icon-btn {
+  flex-shrink: 0;
   width: 30px;
   height: 30px;
   padding: 0;
@@ -168,6 +175,16 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 @media (pointer: coarse) {
   .pres-chip { height: 36px; min-width: 38px; }
   .pres-icon-btn { width: 38px; height: 38px; }
+  .pres-chip.pres-round-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    padding: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+  }
 }
 
 .pres-hint {

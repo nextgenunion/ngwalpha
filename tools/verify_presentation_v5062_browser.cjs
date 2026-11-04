@@ -177,26 +177,12 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   const before = await cnt();
   await page.mouse.dblclick(1000, 400);
   ok((await cnt()) === Math.min(before + 2, await page.evaluate(() => +document.querySelector('.pres-counter').textContent.split(' / ')[1])) && !(await overlayState(page)).visible, 'double-click on a side just advances (no controls)');
-  // Number keys -> parts.
-  const parts = await page.evaluate(() => SongPresentation.buildSlides(window.__song, 0, null).filter(s => s.kind === 'lyrics').map(s => ({ section: s.section, first: s.lines[0].replace(/\s+/g, ' ').trim() })));
-  const firstLine = () => page.evaluate(() => { const l = document.querySelector('.pres-slide.is-current .pres-line'); return l ? l.textContent.replace(/\s+/g, ' ').trim() : null; });
-  await page.keyboard.press('2');
-  ok((await firstLine()) === parts[1].first, 'key 2 jumps to the first line of the second part');
-  await page.keyboard.press('1');
-  ok((await firstLine()) === parts[0].first, 'key 1 jumps to the first part');
-  await page.keyboard.press('0');
-  ok(await page.evaluate(() => !!document.querySelector('.pres-slide.is-current.is-title')), 'key 0 goes to the title slide');
-  await page.keyboard.press('1');
-  const at1 = await cnt();
-  await page.keyboard.press('9');
-  ok((await cnt()) === at1 || parts.length >= 9, 'a part number the song does not have does nothing');
-  ok(!(await overlayState(page)).visible, 'number keys do not show the controls');
-  // Parts stay the same whatever the grouping: with 1 line per slide, key 2 still lands on part 2.
-  await openPres(page, { lines: 1, size: 4, transition: 'cut' });
-  await sleep(200);
-  await page.keyboard.press('2');
-  ok((await firstLine()) === parts[1].first, 'key 2 lands on part 2 with 1 line per slide as well');
-
+  await page.keyboard.press('2'); await sleep(500);
+  ok(await cnt() === 2, 'key 2 selects slide 2');
+  await page.keyboard.press('1'); await sleep(500);
+  ok(await cnt() === 1, 'key 1 selects slide 1');
+  ok(!(await overlayState(page)).visible, 'number keys keep controls hidden');
+  
   // ---------------- Fill ----------------
   const song = await openPres(page, { lines: 0, size: 4, transition: 'cut' });
   await sleep(300);
@@ -314,14 +300,18 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   ok(!ps.visible && ps.barOpacity === 0 && ps.hintOpacity === 0, 'phone: clean launch');
   if (SHOTS) await ph.screenshot({ path: path.join(SHOTS, '3-launch-phone.png') });
   await ph.touchscreen.tap(195, 420);
+  ok(!(await overlayState(ph)).visible, 'phone: a single middle tap leaves controls hidden');
+  await ph.touchscreen.tap(195, 420);
   await sleep(350);
-  ok((await overlayState(ph)).visible, 'phone: a middle tap shows the controls');
+  ok((await overlayState(ph)).visible, 'phone: a middle double-tap shows the controls');
   const phBar = await ph.evaluate(() => { const r = document.querySelector('.pres-bar').getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
   ok(phBar.l >= 0 && phBar.r <= 390, `phone: panel fits the screen width (${Math.round(phBar.l)}..${Math.round(phBar.r)}, ${Math.round(phBar.b - phBar.t)}px tall)`);
   if (SHOTS) await ph.screenshot({ path: path.join(SHOTS, '4-panel-phone.png') });
   await ph.touchscreen.tap(195, 420);
+  await ph.touchscreen.tap(195, 420);
   await sleep(350);
-  ok(!(await overlayState(ph)).visible, 'phone: a second middle tap hides them');
+  ok(!(await overlayState(ph)).visible, 'phone: another middle double-tap hides them');
+  await ph.touchscreen.tap(195, 420);
   await ph.touchscreen.tap(195, 420);
   await sleep(2800);
   ok(!(await overlayState(ph)).visible, 'phone: controls hide themselves');

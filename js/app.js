@@ -234,6 +234,7 @@ const PAGES = {
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
   // Built-in tool, opened from Settings → Tools. ChordFinder.init() builds
   // the fretboard once, the first time the page is shown (see js/chord-finder.js).
+  'presentation-settings': { elId: 'page-presentation-settings', navKey: 'settings', rememberScroll: false, hideNav: true, onEnter: () => SongPresentation.settings(t) },
   'chord-finder':   { elId: 'page-chord-finder',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => { if (window.ChordFinder) window.ChordFinder.init(); updateAllSegToggleThumbs({ instant: true }); } },
   'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through
@@ -248,7 +249,7 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['song-view', 'sheet-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['presentation-settings', 'song-view', 'sheet-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
@@ -988,7 +989,7 @@ const PlaylistStorage = createMirroredKeyValueStorage({
 
 /* @extracted:data.js:loadPlaylists */
 
-/* @extracted:data.js:persistPlaylists *//* @extracted:data.js:exportPlaylists */
+/* @extracted:data.js:reportSaveResult *//* @extracted:data.js:persistPlaylists *//* @extracted:data.js:exportPlaylists */
 
 /* @extracted:data.js:importPlaylistsFromFile */
 

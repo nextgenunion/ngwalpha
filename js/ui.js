@@ -2512,9 +2512,12 @@ function applyDisplayMode() {
 function openPresentationMode() {
   const song = state.activeSong;
   if (!song || !window.SongPresentation || window.SongPresentation.isOpen()) return;
+  const playlist = history.state?.playlistId && getPlaylist(history.state.playlistId);
+  const queue = playlist ? playlist.songs.map(ref => findSongByRef(ref.sourceKey, ref.songId)).filter(Boolean) : [];
   closeModal({ immediate: true });
   pushNavState({ page: 'song-view', songId: song.id, sourceKey: state.activeSourceKey, presentation: true });
   window.SongPresentation.open({
+    queue,
     song,
     titleInfo: { number: song.number, title: song.title, artist: song.artist },
     t,
@@ -2665,7 +2668,7 @@ function openSong(song, opts = {}) {
     page.scrollTop = Math.max(0, opts.scrollTop);
   }
   if (pushHistory) {
-    pushNavState({ page: 'song-view', songId: song.id, sourceKey });
+    pushNavState({ page: 'song-view', songId: song.id, sourceKey, playlistId: opts.playlistId });
   }
 }
 /* @end:openSong */
@@ -3758,7 +3761,7 @@ function renderPlaylistView(opts = {}) {
         ${subtitle ? `<span class="song-row-sub">${escapeHtml(subtitle)}</span>` : ''}
       </span>
     `;
-    row.addEventListener('click', () => { if (!playlistEditMode) tapSongRowThenOpen(row, () => openSong(song, { sourceKey: ref.sourceKey })); });
+    row.addEventListener('click', () => { if (!playlistEditMode) tapSongRowThenOpen(row, () => openSong(song, { sourceKey: ref.sourceKey, playlistId: pl.id })); });
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -5082,6 +5085,8 @@ function bindAboutPage() {
 
 /* @begin:bindChordFinderPage */
 function bindChordFinderPage() {
+  document.getElementById('presentation-settings-nav-row').addEventListener('click', () => showPage('presentation-settings', { pushHistory: true, resetScroll: true }));
+  document.getElementById('presentation-settings-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-nav-row').addEventListener('click', () => {
     showPage('chord-finder', { pushHistory: true, resetScroll: true });

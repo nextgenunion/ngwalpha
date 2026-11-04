@@ -514,6 +514,11 @@
       </div>
       <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
     </button>
+    <button type="button" class="settings-row settings-row-nav" id="presentation-settings-nav-row">
+      <svg class="settings-row-icon" data-icon="presentation" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text"><span class="settings-row-title" id="t-presSettingsTitle">Presentation</span><span class="settings-row-sub" id="t-presSettingsSub">Background colors, gradients and local media</span></div>
+      <svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24"></svg>
+    </button>
   </section>
 
   <section class="settings-section about-section">
@@ -669,6 +674,13 @@
       </button>
     </div>
   </section>
+ </div>
+</main>
+
+<main id="page-presentation-settings" class="page" data-page="presentation-settings" hidden>
+ <div class="page-inner">
+  <header class="song-view-header pv-header"><button id="presentation-settings-back-btn" class="icon-btn" aria-label="Back"><svg data-icon="back-arrow" viewBox="0 0 24 24"></svg></button><div class="song-view-title"><h2 id="t-presSettingsTitle2">Presentation</h2></div></header>
+  <div id="presentation-settings-content"></div>
  </div>
 </main>
 

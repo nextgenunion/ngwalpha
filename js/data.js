@@ -903,12 +903,13 @@ async function importUserSongsFromFile(file) {
     });
     Object.assign(bySongRef, importedLabels);
     state.personalLabels = { ...state.personalLabels, bySongRef };
-    await LabelStorage.save(state.personalLabels);
+    const labelsSaved = await LabelStorage.save(state.personalLabels);
     if (state.currentPage === 'user-songs') renderUserSongList();
     if (state.currentPage === 'playlists') renderPlaylistsList();
     if (state.currentPage === 'playlist-view') renderPlaylistView();
     if (state.activeSong) updateFavoriteButtonUI();
-    showToast(t('toastUserSongsImported'));
+    if (labelsSaved) showToast(t('toastUserSongsImported'));
+    else reportSaveResult(false);
   } catch (err) {
     console.error('Songbook: user songs import failed —', err);
     showToast(t('toastUserSongsImportFailed'));
@@ -1047,9 +1048,14 @@ function createMirroredKeyValueStorage({ dbName, dbVersion = 1, storeName = 'kv'
       }
     },
 
+    // Resolves true if at least one copy (localStorage or IndexedDB) was
+    // written, false if both failed (full storage, private mode, storage
+    // blocked). It never throws, so callers decide what to tell the person.
     async save(data) {
+      let saved = false;
       try {
         localStorage.setItem(localStorageKey, JSON.stringify(data));
+        saved = true;
       } catch (err) {
         console.warn(`Songbook: ${logName} localStorage save failed —`, err);
       }
@@ -1063,12 +1069,14 @@ function createMirroredKeyValueStorage({ dbName, dbVersion = 1, storeName = 'kv'
             tx.onerror = () => reject(tx.error);
             tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
           });
+          saved = true;
         } finally {
           db.close();
         }
       } catch (err) {
-        console.warn(`Songbook: ${logName} IndexedDB save failed (localStorage mirror still saved) —`, err);
+        console.warn(`Songbook: ${logName} IndexedDB save failed${saved ? ' (localStorage mirror still saved)' : ''} —`, err);
       }
+      return saved;
     },
   };
 }
@@ -1168,9 +1176,24 @@ async function loadPlaylists() {
 }
 /* @end:loadPlaylists */
 
+/* @begin:reportSaveResult */
+// Playlists and labels live only on this device. If neither storage accepted
+// a save, say so instead of letting the change look saved and vanish later.
+// Shown at most once every 8 s so a burst of edits doesn't stack messages.
+function reportSaveResult(saved) {
+  if (saved) return true;
+  const now = Date.now();
+  if (!reportSaveResult._last || now - reportSaveResult._last > 8000) {
+    reportSaveResult._last = now;
+    showToast(t('toastSaveFailed'), null, 4500);
+  }
+  return false;
+}
+/* @end:reportSaveResult */
+
 /* @begin:persistPlaylists */
 function persistPlaylists() {
-  PlaylistStorage.save(state.playlists); // fire-and-forget
+  PlaylistStorage.save(state.playlists).then(reportSaveResult); // the UI never waits on this
 }
 /* @end:persistPlaylists */
 
@@ -1201,11 +1224,13 @@ async function importPlaylistsFromFile(file) {
     const text = await file.text();
     const cleanData = normalizePlaylistData(JSON.parse(text));
     state.playlists = cleanData;
-    await PlaylistStorage.save(cleanData);
+    const saved = await PlaylistStorage.save(cleanData);
     if (state.currentPage === 'playlists') renderPlaylistsList();
     if (state.currentPage === 'playlist-view') renderPlaylistView();
     if (state.activeSong) updateFavoriteButtonUI();
-    showToast(t('toastPlaylistsImported'));
+    // Imported and usable now, but not saved: say that instead of "imported".
+    if (saved) showToast(t('toastPlaylistsImported'));
+    else reportSaveResult(false);
   } catch (err) {
     console.error('Songbook: playlist import failed —', err);
     showToast(t('toastPlaylistsImportFailed'));
@@ -1433,7 +1458,7 @@ async function loadPersonalLabels() {
 // updates state.personalLabels synchronously first, so the UI never
 // waits on this.
 function persistPersonalLabels() {
-  LabelStorage.save(state.personalLabels);
+  LabelStorage.save(state.personalLabels).then(reportSaveResult);
 }
 /* @end:persistPersonalLabels */
 

@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.63-alpha)
+# Next Gen Worship — Worship Song App (v5.0.68-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,17 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.68 shorter presentation hint
+
+- The hint shown with the presentation controls is now just the essentials: arrows to change slide, **S** for controls, **Esc** to exit (`presentationHint`, all four languages). The other shortcuts (B, F, +/−, number keys, Shift+number, double-click) still work; they are just no longer listed.
+
+## v5.0.67 playlist/label save failures are reported
+
+- Playlists, favorites and personal labels are saved on the device in two places (localStorage and IndexedDB). If **both** refused a save (storage full, private mode, storage blocked), the app used to say nothing and the change vanished on the next launch. `createMirroredKeyValueStorage().save()` now resolves `true` when at least one copy was written and `false` when both failed (it still never throws).
+- When nothing was saved, a toast says so (`toastSaveFailed`, all four languages; shown at most once per 8 s). Playlist import and the User Songs backup import no longer show their "imported" success message in that case: the data is usable for this session but the toast says it was not saved.
+- No change when at least one storage works, and the save order is unchanged.
+- `tools/verify_save_failure_browser.cjs` checks four cases: everything works, only IndexedDB blocked, only localStorage full, both blocked.
 
 ## v5.0.63 presentation: double-click and number keys
 

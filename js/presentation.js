@@ -11,19 +11,14 @@
 // else on screen (no controls, counter, hint or cursor). The control panel is
 // never shown by mouse movement alone — only by pushing the mouse to the top
 // edge, pressing S, double-clicking the middle of the screen (or, on a phone,
-// tapping the middle).
-// Keys 1-9 jump to the Nth part of the song (0 = title slide). Parts, not slide
-// numbers: the number of slides changes with Lines / Fill / text size, the parts
-// of a song do not, and a song rarely has more than nine.
+// double-tapping the middle).
+// Number keys select slides within the current song. Shift+number selects a playlist entry.
 //
 // This module owns only the overlay. ui.js decides how it is opened/closed
 // (history entry, popstate) and passes in what it needs — see
 // openPresentationMode() there. No app state is read from here.
 //
 // Planned later (seams are left on purpose, nothing is implemented yet):
-//   - changeable background: picture, animated background, video. The
-//     background lives in its own layer (.pres-bg) so it can be swapped
-//     without touching the lyric stage.
 //   - PNG export: buildSlides() returns plain data (label + lines), separate
 //     from the DOM in buildCard(), so a canvas exporter can reuse it.
 // ============================================================================
@@ -50,7 +45,7 @@
   const EDGE_PX = 3;        // mouse this close to the top edge asks for the controls...
   const EDGE_DWELL_MS = 150; // ...and has to stay there briefly, so a fly-by doesn't flash them
   const SWIPE_PX = 50;
-  const DOUBLE_CLICK_MS = 350; // two middle clicks this close together = double-click
+  const DOUBLE_CLICK_MS = 350; // two nearby middle clicks/taps toggle the panel once
 
   const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 
@@ -70,9 +65,129 @@
   let restoreFocus = null;
   let swipe = null;
   let lastMiddleClick = null;
+  const BACKGROUNDS = {
+    black: ['presBlack', '#000'], navy: ['presNavy', '#101c32'],
+    forest: ['presForest', '#102a22'], burgundy: ['presBurgundy', '#32131f'],
+    ocean: ['presOcean', 'linear-gradient(135deg, #071625, #164552)'],
+    dusk: ['presDusk', 'linear-gradient(135deg, #291730, #713e36)'],
+  };
+  let background = { kind: 'preset', preset: 'black' };
+  let mediaURL = null;
+
+  function loadBackground() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sb-pres-background'));
+      if (saved && saved.kind === 'preset' && BACKGROUNDS[saved.preset]) background = { kind: 'preset', preset: saved.preset };
+      else if (saved && saved.kind === 'media' && ['image', 'video'].includes(saved.media) && typeof saved.name === 'string') background = saved;
+    } catch (_) {}
+  }
+
+  function saveBackground() {
+    // Only the choice and filename are saved. File bytes and blob URLs remain
+    // in this page's memory and never enter IndexedDB or Cache Storage.
+    try { localStorage.setItem('sb-pres-background', JSON.stringify(background)); } catch (_) {}
+  }
+
+  function paintBackground(layer, preview = false, translate = cfg && cfg.t) {
+    layer.replaceChildren();
+    layer.style.background = background.kind === 'preset' ? BACKGROUNDS[background.preset][1] : '#000';
+    if (background.kind !== 'media' || !mediaURL) return;
+    const media = document.createElement(background.media === 'video' ? 'video' : 'img');
+    if (background.media === 'video') {
+      media.muted = true;
+      media.loop = true;
+      media.playsInline = true;
+      media.preload = preview ? 'metadata' : 'auto';
+    } else media.alt = '';
+    media.onerror = () => {
+      media.remove();
+      const status = document.getElementById('pres-media-status');
+      if (status && translate) status.textContent = translate('presMediaError');
+    };
+    media.src = mediaURL;
+    layer.appendChild(media);
+    if (background.media === 'video' && !preview) media.play().catch(() => { media.remove(); });
+  }
+
+  const titleOptions = ['presTitleSlide', 'presTitleText', 'presTitleNumber', 'presTitleArtist'];
+  let titlePrefs = {};
+  function loadTitlePrefs() {
+    try { titlePrefs = JSON.parse(localStorage.getItem('sb-pres-title') || '{}') || {}; }
+    catch (_) { titlePrefs = {}; }
+  }
+  function settings(translate) {
+    loadTitlePrefs();
+    loadBackground();
+    const container = document.getElementById('presentation-settings-content');
+    container.replaceChildren();
+    const preview = el('div', 'pres-background-preview');
+    const layer = el('div', 'pres-bg');
+    paintBackground(layer, true, translate);
+    preview.append(layer, el('span', 'pres-background-sample', translate('presBackgroundSample')));
+    const section = el('section', 'settings-section');
+    section.appendChild(el('h3', 'settings-heading', translate('presBackground')));
+    const choices = el('div', 'pres-background-choices');
+    Object.entries(BACKGROUNDS).forEach(([id, [label]]) => {
+      const button = el('button', 'btn-secondary', translate(label));
+      button.type = 'button';
+      button.dataset.presBackground = id;
+      button.setAttribute('aria-pressed', String(background.kind === 'preset' && background.preset === id));
+      button.addEventListener('click', () => {
+        if (mediaURL) URL.revokeObjectURL(mediaURL);
+        mediaURL = null;
+        background = { kind: 'preset', preset: id }; saveBackground(); settings(translate);
+      });
+      choices.appendChild(button);
+    });
+    section.appendChild(choices);
+    const row = el('div', 'settings-row');
+    const text = el('div', 'settings-row-text');
+    text.appendChild(el('p', 'settings-row-sub', translate('presLocalHelp')));
+    const status = el('p', 'settings-row-sub'); status.id = 'pres-media-status'; status.setAttribute('role', 'status');
+    if (background.kind === 'media') status.textContent = background.name + ' — ' + translate(mediaURL ? 'presFileReady' : 'presFileMissing');
+    text.appendChild(status);
+    const picker = el('input'); picker.type = 'file'; picker.accept = 'image/*,video/*'; picker.hidden = true;
+    picker.id = 'pres-background-file';
+    const choose = el('button', 'btn-secondary', translate(background.kind === 'media' ? 'presRelinkMedia' : 'presChooseMedia'));
+    choose.type = 'button'; choose.addEventListener('click', () => picker.click());
+    picker.addEventListener('change', () => {
+      const file = picker.files[0];
+      if (!file) return;
+      const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
+      if (!kind) { status.textContent = translate('presMediaError'); picker.value = ''; return; }
+      if (mediaURL) URL.revokeObjectURL(mediaURL);
+      mediaURL = URL.createObjectURL(file);
+      background = { kind: 'media', media: kind, name: file.name };
+      saveBackground(); settings(translate);
+    });
+    row.append(text, choose, picker); section.appendChild(row);
+    const titles = el('section', 'settings-section');
+    titles.appendChild(el('h3', 'settings-heading', translate('presTitleSlide')));
+    for (const key of titleOptions) {
+      const label = el('label', 'settings-row');
+      const input = el('input');
+      input.type = 'checkbox';
+      input.checked = titlePrefs[key] !== false;
+      input.disabled = key !== 'presTitleSlide' && titlePrefs.presTitleSlide === false;
+      input.addEventListener('change', () => {
+        titlePrefs[key] = input.checked;
+        try { localStorage.setItem('sb-pres-title', JSON.stringify(titlePrefs)); } catch (_) {}
+        if (key === 'presTitleSlide') {
+          titles.querySelectorAll('input').forEach(control => {
+            if (control !== input) control.disabled = !input.checked;
+          });
+        }
+      });
+      label.append(el('span', 'settings-row-title', translate(key)), input);
+      titles.appendChild(label);
+    }
+    container.append(preview, section, titles);
+  }
 
   // ---------- preferences ----------
   function loadPrefs() {
+    loadTitlePrefs();
+    loadBackground();
     try {
       const lines = parseInt(localStorage.getItem(LS_LINES), 10);
       if (LINE_CHOICES.includes(lines)) linesPerSlide = lines;
@@ -141,7 +256,7 @@
   // so the audience can be kept on the same lyric when the grouping changes.
   function buildSlides(song, perSlide, titleInfo, fits) {
     const result = [];
-    if (titleInfo && titleInfo.title) result.push({ kind: 'title', number: titleInfo.number, title: titleInfo.title, artist: titleInfo.artist });
+    if (titleInfo && (titleInfo.title || titleInfo.artist || (titleInfo.number != null && titleInfo.number !== ''))) result.push({ kind: 'title', number: titleInfo.number, title: titleInfo.title, artist: titleInfo.artist });
     buildSections(song.lyrics).forEach((section, si) => {
       const total = section.lines.length;
       let start = 0;
@@ -206,7 +321,7 @@
     const card = el('div', 'pres-slide ' + (slide.kind === 'title' ? 'is-title' : 'is-lyrics'));
     if (slide.kind === 'title') {
       if (slide.number != null && slide.number !== '') card.appendChild(el('div', 'pres-title-number', '#' + slide.number));
-      card.appendChild(el('div', 'pres-title-text', slide.title));
+      if (slide.title) card.appendChild(el('div', 'pres-title-text', slide.title));
       if (slide.artist) card.appendChild(el('div', 'pres-title-artist', slide.artist));
     } else {
       if (slide.label) card.appendChild(el('div', 'pres-label', slide.label));
@@ -225,13 +340,15 @@
     o.setAttribute('aria-modal', 'true');
     o.setAttribute('aria-label', t('presentationModeBtn'));
 
-    o.appendChild(el('div', 'pres-bg'));
+    const backgroundLayer = el('div', 'pres-bg');
+    paintBackground(backgroundLayer);
+    o.appendChild(backgroundLayer);
     const stage = el('div', 'pres-stage');
     stage.setAttribute('aria-live', 'polite');
     o.appendChild(stage);
 
     const chip = (attr, value, text, extra) =>
-      `<button type="button" class="pres-btn pres-chip" ${attr}="${value}" aria-pressed="false"${extra || ''}>${escapeHtmlLocal(text)}</button>`;
+      `<button type="button" class="pres-btn pres-chip${attr === 'data-pres-lines' && value !== FILL ? ' pres-round-btn' : ''}" ${attr}="${value}" aria-pressed="false"${extra || ''}>${escapeHtmlLocal(text)}</button>`;
     const bar = el('div', 'pres-bar');
     bar.innerHTML = `
       <div class="pres-head">
@@ -244,8 +361,8 @@
       </div>
       <div class="pres-group" role="group" aria-label="${escapeAttr(t('presentationTextSize'))}">
         <span class="pres-group-label">${escapeHtmlLocal(t('presentationTextSize'))}</span>
-        <button type="button" class="pres-btn pres-chip" data-pres="smaller" aria-label="${escapeAttr(t('presentationSmaller'))}">A−</button>
-        <button type="button" class="pres-btn pres-chip" data-pres="larger" aria-label="${escapeAttr(t('presentationLarger'))}">A+</button>
+        <button type="button" class="pres-btn pres-chip pres-round-btn" data-pres="smaller" aria-label="${escapeAttr(t('presentationSmaller'))}">A−</button>
+        <button type="button" class="pres-btn pres-chip pres-round-btn" data-pres="larger" aria-label="${escapeAttr(t('presentationLarger'))}">A+</button>
       </div>
       <div class="pres-group" data-pres-transition-group role="group" aria-label="${escapeAttr(t('presentationTransitionLabel'))}">
         <span class="pres-group-label">${escapeHtmlLocal(t('presentationTransitionLabel'))}</span>
@@ -342,9 +459,15 @@
   }
 
   function computeSlides() {
-    if (linesPerSlide !== FILL) return buildSlides(cfg.song, linesPerSlide, cfg.titleInfo);
+    const title = cfg.titleInfo && titlePrefs.presTitleSlide !== false ? { ...cfg.titleInfo } : null;
+    if (title) {
+      if (titlePrefs.presTitleText === false) delete title.title;
+      if (titlePrefs.presTitleNumber === false) delete title.number;
+      if (titlePrefs.presTitleArtist === false) delete title.artist;
+    }
+    if (linesPerSlide !== FILL) return buildSlides(cfg.song, linesPerSlide, title);
     const fitter = createFitter();
-    try { return buildSlides(cfg.song, FILL, cfg.titleInfo, fitter.fits); }
+    try { return buildSlides(cfg.song, FILL, title, fitter.fits); }
     finally { fitter.done(); }
   }
 
@@ -429,7 +552,29 @@
   }
 
   // ---------- navigation and settings ----------
+  let queuePosition = -1;
+  function selectSong(position, fromEnd = false) {
+    const song = cfg.queue?.[position];
+    if (!song) return;
+    queuePosition = position;
+    cfg.song = song;
+    cfg.titleInfo = { title: song.title, artist: song.artist, number: song.number };
+    slides = computeSlides();
+    index = fromEnd ? Math.max(0, slides.length - 1) : 0;
+    setBlank(false);
+    renderSlide({ animate: true });
+  }
+
   function go(to) {
+    resetNumber();
+    if (queuePosition >= 0 && to > index && to >= slides.length) {
+      selectSong(queuePosition + 1);
+      return;
+    }
+    if (queuePosition > 0 && to < 0) {
+      selectSong(queuePosition - 1, true);
+      return;
+    }
     if (!slides.length) return;
     const next = Math.max(0, Math.min(slides.length - 1, to));
     setBlank(false);
@@ -438,12 +583,27 @@
     renderSlide({ animate: true });
   }
 
-  // Jump to the first slide of the Nth part of the song (1 = first part). A
-  // part is a verse/chorus block, as in buildSections(); a number the song
-  // doesn't have does nothing.
-  function goToPart(n) {
-    const target = slides.findIndex(s => s.kind === 'lyrics' && s.section === n - 1);
-    if (target >= 0) go(target);
+  // A short delay only for ambiguous prefixes lets 12 select slide/song 12.
+  let pendingNumber = '', numberTimer = null, queueNumber = false;
+  function resetNumber() {
+    clearTimeout(numberTimer);
+    pendingNumber = '';
+  }
+  function numberKey(digit, queue) {
+    const limit = queue ? (queuePosition >= 0 ? cfg.queue.length : 0) : slides.length;
+    if (queue !== queueNumber) resetNumber();
+    queueNumber = queue;
+    clearTimeout(numberTimer);
+    pendingNumber += digit;
+    const n = Number(pendingNumber);
+    if (!n || n > limit) { resetNumber(); return; }
+    const jump = () => {
+      resetNumber();
+      if (queue) selectSong(n - 1);
+      else if (n <= slides.length) go(n - 1);
+    };
+    if (n * 10 <= limit) numberTimer = setTimeout(jump, 450);
+    else jump();
   }
 
   function setLines(n) {
@@ -483,7 +643,7 @@
 
   // ---------- controls visibility ----------
   // Hidden at launch and never shown by mouse movement alone. They appear for
-  // the top edge, S, or (touch only) a tap in the middle, and hide again by
+  // the top edge, S, or a double-click/tap in the middle, and hide again by
   // themselves — but not while the pointer is on the panel.
   function controlsVisible() {
     return !!root && root.classList.contains('controls-visible');
@@ -524,6 +684,16 @@
   function onKeydown(e) {
     if (!root || e.ctrlKey || e.metaKey || e.altKey) return;
     const inBar = e.target && e.target.closest && e.target.closest('.pres-bar');
+    const digit = /^Digit([0-9])$/.exec(e.code)?.[1] || (/^[0-9]$/.test(e.key) ? e.key : null);
+    if (digit !== null) {
+      e.preventDefault(); e.stopPropagation();
+      if (!e.repeat) {
+        if (digit === '0' && !pendingNumber && !e.shiftKey) go(0);
+        else numberKey(digit, e.shiftKey);
+      }
+      return;
+    }
+    resetNumber();
     let handled = true;
     switch (e.key) {
       case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ': case 'n': case 'N':
@@ -534,9 +704,7 @@
         go(index + 1); break;
       case 'ArrowLeft': case 'ArrowUp': case 'PageUp': case 'Backspace': case 'p': case 'P':
         go(index - 1); break;
-      case 'Home': case '0': go(0); break;
-      case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-        goToPart(parseInt(e.key, 10)); break;
+      case 'Home': go(0); break;
       case 'End': go(slides.length - 1); break;
       case 'b': case 'B': case '.':
         setBlank(!blanked); break;
@@ -571,37 +739,33 @@
   }
 
   function onStagePointerDown(e) {
-    if (e.target.closest('.pres-bar')) return;
+    if (e.target.closest('.pres-bar')) { lastMiddleClick = null; return; }
     swipe = { x: e.clientX, y: e.clientY, id: e.pointerId };
   }
   function onStagePointerUp(e) {
-    if (!swipe || e.target.closest('.pres-bar')) { swipe = null; return; }
+    if (!swipe || e.pointerId !== swipe.id || e.target.closest('.pres-bar')) { swipe = null; lastMiddleClick = null; return; }
     const dx = e.clientX - swipe.x;
     const dy = e.clientY - swipe.y;
     swipe = null;
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
+      lastMiddleClick = null;
       go(dx < 0 ? index + 1 : index - 1);
       return;
     }
-    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return;
-    // A click/tap: left third goes back, right third goes forward. The middle
-    // never changes the slide; on touch it shows the controls (and hides them
-    // again on the next tap). With a mouse a single click there does nothing,
-    // so a stray click never flashes controls at the audience; a double-click
-    // there toggles them (only the middle: on the sides each click of a
-    // double-click would already have changed the slide).
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) { lastMiddleClick = null; return; }
+    // Side taps navigate immediately. Only a nearby pair of middle taps or
+    // clicks toggles controls; one stray middle tap leaves the projection clean.
     const x = e.clientX / window.innerWidth;
-    if (x < 1 / 3) go(index - 1);
-    else if (x > 2 / 3) go(index + 1);
-    else if (e.pointerType !== 'mouse') {
-      if (controlsVisible()) hideControls(); else showControls();
-    } else {
+    if (x < 1 / 3) { lastMiddleClick = null; go(index - 1); }
+    else if (x > 2 / 3) { lastMiddleClick = null; go(index + 1); }
+    else {
       const now = performance.now();
       const last = lastMiddleClick;
-      if (last && now - last.t <= DOUBLE_CLICK_MS && Math.abs(e.clientX - last.x) <= 10 && Math.abs(e.clientY - last.y) <= 10) {
+      const tolerance = e.pointerType === 'mouse' ? 10 : 24;
+      if (last && last.type === e.pointerType && now - last.t <= DOUBLE_CLICK_MS && Math.abs(e.clientX - last.x) <= tolerance && Math.abs(e.clientY - last.y) <= tolerance) {
         lastMiddleClick = null;
         if (controlsVisible()) hideControls(); else showControls();
-      } else lastMiddleClick = { t: now, x: e.clientX, y: e.clientY };
+      } else lastMiddleClick = { t: now, x: e.clientX, y: e.clientY, type: e.pointerType };
     }
   }
 
@@ -629,11 +793,13 @@
   // cfg: { song, titleInfo:{number,title,artist}, t, onRequestClose }
   function open(options) {
     if (root || !options || !options.song) return;
-    cfg = options;
+    cfg = { ...options };
+    queuePosition = cfg.queue ? cfg.queue.indexOf(cfg.song) : -1;
     loadPrefs();
     index = 0;
     blanked = false;
     panelHover = false;
+    swipe = lastMiddleClick = null;
     restoreFocus = document.activeElement;
 
     root = buildOverlay();
@@ -651,7 +817,7 @@
     bar.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { panelHover = false; if (controlsVisible()) scheduleHide(); } });
     root.addEventListener('pointerdown', onStagePointerDown);
     root.addEventListener('pointerup', onStagePointerUp);
-    root.addEventListener('pointercancel', () => { swipe = null; });
+    root.addEventListener('pointercancel', () => { swipe = lastMiddleClick = null; });
     root.addEventListener('pointermove', onPointerMove);
     document.addEventListener('keydown', onKeydown, true);
     window.addEventListener('resize', scheduleRefresh);
@@ -687,8 +853,11 @@
     if (motionQuery && motionQuery.removeEventListener) motionQuery.removeEventListener('change', onMotionChange);
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
     releaseWakeLock();
+    root.querySelectorAll('.pres-bg video').forEach(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     root.remove();
     root = null;
+    swipe = lastMiddleClick = null;
+    resetNumber();
     cfg = null;
     slides = [];
     document.documentElement.classList.remove('pres-open');
@@ -700,6 +869,7 @@
   }
 
   window.SongPresentation = {
+    settings,
     open,
     close,
     isOpen: () => !!root,
