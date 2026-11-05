@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.68-alpha)
+# Next Gen Worship — Worship Song App (v5.0.70-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,25 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.70 presentation Advanced page
+
+- Settings → Presentation → **Advanced** (its own sub-page, like the other sub-pages): **Font** (Standard = Noto Sans, Serif = device serif, System = device UI font), custom **text color** and **background color** (swatch-shaped pickers around the native colour input; the OS picker does the work), **Effect** (None, Shadow, Glow, Outline; default Shadow), **Picture or video** (moved here from the main page), **Dim background** (0–70%, darkens only the background, never the text) and **Reset to defaults**.
+- Saved as `sb-pres-adv`. A custom text/background colour wins over Auto/White/Black and the preset swatches; choosing one of those on the main page clears the matching custom colour. The text and the Auto tone follow a custom background by luminance.
+- Inter is deliberately not a font choice: this build ships Inter without Cyrillic Extended, so Mongolian Ө and Ү would fall back to another font. Standard (Noto Sans) covers them; Serif and System rely on the device's own fonts.
+- Fixed: the settings preview text ignored the text color on light backgrounds (hard-coded white).
+- Main Presentation page keeps just Look (background swatches, text color) and the Title slide switches, plus the Advanced row. The old automatic soft shadow on photos is now the default Shadow effect.
+- `tools/verify_presentation_advanced_browser.cjs` covers the page, every control, the real overlay and Reset.
+- Not built yet: remembered picture/video (file reference, desktop Chrome/Edge), save slide as image, optional fonts loaded from Google Fonts.
+
+## v5.0.69 presentation look, text color, settings design
+
+- Backgrounds are no longer darkened: the 35% black layer over every background is removed. On photos and video, light text gets a soft shadow instead.
+- Presets replaced with six cleaner ones: Black, Charcoal, Ocean, White, Sky, Sunrise. Old saved presets (navy, forest, burgundy, dusk) fall back to Black.
+- New **Text color** setting: Auto (follows the background; white on photos and video), White, Black. Saved as `sb-pres-text`. The overlay and the settings preview both follow it, including the hint line.
+- Settings → Presentation now uses the app's own components: colour swatches (like Settings → Colour), the sliding segmented control (like Chord style) and switches (like Dark mode) instead of outlined buttons and native checkboxes. Controls update in place, so their press animations play.
+- The language dropdown (and other `.select-input` dropdowns) now use the same pill look as the sort chips.
+- `tools/verify_presentation_settings_browser.cjs` covers the page, the tone rules and "no darkening layer".
 
 ## v5.0.68 shorter presentation hint
 

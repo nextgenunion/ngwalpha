@@ -65,12 +65,18 @@
   let restoreFocus = null;
   let swipe = null;
   let lastMiddleClick = null;
+  // [string key, CSS background, text tone that reads well on it]
   const BACKGROUNDS = {
-    black: ['presBlack', '#000'], navy: ['presNavy', '#101c32'],
-    forest: ['presForest', '#102a22'], burgundy: ['presBurgundy', '#32131f'],
-    ocean: ['presOcean', 'linear-gradient(135deg, #071625, #164552)'],
-    dusk: ['presDusk', 'linear-gradient(135deg, #291730, #713e36)'],
+    black: ['presBlack', '#000', 'light'],
+    charcoal: ['presCharcoal', '#1d2026', 'light'],
+    ocean: ['presOcean', 'linear-gradient(160deg, #0a3d5c 0%, #0e86b8 100%)', 'light'],
+    white: ['presWhite', '#fff', 'dark'],
+    sky: ['presSky', 'linear-gradient(180deg, #d6efff 0%, #f4fbff 100%)', 'dark'],
+    sunrise: ['presSunrise', 'linear-gradient(160deg, #fff1d6 0%, #ffd2c2 100%)', 'dark'],
   };
+  const LS_TEXT = 'sb-pres-text';
+  const TEXT_CHOICES = ['auto', 'light', 'dark'];
+  let textPref = 'auto';
   let background = { kind: 'preset', preset: 'black' };
   let mediaURL = null;
 
@@ -88,9 +94,84 @@
     try { localStorage.setItem('sb-pres-background', JSON.stringify(background)); } catch (_) {}
   }
 
+  // ---------- advanced look (font, colours, effect, dim) ----------
+  const LS_ADV = 'sb-pres-adv';
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const ADV_DEFAULTS = { font: 'standard', textColor: null, bgColor: null, effect: 'shadow', dim: 0 };
+  // Only fonts that cover Mongolian (including Ө and Ү) on every device. Inter
+  // is not offered: this build ships it without Cyrillic Extended.
+  const FONTS = {
+    standard: ['presFontStandard', 'var(--font-lyrics)'],
+    classic: ['presFontClassic', "ui-serif, 'Times New Roman', Georgia, serif"],
+    system: ['presFontSystem', "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"],
+  };
+  const EFFECTS = ['none', 'shadow', 'glow', 'outline'];
+  const DIM_MAX = 70;
+  let adv = { ...ADV_DEFAULTS };
+
+  function loadAdvanced() {
+    adv = { ...ADV_DEFAULTS };
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_ADV));
+      if (!saved || typeof saved !== 'object') return;
+      if (FONTS[saved.font]) adv.font = saved.font;
+      if (HEX.test(saved.textColor)) adv.textColor = saved.textColor;
+      if (HEX.test(saved.bgColor)) adv.bgColor = saved.bgColor;
+      if (EFFECTS.includes(saved.effect)) adv.effect = saved.effect;
+      const dim = Number(saved.dim);
+      if (Number.isFinite(dim)) adv.dim = Math.min(DIM_MAX, Math.max(0, Math.round(dim / 5) * 5));
+    } catch (_) {}
+  }
+  function saveAdvanced() {
+    try { localStorage.setItem(LS_ADV, JSON.stringify(adv)); } catch (_) {}
+  }
+
+  function loadTextPref() {
+    try {
+      const saved = localStorage.getItem(LS_TEXT);
+      if (TEXT_CHOICES.includes(saved)) textPref = saved;
+    } catch (_) {}
+  }
+
+  // Relative luminance (WCAG). White vs black text is equally readable at 0.179.
+  function luminance(hex) {
+    const ch = (i) => {
+      const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+  }
+  function bgIsLight() {
+    if (background.kind === 'media') return false;
+    if (adv.bgColor) return luminance(adv.bgColor) > 0.179;
+    return BACKGROUNDS[background.preset][2] === 'dark';
+  }
+  // Auto follows the background (white on photos and video); White/Black force
+  // it; a custom colour from Advanced wins over all of them.
+  function textColor() {
+    if (adv.textColor) return adv.textColor;
+    if (textPref === 'light') return '#ffffff';
+    if (textPref === 'dark') return '#111111';
+    return bgIsLight() ? '#111111' : '#ffffff';
+  }
+  // Sets everything the CSS needs on the overlay or the settings preview.
+  function applyTone(node) {
+    const text = textColor();
+    const lightText = luminance(text) > 0.179;
+    node.dataset.tone = lightText ? 'light' : 'dark';
+    node.dataset.bg = background.kind === 'media' ? 'media' : 'preset';
+    node.dataset.bgTone = bgIsLight() ? 'light' : 'dark';
+    node.dataset.effect = adv.effect;
+    node.style.setProperty('--pres-text', text);
+    // Shadow and outline use the opposite of the text; glow uses the text colour.
+    node.style.setProperty('--pres-fx', adv.effect === 'glow' ? text : (lightText ? '#000000' : '#ffffff'));
+    node.style.setProperty('--pres-dim', String(adv.dim / 100));
+    node.style.setProperty('--pres-font', FONTS[adv.font][1]);
+  }
+
   function paintBackground(layer, preview = false, translate = cfg && cfg.t) {
     layer.replaceChildren();
-    layer.style.background = background.kind === 'preset' ? BACKGROUNDS[background.preset][1] : '#000';
+    layer.style.background = background.kind === 'preset' ? (adv.bgColor || BACKGROUNDS[background.preset][1]) : '#000';
     if (background.kind !== 'media' || !mediaURL) return;
     const media = document.createElement(background.media === 'video' ? 'video' : 'img');
     if (background.media === 'video') {
@@ -115,41 +196,201 @@
     try { titlePrefs = JSON.parse(localStorage.getItem('sb-pres-title') || '{}') || {}; }
     catch (_) { titlePrefs = {}; }
   }
-  function settings(translate) {
+  // ---------- settings pages ----------
+  // Built from the app's own components: colour swatches (like Settings →
+  // Colour), the sliding segmented control (like Chord style) and switches
+  // (like Dark mode). Controls update in place instead of re-rendering the
+  // page, so their press animations play.
+  function loadAll() {
     loadTitlePrefs();
     loadBackground();
-    const container = document.getElementById('presentation-settings-content');
-    container.replaceChildren();
+    loadTextPref();
+    loadAdvanced();
+  }
+
+  function makePreview(translate) {
     const preview = el('div', 'pres-background-preview');
     const layer = el('div', 'pres-bg');
-    paintBackground(layer, true, translate);
     preview.append(layer, el('span', 'pres-background-sample', translate('presBackgroundSample')));
+    const refresh = () => { paintBackground(layer, true, translate); applyTone(preview); };
+    refresh();
+    return { preview, refresh };
+  }
+
+  function settingsRow(translate, titleKey, control, wide) {
+    const r = el('div', 'settings-row' + (wide ? ' pres-row-wide' : ''));
+    const text = el('div', 'settings-row-text');
+    text.appendChild(el('span', 'settings-row-title', translate(titleKey)));
+    r.append(text, control);
+    return r;
+  }
+
+  // A sliding segmented control (same component as Chord style).
+  function segControl(translate, labelKey, choices, current, onChange) {
+    const seg = el('div', 'seg-toggle');
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', translate(labelKey));
+    const thumb = el('div', 'seg-toggle-thumb');
+    thumb.setAttribute('aria-hidden', 'true');
+    seg.appendChild(thumb);
+    const place = (opts) => { if (typeof positionSegToggleThumb === 'function') positionSegToggleThumb(seg, opts); };
+    choices.forEach(([value, labelText]) => {
+      const b = el('button', 'seg-toggle-btn', labelText);
+      b.type = 'button';
+      b.dataset.value = value;
+      b.setAttribute('aria-pressed', String(value === current));
+      b.addEventListener('click', () => {
+        seg.querySelectorAll('.seg-toggle-btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        place();
+        onChange(value);
+      });
+      seg.appendChild(b);
+    });
+    // The page may still be hidden while it is built; place the thumb once it shows.
+    requestAnimationFrame(() => requestAnimationFrame(() => place({ instant: true })));
+    return seg;
+  }
+
+  function settings(translate, hooks = {}) {
+    loadAll();
+    const container = document.getElementById('presentation-settings-content');
+    container.replaceChildren();
+    const { preview, refresh } = makePreview(translate);
+
+    // Look: background colour + text colour (Auto follows the background).
     const section = el('section', 'settings-section');
-    section.appendChild(el('h3', 'settings-heading', translate('presBackground')));
-    const choices = el('div', 'pres-background-choices');
-    Object.entries(BACKGROUNDS).forEach(([id, [label]]) => {
-      const button = el('button', 'btn-secondary', translate(label));
+    section.appendChild(el('h3', 'settings-heading', translate('presLook')));
+    const swatches = el('div', 'accent-swatches');
+    Object.entries(BACKGROUNDS).forEach(([id, [label, css]]) => {
+      const button = el('button', 'accent-swatch pres-swatch');
       button.type = 'button';
+      button.style.background = css;
       button.dataset.presBackground = id;
-      button.setAttribute('aria-pressed', String(background.kind === 'preset' && background.preset === id));
+      button.setAttribute('aria-label', translate(label));
+      button.setAttribute('aria-pressed', String(background.kind === 'preset' && !adv.bgColor && background.preset === id));
       button.addEventListener('click', () => {
         if (mediaURL) URL.revokeObjectURL(mediaURL);
         mediaURL = null;
-        background = { kind: 'preset', preset: id }; saveBackground(); settings(translate);
+        background = { kind: 'preset', preset: id };
+        adv.bgColor = null;
+        saveBackground();
+        saveAdvanced();
+        swatches.querySelectorAll('.pres-swatch').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+        refresh();
       });
-      choices.appendChild(button);
+      swatches.appendChild(button);
     });
-    section.appendChild(choices);
-    const row = el('div', 'settings-row');
-    const text = el('div', 'settings-row-text');
-    text.appendChild(el('p', 'settings-row-sub', translate('presLocalHelp')));
-    const status = el('p', 'settings-row-sub'); status.id = 'pres-media-status'; status.setAttribute('role', 'status');
-    if (background.kind === 'media') status.textContent = background.name + ' — ' + translate(mediaURL ? 'presFileReady' : 'presFileMissing');
-    text.appendChild(status);
+    section.appendChild(settingsRow(translate, 'presColor', swatches));
+    section.appendChild(settingsRow(translate, 'presTextColor', segControl(translate, 'presTextColor',
+      TEXT_CHOICES.map(c => [c, translate('presText' + c[0].toUpperCase() + c.slice(1))]), textPref, (choice) => {
+        textPref = choice;
+        adv.textColor = null; // a basic choice replaces any custom colour
+        savePref(LS_TEXT, choice);
+        saveAdvanced();
+        refresh();
+      })));
+
+    // Advanced opens its own page, like the other sub-pages in Settings.
+    const nav = el('button', 'settings-row settings-row-nav');
+    nav.type = 'button';
+    nav.id = 'presentation-advanced-nav-row';
+    const navText = el('div', 'settings-row-text');
+    navText.append(el('span', 'settings-row-title', translate('presAdvancedTitle')), el('span', 'settings-row-sub', translate('presAdvancedSub')));
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'settings-row-chevron');
+    chevron.setAttribute('data-icon', 'back-arrow');
+    chevron.setAttribute('viewBox', '0 0 24 24');
+    nav.append(navText, chevron);
+    nav.addEventListener('click', () => { if (hooks.openAdvanced) hooks.openAdvanced(); });
+    section.appendChild(nav);
+
+    // Title slide: one switch per part.
+    const titles = el('section', 'settings-section');
+    titles.appendChild(el('h3', 'settings-heading', translate('presTitleSlide')));
+    const switches = {};
+    for (const key of titleOptions) {
+      const sw = el('button', 'switch');
+      sw.type = 'button';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-label', translate(key));
+      sw.setAttribute('aria-checked', String(titlePrefs[key] !== false));
+      sw.appendChild(el('span', 'switch-knob'));
+      switches[key] = sw;
+      sw.addEventListener('click', () => {
+        const on = sw.getAttribute('aria-checked') !== 'true';
+        sw.setAttribute('aria-checked', String(on));
+        titlePrefs[key] = on;
+        try { localStorage.setItem('sb-pres-title', JSON.stringify(titlePrefs)); } catch (_) {}
+        if (key === 'presTitleSlide') titleOptions.slice(1).forEach(k => { switches[k].disabled = !on; });
+      });
+      if (key !== 'presTitleSlide') sw.disabled = titlePrefs.presTitleSlide === false;
+      titles.appendChild(settingsRow(translate, key, sw));
+    }
+    container.append(preview, section, titles);
+    if (typeof initIcons === 'function') initIcons(container);
+  }
+
+  // Advanced: font, custom colours, text effect, picture/video and dim.
+  function colorPicker(translate, labelKey, value, onInput) {
+    // A swatch-shaped label around the native colour input: the OS picker
+    // does the work, the swatch matches the app. Rainbow = "pick a colour".
+    const wrap = el('label', 'accent-swatch pres-swatch pres-custom');
+    const input = el('input');
+    input.type = 'color';
+    input.setAttribute('aria-label', translate(labelKey));
+    const show = (hex) => {
+      wrap.style.background = hex || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)';
+      wrap.dataset.selected = String(!!hex);
+      if (hex) input.value = hex;
+    };
+    show(value);
+    input.addEventListener('input', () => { show(input.value); onInput(input.value); });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function advanced(translate) {
+    loadAll();
+    const container = document.getElementById('presentation-advanced-content');
+    container.replaceChildren();
+    const { preview, refresh } = makePreview(translate);
+
+    const text = el('section', 'settings-section');
+    text.appendChild(el('h3', 'settings-heading', translate('presAdvText')));
+    text.appendChild(settingsRow(translate, 'presFont', segControl(translate, 'presFont',
+      Object.entries(FONTS).map(([id, [label]]) => [id, translate(label)]), adv.font, (value) => {
+        adv.font = value; saveAdvanced(); refresh();
+      }), true));
+    text.appendChild(settingsRow(translate, 'presTextColor', colorPicker(translate, 'presTextColor', adv.textColor, (hex) => {
+      adv.textColor = hex; saveAdvanced(); refresh();
+    })));
+    text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
+      EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
+        adv.effect = value; saveAdvanced(); refresh();
+      }), true));
+
+    const bg = el('section', 'settings-section');
+    bg.appendChild(el('h3', 'settings-heading', translate('presAdvBackground')));
+    bg.appendChild(settingsRow(translate, 'presBgColor', colorPicker(translate, 'presBgColor', adv.bgColor, (hex) => {
+      if (mediaURL) URL.revokeObjectURL(mediaURL);
+      mediaURL = null;
+      if (background.kind === 'media') { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
+      adv.bgColor = hex; saveAdvanced(); refresh();
+      status.textContent = '';
+      choose.textContent = translate('presChooseMedia');
+    })));
+
+    // Picture or video from this device.
     const picker = el('input'); picker.type = 'file'; picker.accept = 'image/*,video/*'; picker.hidden = true;
     picker.id = 'pres-background-file';
     const choose = el('button', 'btn-secondary', translate(background.kind === 'media' ? 'presRelinkMedia' : 'presChooseMedia'));
     choose.type = 'button'; choose.addEventListener('click', () => picker.click());
+    const mediaRow = el('div', 'settings-row');
+    const mediaText = el('div', 'settings-row-text');
+    mediaText.append(el('span', 'settings-row-title', translate('presMedia')), el('p', 'settings-row-sub', translate('presLocalHelp')));
+    const status = el('p', 'settings-row-sub'); status.id = 'pres-media-status'; status.setAttribute('role', 'status');
+    if (background.kind === 'media') status.textContent = background.name + ' — ' + translate(mediaURL ? 'presFileReady' : 'presFileMissing');
+    mediaText.appendChild(status);
     picker.addEventListener('change', () => {
       const file = picker.files[0];
       if (!file) return;
@@ -158,36 +399,54 @@
       if (mediaURL) URL.revokeObjectURL(mediaURL);
       mediaURL = URL.createObjectURL(file);
       background = { kind: 'media', media: kind, name: file.name };
-      saveBackground(); settings(translate);
+      saveBackground();
+      status.textContent = file.name + ' — ' + translate('presFileReady');
+      choose.textContent = translate('presRelinkMedia');
+      refresh();
     });
-    row.append(text, choose, picker); section.appendChild(row);
-    const titles = el('section', 'settings-section');
-    titles.appendChild(el('h3', 'settings-heading', translate('presTitleSlide')));
-    for (const key of titleOptions) {
-      const label = el('label', 'settings-row');
-      const input = el('input');
-      input.type = 'checkbox';
-      input.checked = titlePrefs[key] !== false;
-      input.disabled = key !== 'presTitleSlide' && titlePrefs.presTitleSlide === false;
-      input.addEventListener('change', () => {
-        titlePrefs[key] = input.checked;
-        try { localStorage.setItem('sb-pres-title', JSON.stringify(titlePrefs)); } catch (_) {}
-        if (key === 'presTitleSlide') {
-          titles.querySelectorAll('input').forEach(control => {
-            if (control !== input) control.disabled = !input.checked;
-          });
-        }
-      });
-      label.append(el('span', 'settings-row-title', translate(key)), input);
-      titles.appendChild(label);
-    }
-    container.append(preview, section, titles);
+    mediaRow.append(mediaText, choose, picker);
+    bg.appendChild(mediaRow);
+
+    const range = el('input', 'pres-range');
+    range.type = 'range'; range.min = '0'; range.max = String(DIM_MAX); range.step = '5';
+    range.value = String(adv.dim);
+    range.setAttribute('aria-label', translate('presDim'));
+    const value = el('span', 'pres-range-value', adv.dim + '%');
+    range.addEventListener('input', () => {
+      adv.dim = Number(range.value); value.textContent = adv.dim + '%';
+      saveAdvanced(); refresh();
+    });
+    const rangeWrap = el('div', 'pres-range-wrap');
+    rangeWrap.append(range, value);
+    bg.appendChild(settingsRow(translate, 'presDim', rangeWrap));
+
+    const reset = el('button', 'btn-secondary', translate('presReset'));
+    reset.type = 'button';
+    reset.id = 'presentation-advanced-reset';
+    reset.addEventListener('click', () => {
+      adv = { ...ADV_DEFAULTS };
+      saveAdvanced();
+      if (background.kind === 'media') {
+        if (mediaURL) URL.revokeObjectURL(mediaURL);
+        mediaURL = null;
+        background = { kind: 'preset', preset: 'black' };
+        saveBackground();
+      }
+      advanced(translate); // rebuild with the defaults
+    });
+    const resetRow = el('div', 'settings-row pres-reset-row');
+    resetRow.appendChild(reset);
+    bg.appendChild(resetRow);
+
+    container.append(preview, text, bg);
   }
 
   // ---------- preferences ----------
   function loadPrefs() {
     loadTitlePrefs();
     loadBackground();
+    loadTextPref();
+    loadAdvanced();
     try {
       const lines = parseInt(localStorage.getItem(LS_LINES), 10);
       if (LINE_CHOICES.includes(lines)) linesPerSlide = lines;
@@ -342,6 +601,7 @@
 
     const backgroundLayer = el('div', 'pres-bg');
     paintBackground(backgroundLayer);
+    applyTone(o);
     o.appendChild(backgroundLayer);
     const stage = el('div', 'pres-stage');
     stage.setAttribute('aria-live', 'polite');
@@ -870,6 +1130,7 @@
 
   window.SongPresentation = {
     settings,
+    advanced,
     open,
     close,
     isOpen: () => !!root,

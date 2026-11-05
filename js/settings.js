@@ -607,6 +607,7 @@ function applyLanguage() {
     't-presSettingsTitle': 'presSettingsTitle',
     't-presSettingsTitle2': 'presSettingsTitle',
     't-presSettingsSub': 'presSettingsSub',
+    't-presAdvancedTitle2': 'presAdvancedTitle',
     't-settingsTitle': 'settingsTitle',
     't-sectionAppearance': 'sectionAppearance',
     't-darkModeTitle': 'darkModeTitle',

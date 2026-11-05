@@ -5087,6 +5087,7 @@ function bindAboutPage() {
 function bindChordFinderPage() {
   document.getElementById('presentation-settings-nav-row').addEventListener('click', () => showPage('presentation-settings', { pushHistory: true, resetScroll: true }));
   document.getElementById('presentation-settings-back-btn').addEventListener('click', () => history.back());
+  document.getElementById('presentation-advanced-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-nav-row').addEventListener('click', () => {
     showPage('chord-finder', { pushHistory: true, resetScroll: true });

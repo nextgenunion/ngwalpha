@@ -115,15 +115,22 @@ html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
   transform: scaleX(-1);
 }
 
+/* Same pill language as the sort chips (.sort-btn): hairline border, soft
+   text, accent border on hover/focus. Native dropdown arrow is kept. */
 .select-input {
   border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: var(--radius-s);
-  padding: 8px 10px;
-  font-size: 0.86rem;
+  background: var(--surface);
+  color: var(--ink-soft);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
   font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-press) ease;
 }
+.select-input:hover { border-color: var(--accent); color: var(--accent-strong); }
+.select-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .about-block { padding: 6px 16px 20px; text-align: center; }
 .about-logo { width: 64px; height: 64px; border-radius: var(--radius-m); margin-bottom: 12px; }
