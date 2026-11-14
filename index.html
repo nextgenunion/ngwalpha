@@ -31,10 +31,27 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/app-icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- Stops iOS (Safari and wrapped web views) turning digit strings — song
+     numbers, years — into blue phone/date/address links. -->
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Shorter name for the phone/desktop home-screen label -->
 <meta name="apple-mobile-web-app-title" content="NGWorship Alpha">
 
+<!-- First paint: the stylesheet below is 15 chained @imports, so until it has
+     loaded the page would show the WebView's default canvas (black on a phone
+     in dark mode, otherwise white). These two values are --paper from
+     css/00-foundation.css; keep them the same. -->
+<style>
+  html { background: #FFFFFF; }
+  html[data-theme="dark"] { background: #141A2B; }
+</style>
+<script>
+  try {
+    if (localStorage.getItem('sb-theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  } catch (_) {}
+</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -294,6 +311,20 @@
     </div>
   </div>
 
+  <!-- The default sliders and optional A−/A+ chips share the same size
+       preferences. Sliders snap to their step grid when enabled. Both use
+       .font-controls so display and landscape modes hide them the same way. -->
+  <div class="font-controls font-controls-sliders" id="font-controls-sliders">
+    <div class="font-group">
+      <span class="font-group-label" id="t-lyricsGroupSlider">Lyrics</span>
+      <input type="range" class="app-range" id="lyrics-size-range" min="0.75" max="1.63" step="0.08" aria-label="Lyric size">
+    </div>
+    <div class="font-group">
+      <span class="font-group-label" id="t-chordsGroupSlider">Chords</span>
+      <input type="range" class="app-range" id="chords-size-range" min="0.6" max="1.26" step="0.06" aria-label="Chord size">
+    </div>
+  </div>
+
   <div id="sv-labels" class="sv-labels"></div>
 
   <div id="lyrics-container" class="lyrics-container"></div>
@@ -479,16 +510,15 @@
         <span class="settings-row-title" id="t-uiLangTitle">App language</span>
         <span class="settings-row-sub settings-desc-hideable" id="t-uiLangSub">Choose the language for menus and buttons</span>
       </div>
-      <select id="ui-lang-select" class="select-input"></select>
+      <button id="ui-lang-select" class="select-input" type="button" aria-haspopup="dialog"></button>
     </div>
-    <div class="settings-row">
+    <div class="settings-row" id="install-row">
       <svg class="settings-row-icon" data-icon="install-mobile" viewBox="0 0 24 24" aria-hidden="true"></svg>
       <div class="settings-row-text">
         <span class="settings-row-title" id="install-title">Install app</span>
         <span class="settings-row-sub settings-desc-hideable" id="install-sub">Add Next Gen Worship Alpha to your home screen for offline, app-like access</span>
       </div>
       <button id="install-btn" class="btn-primary" hidden></button>
-      <span id="installed-badge" class="installed-badge" hidden></span>
     </div>
     <div class="settings-row">
       <svg class="settings-row-icon" data-icon="restart-alt" viewBox="0 0 24 24" aria-hidden="true"></svg>
@@ -670,6 +700,16 @@
         <span class="settings-row-sub settings-desc-hideable" id="t-textSizeSub">Show the A− and A+ buttons on song pages</span>
       </div>
       <button id="text-size-visibility-toggle" class="switch" role="switch" aria-checked="true" aria-label="Show text size controls">
+        <span class="switch-knob"></span>
+      </button>
+    </div>
+    <div class="settings-row">
+      <svg class="settings-row-icon" data-icon="filter-tune" viewBox="0 0 24 24" aria-hidden="true"></svg>
+      <div class="settings-row-text">
+        <span class="settings-row-title" id="t-textSizeSlidersTitle">Text size sliders</span>
+        <span class="settings-row-sub settings-desc-hideable" id="t-textSizeSlidersSub">On song pages, set lyric and chord size with sliders instead of the A− / A+ buttons</span>
+      </div>
+      <button id="text-size-sliders-toggle" class="switch" role="switch" aria-checked="true" aria-label="Text size sliders">
         <span class="switch-knob"></span>
       </button>
     </div>
@@ -1062,6 +1102,7 @@
 
 <script src="version.js"></script>
 <script src="config.js"></script>
+<script src="js/platform.js"></script>
 <script src="lang/config.js"></script>
 <script src="lang/eng.js"></script>
 <script src="lang/mn.js"></script>

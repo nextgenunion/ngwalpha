@@ -1,11 +1,11 @@
-> **NOTICE (humans + AI): bump the version.** Shipping any changed file in
+> **NOTICE: bump the version.** Shipping any changed file in
 > this repo — including this README — means incrementing the PATCH digit
 > of `SONGBOOK_VERSION_NUMBER` in `version.js` as part of the same edit.
 > Format is plain `MAJOR.MINOR.PATCH` (e.g. `3.0.4` → `3.0.5`) — never a
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.70-alpha)
+# Next Gen Worship — Worship Song App (v5.0.89-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,105 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.89 text size sliders setting moved to Display settings
+
+- The "Text size sliders" switch (sliders vs the A− / A+ buttons) moved from Developer options → Display to Settings → Display settings, under "Show text size controls". It is still on by default and keeps the same saved value (`sb-text-size-sliders`). Element id and translation keys lost their `dev` prefix (`text-size-sliders-toggle`, `textSizeSlidersTitle/Sub`).
+
+## v5.0.88 tab bar during the Android song slide, 12 text-size levels
+
+- The bottom tab bar no longer disappears at the start of opening a song while the list is still visible behind the slide. It stays until the slide ends and sits under the moving song page. On Back it is already there, under the song page, from the first frame.
+- Lyric and chord sizes now have 12 levels each, for both the sliders and the A−/A+ chips (they used to have about 18 and 13 slider positions). Lyrics run 0.75 to 1.63 rem in steps of 0.08, chords 0.6 to 1.26 rem in steps of 0.06. The maximums moved up slightly (was 1.6 and 1.2). New defaults are 1.07 and 0.84 rem so they sit on the grid. Saved sizes snap to the nearest level.
+
+## v5.0.87 launch flash and splash logo
+
+- First paint now has a solid background (`html` in `index.html`: white, or `#141A2B` when dark mode is saved) instead of the WebView's default canvas, which showed black on phones in dark mode while the 15 chained CSS imports loaded. These two colors must match `--paper` in `css/00-foundation.css`.
+- The app's own splash logo now also shows inside the Android wrapper. It used to be hidden there (`html[data-platform="native"] #splash-logo`) on the assumption that the native launch screen already showed the icon; the APK ships Capacitor's stock launch image, so the splash was an empty screen.
+- Not fixed here: the Android launch screen itself (Capacitor's stock white image, plus the system splash on Android 12+) is set in the Android project, not in the web files.
+
+## v5.0.86 smoother Android song slide
+
+- Fixes the jerky song opening/Back slide inside Capacitor Android. The slide is still translation only, but its animation is no longer created in the same moment the WebView has to lay out the song (or the long song list on Back) and measure chords. The pages are prepared first, parked off-screen on their own layer (`will-change: transform`), and the animation starts three frames later, when the main thread is idle.
+- In a throttled desktop Chromium test (4x slower CPU) the slide used to start 170-290 ms after it was created, behind two long tasks; it now starts about 30 ms after creation with no long task in between. This is a main-thread measurement only, not phone FPS: check on the real device.
+- Web/PWA unchanged. Reduced motion, history, interruption and cleanup behave as before. `tools/verify_android_song_slide_browser.cjs` now expects the animation a few frames after the tap.
+
+## v5.0.85 Android song slide
+
+- Restores the song opening and Back slide inside Capacitor Android, using
+  translation only with no animated shadow or scale. Web/PWA behavior is unchanged.
+- Navigation history remains immediate. Interrupted slides clean up their
+  animation and resume from the current position when reversing direction.
+- Reduced motion still skips the animation. Physical-device smoothness must
+  be checked on Android; desktop browser checks do not establish phone FPS.
+
+## v5.0.84 text-size steps
+
+- Lyrics and chord sliders now snap in 0.05 rem steps across their existing
+  ranges. The song still resizes live while dragging.
+
+## v5.0.83 Presentation controls and startup
+
+- Presentation Advanced uses checklist dialogs for fonts and styles. Google
+  Fonts load on selection, with the bundled font available offline.
+- Custom colors use an in-app editor with hue, saturation, lightness and HEX.
+  Preset swatches use circular fills, and Reset shares the transpose label.
+- Light mode and text-size sliders are the defaults. Presentation title
+  slides hide the artist by default. Saved preferences still apply.
+- The launch splash clears when the initial song list is ready or after a
+  timeout. Returning to an existing song list reuses its scroll-index rows.
+
+## v5.0.82 Presentation icon
+
+- Fixed the Presentation icon fill in the song menu to match Settings.
+## v5.0.81 song opening
+
+- Songs open immediately with a short fade on the song page. The fade respects
+  the system's reduced-motion setting.
+
+## v5.0.80 language picker and song navigation
+
+- App language opens a checklist in the app's dialog.
+- Song taps open immediately. Entering and leaving a song no longer slides
+  two pages across the screen, and the history entry is created during the tap.
+- Android test builds use the Capacitor App plugin for system Back navigation.
+
+## v5.0.79 Korean song library
+
+- Added 86 non-SDA Korean songs under Song database → All → Korean. The app
+  ships the full library for offline use and searches its alternate titles.
+
+## v5.0.78 install settings
+
+- Settings hides the Install app row when opened as an installed PWA or when the browser confirms installation.
+- Removed “humans + AI” from the version notices in v5.0.77.
+## v5.0.76 ready to be wrapped as a native app
+
+- New `js/platform.js` (`window.NGPlatform`, also `<html data-platform="web|pwa|native">`) decides once whether the app runs as a website, an installed PWA or inside a native wrapper. Website and PWA behave exactly as before; native features are used only when a wrapper provides them. See `WRAPPING.md` for setup, the optional `window.NGWorshipNative` bridge and the real-device checklist.
+- Backup export (`exportUserSongs`, `exportPlaylists`) goes through `NGPlatform.saveFile`: the same download link on web/PWA, the share sheet in a wrapper, and the download link again if a plugin fails.
+- The two `window.confirm()` calls ("Discard your unsaved changes?") are replaced by the app's own dialog, `confirmDiscardEditorChanges()`. Leaving the editor by Back/Forward now undoes the move first, asks, and repeats the move on Discard. New string `discardBtn` in all four languages.
+- In a wrapper: links with `target="_blank"` open in the system browser, the "Install app" row is hidden, and UI text is not selectable by long press (`html[data-platform="native"]` rules in `css/01-shell.css`).
+- Everywhere: `format-detection` and `mobile-web-app-capable` meta tags, and `text-size-adjust: 100%` so iOS does not enlarge text on rotation.
+- Tests: `tools/verify_platform_browser.cjs` (new); `tools/verify_editor_announcements_browser.cjs` now answers the app's dialog instead of a browser dialog.
+
+## v5.0.75 one slider look
+
+- Every slider in the app now shares one style, class `app-range` (defined in `css/03-song-view.css`): the text size sliders and Presentation → Advanced → **Dim background**. The Dim slider keeps its `pres-range` class for width and for `tools/verify_presentation_advanced_browser.cjs`. New sliders should use `app-range` and set `--p` (0–100%) for the filled part.
+
+## v5.0.74 text size sliders (developer option)
+
+- Developer options → Display → **Text size sliders** (off by default, saved as `sb-text-size-sliders`). When on, the song page's Lyrics and Chords boxes hold sliders instead of the A−/A+ chips; when off, nothing changes. Both controls edit the same `state.lyricsSize` / `state.chordSize` and the same saved values (`sb-lyrics-size`, `sb-chord-size`), so switching loses nothing. Lyric range 0.75–1.6, chord range 0.6–1.2, same limits as the chips.
+- The slider uses the chip look (pale groove, accent fill, white thumb with the chip border and lip). Resizing is live while dragging; the value is saved when the finger lifts.
+- The new block has the `.font-controls` class, so "Show text size controls", display mode and landscape mode hide it exactly like the chips.
+
+## v5.0.73 maintenance notes
+
+- Corrected comments about bundle-primary English refresh, offline snapshot caching, the version-script path, stylesheet organization and save-result handling.
+- The v5.0.72 release updated the app icons.
+- Historical release notes below describe their respective releases. For current loading and storage behavior, consult js/README.md, css/README.md and MAINTENANCE.md alongside the code.
+
+## v5.0.71 presentation preview text
+
+- The preview on the Presentation settings pages now shows a two-line, lyric-like placeholder instead of a heading (`presBackgroundSample`, one string per language, `\n` separates the lines). The Mongolian sample includes Ө and Ү so fonts, outlines and colors can be judged on real letters.
 
 ## v5.0.70 presentation Advanced page
 

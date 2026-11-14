@@ -86,7 +86,8 @@ function loadSelectedSongDatabases() {
 /* @begin:songDataBaseUrl */
 
 
-// One JSON file per song remains the editable/latest source of truth, listed
+// For sources without bundlePrimary, one JSON file per song remains the
+// editable/latest source of truth, listed
 // in <folder>/manifest.json. database.json is intentionally only a fast
 // bootstrap snapshot: it lets a first-time device show a complete library in
 // one request, but it does NOT need to be regenerated every time one song is
@@ -94,11 +95,15 @@ function loadSelectedSongDatabases() {
 // refreshes from the individual files in bounded batches and saves the merged
 // latest result to IndexedDB for the next launch.
 //
+// English and Korean set bundlePrimary in js/song-sources.js. Their bundles
+// are authoritative and manual refresh reloads them. Regenerate database.json
+// after editing individual files in either library.
+//
 // Startup priority therefore is:
 //   1. IndexedDB latest merged copy (instant on returning devices)
 //   2. database.json bootstrap snapshot (one request on a first load)
 //   3. individual files as a last-resort bootstrap if both above are absent
-// Then, while online, the individual files are fetched in the background and
+// For sources without bundlePrimary, online individual files are fetched and
 // become authoritative. Only the currently selected database gets that
 // background sync; other databases stay untouched until selected.
 // ---------------------------------------------------------
@@ -309,7 +314,8 @@ function isAbortError(err) {
 /* @begin:syncSongDataFromIndividuals */
 
 
-// Fetch the latest individual files for the selected database without
+// Refresh a selected source using its registry policy. Non-bundle sources
+// fetch the latest individual files without
 // blocking its already-visible bootstrap/local copy. One sync attempt per
 // source per session is enough; deselection aborts unwanted work while
 // updates for other selected libraries can continue independently.
@@ -317,15 +323,14 @@ async function syncSongDataFromIndividuals(sourceKey, { forceRefresh = false, ma
   const source = state.sources[sourceKey];
   if (!source || !DB_SOURCES[sourceKey]) return Promise.resolve(null);
   if (DB_SOURCES[sourceKey].bundlePrimary) {
-    // No per-song sweep for the 3,143-song English library. Manual refresh
-    // reads the same complete database.json bundle with cache revalidation.
+    // Manual refresh reads the authoritative bundle with cache revalidation.
     if (!manual) return source.songs;
     const songs = await fetchSongBundleSnapshot(sourceKey, { forceRefresh });
     source.songs = songs;
     source.loaded = true;
     source.loadFailed = false;
     try { await saveSongsToIndexedDb(sourceKey, songs); }
-    catch (err) { console.warn('Songbook: English cache write skipped —', err); }
+    catch (err) { console.warn(`Songbook: ${sourceKey} cache write skipped —`, err); }
     searchCacheWarmSources.delete(sourceKey);
     if (isSelectedDbSource(sourceKey) && state.currentPage === 'songs') {
       renderSongList();
@@ -465,8 +470,7 @@ async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
 
   source.loadPromise = (async () => {
     if (bundlePrimary) {
-      // Prefer the installed version's full English database over any older
-      // six-song IndexedDB snapshot left on existing devices.
+      // Prefer the installed release's bundle over an older IndexedDB copy.
       try {
         const snapshot = await fetchSongBundleSnapshot(sourceKey);
         source.songs = snapshot;
@@ -476,10 +480,10 @@ async function loadSongDataFor(sourceKey, { syncLatest } = {}) {
         // Optional persistence must not prevent a valid bundled database
         // from loading if quota or private mode blocks IndexedDB writes.
         try { await saveSongsToIndexedDb(sourceKey, snapshot); }
-        catch (err) { console.warn('Songbook: English cache write skipped —', err); }
+        catch (err) { console.warn(`Songbook: ${sourceKey} cache write skipped —`, err); }
         return source.songs;
       } catch (err) {
-        console.warn('Songbook: English bundle unavailable; trying saved songs —', err);
+        console.warn(`Songbook: ${sourceKey} bundle unavailable; trying saved songs —`, err);
       }
     }
     // Returning device: the merged IndexedDB copy is normally the newest and
@@ -844,7 +848,7 @@ async function purgeExpiredTrash() {
 // Songs live in IndexedDB, which is scoped to one browser on the device,
 // so this is the honest way to carry hand-authored songs to a different
 // browser on the same phone (or as a manual backup) without a server.
-function exportUserSongs() {
+async function exportUserSongs() {
   const exportSongs = state.sources.user.songs.map(song => sanitizeUserSongRecord({ ...song }));
   const personalLabels = {};
   exportSongs.forEach(song => {
@@ -854,16 +858,9 @@ function exportUserSongs() {
   // Versioned wrapper keeps the separate, editable personal-label layer in
   // the same backup without changing the meaning of each song's own labels.
   const backup = { format: 'ngworship-user-songs', version: 2, songs: exportSongs, personalLabels };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'ngworship-user-songs.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(t('toastUserSongsExported'));
+  // NGPlatform.saveFile: download link on web/PWA, share sheet in a wrapper.
+  const result = await NGPlatform.saveFile({ filename: 'ngworship-user-songs.json', mime: 'application/json', text: JSON.stringify(backup, null, 2) });
+  if (result !== 'cancelled') showToast(t('toastUserSongsExported'));
 }
 /* @end:exportUserSongs */
 
@@ -1204,17 +1201,10 @@ function persistPlaylists() {
 // scoped to one browser on the device, so it's the honest way to carry
 // playlists to a different browser on the same phone (or as a manual
 // backup) without needing a server.
-function exportPlaylists() {
-  const blob = new Blob([JSON.stringify(state.playlists, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'ngworship-playlists.json';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(t('toastPlaylistsExported'));
+async function exportPlaylists() {
+  // NGPlatform.saveFile: download link on web/PWA, share sheet in a wrapper.
+  const result = await NGPlatform.saveFile({ filename: 'ngworship-playlists.json', mime: 'application/json', text: JSON.stringify(state.playlists, null, 2) });
+  if (result !== 'cancelled') showToast(t('toastPlaylistsExported'));
 }
 /* @end:exportPlaylists */
 

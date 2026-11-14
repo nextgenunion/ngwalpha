@@ -40,6 +40,14 @@
       label: 'Монгол',
       store: 'mongolian2-songs',
     }),
+    ko: Object.freeze({
+      folder: 'ko',
+      hasNumbers: false,
+      group: 'all',
+      labelKey: 'dbOptionKorean',
+      store: 'ko-songs',
+      bundlePrimary: true,
+    }),
   });
 
   const localSources = Object.freeze({
@@ -62,7 +70,7 @@
   // IndexedDB schema version. Adding a source whose `store` is new requires
   // incrementing this value, but the store name itself still lives only in
   // this registry.
-  const indexedDbVersion = 6;
+  const indexedDbVersion = 7;
   const defaultSource = 'official';
 
   // Validate saved selections against the registry, including future sources.

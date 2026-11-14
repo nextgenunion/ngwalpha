@@ -19,10 +19,25 @@ const server = http.createServer((q, r) => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  const page = await ctx.newPage(), errors = [], dialogs = [];
-  let decision = 'accept';
+  const page = await ctx.newPage(), errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('dialog', async d => { dialogs.push(d.message()); if (decision === 'dismiss') await d.dismiss(); else await d.accept(); });
+  // The "discard unsaved changes?" prompt is the app's own dialog now (it used
+  // to be window.confirm). This stands in for the old page.on('dialog') hook: it
+  // records each time the dialog opens and answers it per window.__decision —
+  // 'accept' clicks Discard, 'dismiss' clicks Cancel.
+  await page.addInitScript(() => {
+    window.__decision = 'accept'; window.__dialogs = [];
+    new MutationObserver(() => {
+      const ok = document.getElementById('discard-editor-confirm');
+      if (!ok || ok.__seen) return;
+      ok.__seen = true;
+      window.__dialogs.push(document.querySelector('#modal-body .modal-hint').textContent);
+      setTimeout(() => (window.__decision === 'dismiss' ? document.getElementById('discard-editor-cancel') : ok).click(), 0);
+    }).observe(document, { childList: true, subtree: true });
+  });
+  // The dialog opens a moment after the click/Back (history is undone first),
+  // so give it time to appear before counting.
+  const dialogCount = async () => { await page.waitForTimeout(400); return page.evaluate(() => window.__dialogs.length); };
   const base = `http://127.0.0.1:${server.address().port}/ngworship/`;
   async function ready() {
     await page.waitForFunction(() => typeof state !== 'undefined' && state.sources.official.loaded && state.sources.user.loaded);
@@ -36,48 +51,48 @@ const server = http.createServer((q, r) => {
   await page.evaluate(() => showPage('user-songs', { pushHistory: true }));
   await page.locator('#new-user-song-btn').click();
   await page.locator('#editor-back-btn').click();
-  await page.waitForFunction(() => state.currentPage === 'user-songs'); assert.equal(dialogs.length, 0);
+  await page.waitForFunction(() => state.currentPage === 'user-songs'); assert.equal((await dialogCount()), 0);
   console.log('PASS unchanged editor leaves without prompting');
   await page.locator('#new-user-song-btn').click(); await page.locator('#editor-title').fill('Unsaved proof');
   await page.locator('#editor-lyrics').fill('[C]Ө Ү unsaved lyrics');
-  decision = 'dismiss'; await page.locator('#editor-back-btn').click();
+  await page.evaluate(() => { window.__decision = 'dismiss'; }); await page.locator('#editor-back-btn').click();
   await page.waitForFunction(() => history.state.page === 'song-editor');
-  assert.equal(await page.locator('#editor-title').inputValue(), 'Unsaved proof'); assert.equal(dialogs.length, 1);
-  await page.goBack(); await page.waitForFunction(() => history.state.page === 'song-editor'); assert.equal(dialogs.length, 2);
-  decision = 'accept'; await page.goBack(); await page.waitForFunction(() => state.currentPage === 'user-songs');
+  assert.equal(await page.locator('#editor-title').inputValue(), 'Unsaved proof'); assert.equal((await dialogCount()), 1);
+  await page.goBack(); await page.waitForFunction(() => history.state.page === 'song-editor'); assert.equal((await dialogCount()), 2);
+  await page.evaluate(() => { window.__decision = 'accept'; }); await page.goBack(); await page.waitForFunction(() => state.currentPage === 'user-songs');
   assert.equal(await page.evaluate(() => state.sources.user.songs.length), 0);
   console.log('PASS Back/Close and browser Back: cancel preserves draft/history; discard exits without saving');
   await page.locator('#new-user-song-btn').click(); await page.locator('#editor-title').fill('Reverted'); await page.locator('#editor-title').fill('');
-  const count = dialogs.length; await page.locator('#editor-back-btn').click();
-  await page.waitForFunction(() => state.currentPage === 'user-songs'); assert.equal(dialogs.length, count);
+  const count = (await dialogCount()); await page.locator('#editor-back-btn').click();
+  await page.waitForFunction(() => state.currentPage === 'user-songs'); assert.equal((await dialogCount()), count);
   await page.locator('#new-user-song-btn').click();
   await page.evaluate(() => { state.editorLabelsDraft = ['label-only-change']; });
-  decision = 'dismiss'; await page.evaluate(() => showPage('settings', { pushHistory: true }));
-  assert.equal(await page.evaluate(() => state.currentPage), 'song-editor'); assert.equal(dialogs.length, count + 1);
-  decision = 'accept'; await page.evaluate(() => showPage('user-songs', { pushHistory: true }));
+  await page.evaluate(() => { window.__decision = 'dismiss'; }); await page.evaluate(() => showPage('settings', { pushHistory: true }));
+  assert.equal(await page.evaluate(() => state.currentPage), 'song-editor'); assert.equal((await dialogCount()), count + 1);
+  await page.evaluate(() => { window.__decision = 'accept'; }); await page.evaluate(() => showPage('user-songs', { pushHistory: true }));
   console.log('PASS reverted fields do not prompt; label-only changes and direct in-app navigation do');
   await page.locator('#new-user-song-btn').click(); await page.locator('#editor-title').fill('Saved proof'); await page.locator('#editor-lyrics').fill('[G]Saved lyrics');
-  const beforeSave = dialogs.length; await page.locator('#editor-save-btn').click();
+  const beforeSave = (await dialogCount()); await page.locator('#editor-save-btn').click();
   await page.waitForFunction(() => state.currentPage === 'user-songs' && state.sources.user.songs.some(s => s.title === 'Saved proof'));
-  assert.equal(dialogs.length, beforeSave);
+  assert.equal((await dialogCount()), beforeSave);
   await page.evaluate(() => openSongEditor(state.sources.user.songs.find(s => s.title === 'Saved proof')));
   await page.locator('#editor-title').fill('Changed'); await page.locator('#editor-delete-btn').click();
   await page.locator('#delete-song-confirm').click(); await page.waitForFunction(() => state.currentPage !== 'song-editor');
-  assert.equal(dialogs.length, beforeSave);
+  assert.equal((await dialogCount()), beforeSave);
   console.log('PASS successful save and confirmed delete leave without an extra discard prompt');
   await page.evaluate(() => { showPage('settings', { pushHistory: true }); showPage('user-songs', { pushHistory: true }); });
   await page.locator('#new-user-song-btn').click(); await page.locator('#editor-title').fill('Multi-step history');
-  decision = 'dismiss'; await page.evaluate(() => history.go(-2));
+  await page.evaluate(() => { window.__decision = 'dismiss'; }); await page.evaluate(() => history.go(-2)); await dialogCount();
   await page.waitForFunction(() => history.state.page === 'song-editor' && !editorHistoryRecovery);
   assert.equal(await page.locator('#editor-title').inputValue(), 'Multi-step history');
-  decision = 'accept'; await page.evaluate(() => history.go(-2)); await page.waitForFunction(() => state.currentPage === 'settings');
+  await page.evaluate(() => { window.__decision = 'accept'; }); await page.evaluate(() => history.go(-2)); await page.waitForFunction(() => state.currentPage === 'settings');
   await page.goForward(); await page.goForward(); await page.waitForFunction(() => state.currentPage === 'song-editor');
   await page.evaluate(() => showPage('settings', { pushHistory: true }));
   await page.goBack(); await page.waitForFunction(() => state.currentPage === 'song-editor');
-  await page.locator('#editor-title').fill('Forward history'); decision = 'dismiss'; await page.goForward();
+  await page.locator('#editor-title').fill('Forward history'); await page.evaluate(() => { window.__decision = 'dismiss'; }); await page.goForward(); await dialogCount();
   await page.waitForFunction(() => history.state.page === 'song-editor' && !editorHistoryRecovery);
   assert.equal(await page.locator('#editor-title').inputValue(), 'Forward history');
-  decision = 'accept'; await page.goForward(); await page.waitForFunction(() => state.currentPage === 'settings');
+  await page.evaluate(() => { window.__decision = 'accept'; }); await page.goForward(); await page.waitForFunction(() => state.currentPage === 'settings');
   console.log('PASS multi-entry Back and Forward cancellation restores the exact editor history entry after branching');
   notices = [
     { id: 'feature-proof', mode: 'once', display: 'banner', title: 'New feature', text: 'A new feature is available.' },

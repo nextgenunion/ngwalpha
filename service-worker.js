@@ -28,6 +28,7 @@ const REQUIRED_OFFLINE = [
   './css/14-presentation.css',
   './version.js',
   './js/app.js',
+  './js/platform.js',
   './js/song-engine.js',
   './js/data.js',
   './js/settings.js',
@@ -119,10 +120,15 @@ const REQUIRED_OFFLINE = [
   './data/mongolian/database.json',
   './data/mongolian2/manifest.json',
   './data/mongolian2/database.json',
+  './data/ko/manifest.json',
+  './data/ko/database.json',
   './data/sheet-music/catalog.js',
   './data/sheet-music/assets/sda/h108-amazing-grace.svg',
 ];
 
+// All shipped libraries have database.json snapshots in REQUIRED_OFFLINE.
+// Leave this empty unless a library needs its individual song files precached
+// as well. Online per-song updates are managed separately by js/data.js.
 const SONG_DB_FOLDERS = [];
 
 // Bypass the HTTP cache during installation: a new cache version must not
@@ -134,8 +140,8 @@ const freshRequest = path => new Request(new URL(path, self.location.href), { ca
 async function precacheAll() {
   const cache = await caches.open(CACHE_VERSION);
   await cache.addAll(REQUIRED_OFFLINE.map(freshRequest));
-  // V1–V3 keep their original individual-file loaders. Their manifests
-  // define the full offline library; no database conversion is necessary.
+  // Optional individual-file precaching. No folders currently opt in; the
+  // required snapshots above provide the initial offline song libraries.
   for (const folder of SONG_DB_FOLDERS) {
     const manifest = await cache.match(`./data/${folder}/manifest.json`);
     const files = await manifest.json();

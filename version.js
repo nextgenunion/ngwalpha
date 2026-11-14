@@ -1,5 +1,5 @@
 // ============================================================================
-// NOTICE — READ THIS BEFORE YOU EDIT ANYTHING IN THIS PROJECT (humans + AI):
+// NOTICE — READ THIS BEFORE YOU EDIT ANYTHING IN THIS PROJECT:
 //
 //   BUMP THE VERSION. FORMAT: MAJOR.MINOR.PATCH (e.g. 3.0.4 -> 3.0.5).
 //
@@ -22,14 +22,14 @@
 // Loaded two ways:
 //   - As a normal <script> in index.html, same as config.js, which sets
 //     these as plain globals on `window`.
-//   - Via importScripts('../version.js') from service-worker.js, since
+//   - Via importScripts('./version.js') from service-worker.js, since
 //     service workers can't use <script> tags. importScripts() runs this
 //     same file in the worker's global scope, so `self.SONGBOOK_...` (same
 //     object as `window.SONGBOOK_...` in a page) ends up set there too.
 //
 // Format: plain "major.minor.patch". Pre-release/build tags (e.g. "-beta")
 // are handled separately below, not folded into this number.
-var SONGBOOK_VERSION_NUMBER = '5.0.70';
+var SONGBOOK_VERSION_NUMBER = '5.0.89';
 
 // Pre-release label appended to both the on-screen version and the cache
 // tag (e.g. 'beta', 'rc', or '' for a stable, non-beta release).

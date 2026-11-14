@@ -1,8 +1,8 @@
 # NGWorship maintenance guide
 
-## What changed in 5.0.52
+## Current stylesheet organization
 
-CSS now lives in 14 feature files, imported in order by `css/style.css`.
+CSS lives in 15 feature files (00–14), imported in order by `css/style.css`.
 There is no build step. See `css/README.md` to find the right file to edit.
 Selectors, declaration order, media queries, and cascade order are preserved.
 Every imported file is required by the service worker's atomic offline install.
@@ -40,13 +40,13 @@ context, reloads, and checks custom content, IDs, Favorites, playlist references
 and user-song labels. It also documents the built-in-label coverage gap and
 checks that invalid duplicate-ID song imports leave existing songs intact.
 
-### Recommended next data changes
+### Persistence maintenance and remaining work
 
-1. Make failed saves explicit. `createMirroredKeyValueStorage().save()` currently
-   catches failures of each backend and returns without rejecting, even if both
-   fail. Return a confirmed outcome or reject when neither write succeeds;
-   callers should not claim a durable save in that case. Verify with injected
-   quota/transaction failures before shipping this change.
+1. Preserve save-result handling. `createMirroredKeyValueStorage().save()`
+   resolves true when at least one backend saves successfully and false when
+   both fail. Playlist and label callers use `reportSaveResult()` to show a
+   failure notice. Keep this contract when editing persistence code and check
+   `tools/verify_save_failure_browser.cjs` for failure-injection coverage.
 2. Add one versioned **Export all my data** format containing User Songs,
    Playlists/Favorites, all personal labels, and saved preferences. Decide
    explicitly whether to include Trash. Export recoverable source data, not

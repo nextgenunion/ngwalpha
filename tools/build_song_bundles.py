@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Generate data/<database>/database.json from each manifest's per-song files.
 
-The PWA uses database.json only as a one-request bootstrap snapshot. The
-manifest + individual song files remain the authoritative/latest runtime layer,
-so this generator does not need to run after every small song correction. Run
-it whenever you intentionally want to refresh the bootstrap snapshot.
+For sources marked bundlePrimary in js/song-sources.js, database.json is
+authoritative at runtime. Regenerate it after any song change. For other
+sources it is a startup snapshot and the app refreshes from individual files.
 """
 from __future__ import annotations
 import json

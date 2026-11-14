@@ -1,7 +1,8 @@
 # Application files
 
-The first extraction uses four classic JavaScript files plus `app.js`. There
-is no framework or build step. Existing chord/sheet-music modules stay separate.
+The core uses four classic JavaScript files plus `app.js`. There
+is no framework or build step. Chord tools, presentation, sheet music and the
+song-source registry have separate files. See index.html for the loading order.
 
 | File | Responsibility |
 |---|---|
@@ -10,6 +11,7 @@ is no framework or build step. Existing chord/sheet-music modules stay separate.
 | `settings.js` | Preference loading/application, language and settings controls |
 | `ui.js` | Page navigation, lists, editor, playlists, dialogs, scrolling, animation and seasonal effects |
 | `app.js` | Shared state/constants/storage objects, startup, top-level listeners and PWA lifecycle |
+| `platform.js` | Loads first. Web / installed PWA / native wrapper detection (`window.NGPlatform`) and the few native hooks: save a file, open an external link. See `WRAPPING.md` |
 
 `presentation.js` is a separate self-contained module (like `chord-viewer.js`) exposing `window.SongPresentation`. It builds lyric slides and owns the full-screen overlay; `ui.js` (`openPresentationMode` / `closePresentationMode`) owns the history entry and Back handling.
 

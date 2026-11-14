@@ -475,10 +475,9 @@ function confirmPermanentlyDeleteTrashSongs(ids) {
 /* @begin:reloadSongLibrary */
 
 
-// Manual "Refresh song database" button: checks the authoritative individual
-// song files for whichever database is currently selected. database.json is
-// only the bootstrap snapshot, so it does not have to be regenerated for a
-// one-song correction. While offline the action simply keeps the current local
+// Manual "Refresh song database" button refreshes each selected library.
+// Sources with bundlePrimary reload database.json; other sources fetch their
+// authoritative individual files and use database.json only for bootstrap. While offline the action simply keeps the current local
 // copy intact; while online it uses the same thin progress line as automatic
 // background sync and never wipes already-visible songs on a failed refresh.
 async function reloadSongLibrary() {
@@ -494,9 +493,8 @@ async function reloadSongLibrary() {
     return;
   }
   try {
-    // Manual refresh means "check the authoritative individual files now".
-    // database.json remains only the fast bootstrap snapshot and is never
-    // required to be rebuilt for a one-song correction.
+    // Delegate to the source policy so bundle-primary and individual-file
+    // libraries refresh through their respective authoritative paths.
     for (const sourceKey of selected) {
       if (!isSelectedDbSource(sourceKey)) continue;
       const source = state.sources[sourceKey];
@@ -565,26 +563,47 @@ function initHistoryNav() {
     history.scrollRestoration = 'manual';
   }
 
-  // Establish the app's root state so the very first back press has
-  // something of ours to land on instead of leaving immediately.
+  // Label the current entry as the root. Song taps push a child entry
+  // during the tap, so Back returns to this entry rather than leaving.
   history.replaceState({ page: 'songs', seq: 0, index: 0 }, '', location.href);
   currentNavIndex = 0;
   navSeq = 0;
   currentNavSeq = 0;
 
+  window.NGPlatform?.bindSystemBack?.(() => {
+    if (!document.getElementById('modal-overlay').hidden) {
+      closeModal({ immediate: true });
+    } else if (history.state?.index > 0) {
+      history.back();
+    } else if (state.currentPage !== 'songs') {
+      showPage('songs', { replaceHistory: true });
+    } else {
+      return false;
+    }
+    return true;
+  });
+
   window.addEventListener('popstate', (e) => {
     const st = e.state;
     if (editorHistoryRecovery) { editorHistoryRecovery = false; return; }
     if (state.currentPage === 'song-editor' && editorHasChanges()) {
-      if (!window.confirm(t('discardEditorChanges'))) {
-        // Sequence IDs are monotonic, not history distances after branching.
-        const delta = st && Number.isInteger(st.index) ? currentNavIndex - st.index
-          : (st && st.seq > currentNavSeq ? -1 : 1);
-        editorHistoryRecovery = true;
-        history.go(delta || 1);
-        return;
-      }
-      editorBaseline = null;
+      // Undo the move straight away (history.go is how a page cancels a
+      // back/forward), then ask in the app's own dialog — a dialog can't
+      // block this handler the way window.confirm() did. Confirming repeats
+      // the same move with the baseline cleared, so it goes through.
+      // Sequence IDs are monotonic, not history distances after branching.
+      const delta = (st && Number.isInteger(st.index) ? currentNavIndex - st.index
+        : (st && st.seq > currentNavSeq ? -1 : 1)) || 1;
+      editorHistoryRecovery = true;
+      history.go(delta);
+      confirmDiscardEditorChanges(() => {
+        // If Discard is tapped before the undo above has been delivered
+        // (history.go is asynchronous), wait for it, so the repeated move
+        // starts from the editor's own history entry.
+        if (!editorHistoryRecovery) { history.go(-delta); return; }
+        window.addEventListener('popstate', () => setTimeout(() => history.go(-delta), 0), { once: true });
+      });
+      return;
     }
     if (st && Number.isInteger(st.index)) currentNavIndex = st.index;
     closeModal({ immediate: true });
@@ -667,21 +686,16 @@ function initHistoryNav() {
 function initSplash() {
   const splash = document.getElementById('splash-screen');
   if (!splash) return;
-  const MIN_DISPLAY_MS = 900;
-  const FADE_MS = 1100;
-  const shownAt = Date.now();
   const hide = () => {
-    const wait = Math.max(0, MIN_DISPLAY_MS - (Date.now() - shownAt));
-    setTimeout(() => {
-      splash.classList.add('is-hidden');
-      setTimeout(() => { splash.remove(); renderAnnouncements(); }, FADE_MS);
-    }, wait);
+    if (splash.classList.contains('is-hidden')) return;
+    clearTimeout(timeout);
+    splash.classList.add('is-hidden');
+    const duration = prefersReducedMotion() ? 0 : 200;
+    setTimeout(() => { splash.remove(); renderAnnouncements(); }, duration);
   };
-  if (document.readyState === 'complete') {
-    hide();
-  } else {
-    window.addEventListener('load', hide);
-  }
+  // On a slow launch, let the song list show its loading state.
+  const timeout = setTimeout(hide, 2500);
+  return hide;
 }
 /* @end:initSplash */
 
@@ -1107,13 +1121,18 @@ function bindNav() {
 }
 /* @end:bindNav */
 
+// Own only the native song animation; any subsequent navigation must settle
+// it before choosing its next pair of pages.
+let nativeSongSlide = null;
+
 /* @begin:showPage */
 function showPage(name, opts = {}) {
   const { pushHistory = false, replaceHistory = false, resetScroll = false } = opts;
   const page = PAGES[name];
   if (page && state.currentPage === 'song-editor' && name !== 'song-editor' && editorHasChanges()) {
-    if (!window.confirm(t('discardEditorChanges'))) return;
-    editorBaseline = null;
+    // Ask first; if they discard, the same navigation runs again.
+    confirmDiscardEditorChanges(() => showPage(name, opts));
+    return;
   }
   if (!page) {
     console.error(`Songbook: showPage() called with unknown page "${name}"`);
@@ -1164,6 +1183,12 @@ function showPage(name, opts = {}) {
   }
 
   const targetEl = document.getElementById(page.elId);
+  let interruptedSlide = null;
+  if (nativeSongSlide) {
+    // Read only when interrupting an animation, never to start a normal slide.
+    interruptedSlide = { el: nativeSongSlide.el, transform: getComputedStyle(nativeSongSlide.el).transform };
+    nativeSongSlide.finish();
+  }
 
   // Bottom-nav spacing belongs to the page that is actually being shown,
   // not to the whole document. During push/pop transitions two pages are
@@ -1175,13 +1200,22 @@ function showPage(name, opts = {}) {
   // geometry stable instead.
   targetEl.classList.toggle('page-no-bottom-nav', !!page.hideNav);
 
-  // Slide transition for song-view/playlist-view: pushed forward (opened)
+  // Slide transition for detail pages: pushed forward (opened)
   // slides in from the right over whatever's underneath; popped (backed
   // out of) slides back out to the right, revealing what was underneath —
   // which was never hidden or moved, so nothing has to re-render for it.
   // See pendingNavDirection/SLIDE_PAGES for how the direction is decided.
   let transitionType = null;
-  if (!isSamePage && !prefersReducedMotion()) {
+  const nativeSongMotion = window.NGPlatform?.isAndroid &&
+    typeof targetEl.animate === 'function' && !isSamePage && !prefersReducedMotion();
+  if (nativeSongMotion && name === 'song-view' && PAGES[prevName]) {
+    transitionType = 'native-song-push';
+  } else if (nativeSongMotion && prevName === 'song-view' && pendingNavDirection === 'back') {
+    transitionType = 'native-song-pop';
+  }
+  // Web/PWA retain their existing song fade. Other detail pages retain
+  // their CSS slide; the Android song uses the transform-only path below.
+  if (!transitionType && !isSamePage && name !== 'song-view' && prevName !== 'song-view' && !prefersReducedMotion()) {
     const prevEl = PAGES[prevName] && document.getElementById(PAGES[prevName].elId);
     if (pendingNavDirection === 'back' && SLIDE_PAGES.has(prevName) && prevEl) {
       transitionType = 'pop';
@@ -1193,11 +1227,12 @@ function showPage(name, opts = {}) {
   }
   pendingNavDirection = 'forward';
 
-  if (transitionType === 'push' || transitionType === 'pop') {
+  if (transitionType === 'native-song-push' || transitionType === 'native-song-pop') {
+    runNativeSongSlide(transitionType === 'native-song-push' ? 'push' : 'pop',
+      document.getElementById(PAGES[prevName].elId), targetEl, !!page.hideNav, interruptedSlide);
+  } else if (transitionType === 'push' || transitionType === 'pop') {
     const prevEl = document.getElementById(PAGES[prevName].elId);
-    runPageSlideTransition(transitionType, prevEl, targetEl, {
-      onDone: name === 'song-view' ? fixNativeAudioControlsPaint : null,
-    });
+    runPageSlideTransition(transitionType, prevEl, targetEl);
   } else if (transitionType === 'tabfade') {
     const prevEl = document.getElementById(PAGES[prevName].elId);
     runTabFadeTransition(prevEl, targetEl);
@@ -1212,7 +1247,17 @@ function showPage(name, opts = {}) {
     // half-drawn until something forces a reflow. A tap "fixes" it because
     // that's exactly the kind of forced reflow. Do that proactively instead
     // of waiting on the user to discover the trick.
-    if (name === 'song-view') fixNativeAudioControlsPaint();
+    if (name === 'song-view') {
+      fixNativeAudioControlsPaint();
+      // Fade only the visible song page. History and input stay available
+      // immediately, including when Back is pressed during the fade.
+      if (!isSamePage && !prefersReducedMotion()) {
+        targetEl.animate?.([{ opacity: 0.88 }, { opacity: 1 }], {
+          duration: 150,
+          easing: 'ease-out',
+        });
+      }
+    }
   }
 
   document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.remove('is-active'));
@@ -1224,7 +1269,11 @@ function showPage(name, opts = {}) {
 
   // A page can opt to hide the bottom tab bar so nothing competes with its
   // content (song-view does this — it has its own slim top bar instead).
-  document.getElementById('bottom-nav').hidden = !!page.hideNav;
+  // The Android song slide changes the tab bar itself (see runNativeSongSlide),
+  // so it never vanishes or appears while the other page is still visible.
+  if (transitionType !== 'native-song-push' && transitionType !== 'native-song-pop') {
+    document.getElementById('bottom-nav').hidden = !!page.hideNav;
+  }
 
   if (resetScroll) {
     // Explicit override: always end up at the top, same page or not.
@@ -1327,16 +1376,102 @@ function tapSongRowThenOpen(rowEl, openFn) {
 }
 /* @end:tapSongRowThenOpen */
 
+// Android song navigation keeps the background page stationary and moves
+// only the song surface (translation only, no animated shadow or scale).
+//
+// The motion itself is compositor-only, but opening or leaving a song also
+// makes the WebView lay out a whole page (lyrics, or the long song list) and
+// measure the chords. If that work lands after the animation has been
+// created, the first frames are late and the slide looks jerky. So the pages
+// are prepared and measured first, while the screen is still, and the
+// animation is created three frames later on a quiet main thread.
+function runNativeSongSlide(type, fromEl, toEl, hideNav, interrupted) {
+  const pushing = type === 'push';
+  const topEl = pushing ? toEl : fromEl;
+  const bottomEl = pushing ? fromEl : toEl;
+  Object.values(PAGES).forEach(p => {
+    const el = document.getElementById(p.elId);
+    el.hidden = el !== fromEl && el !== toEl;
+  });
+  // An interrupted ordinary tab/detail animation must not later hide one
+  // of these pages or apply a competing transform.
+  [fromEl, toEl].forEach(el => {
+    for (const key of ['_slideCleanup', '_tabFadeCleanup']) {
+      if (el[key]) {
+        el.removeEventListener('animationend', el[key]);
+        el.style.zIndex = '';
+      }
+      el[key] = null;
+    }
+    el.classList.remove('page-slide-in', 'page-slide-out', 'tab-fade-in');
+  });
+  const oldTopZ = topEl.style.zIndex;
+  const oldBottomZ = bottomEl.style.zIndex;
+  const oldInert = bottomEl.inert;
+  topEl.style.zIndex = '2';
+  bottomEl.style.zIndex = '1';
+  bottomEl.inert = true;
+  // The tab bar belongs to the list page: during the slide it sits under the
+  // moving song page (not above it), and stays visible while that page covers
+  // it. Opening: it is removed only when the slide ends. Back: it is already
+  // there, under the song page, from the first frame.
+  const nav = document.getElementById('bottom-nav');
+  const oldNavZ = nav.style.zIndex;
+  nav.style.zIndex = '1';
+  if (!pushing) nav.hidden = hideNav;
+  // Own layer from the start, and parked off-screen until the animation
+  // exists, so nothing shows at its final position while we wait.
+  topEl.style.willChange = 'transform';
+  const hasStart = interrupted?.el === topEl;
+  if (pushing && !hasStart) topEl.style.transform = 'translateX(100%)';
+  const start = hasStart ? interrupted.transform :
+    (pushing ? 'translateX(100%)' : 'translateX(0)');
+
+  let animation = null;
+  let raf = 0;
+  const play = () => {
+    raf = 0;
+    if (nativeSongSlide !== slide) return;
+    animation = topEl.animate([
+      { transform: start },
+      { transform: pushing ? 'translateX(0)' : 'translateX(100%)' },
+    ], { duration: pushing ? 300 : 260, easing: 'cubic-bezier(.2, 0, .2, 1)', fill: 'both' });
+    animation.onfinish = animation.oncancel = slide.finish;
+  };
+  const slide = { el: topEl, finish: () => {
+    if (nativeSongSlide !== slide) return;
+    nativeSongSlide = null;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (animation) {
+      animation.onfinish = animation.oncancel = null;
+      animation.cancel();
+    }
+    topEl.style.transform = '';
+    topEl.style.willChange = '';
+    topEl.style.zIndex = oldTopZ;
+    bottomEl.style.zIndex = oldBottomZ;
+    bottomEl.inert = oldInert;
+    fromEl.hidden = true;
+    toEl.hidden = false;
+    nav.style.zIndex = oldNavZ;
+    nav.hidden = hideNav;
+    if (toEl.id === PAGES['song-view'].elId) fixNativeAudioControlsPaint();
+  } };
+  nativeSongSlide = slide;
+  // Frame 1 lays out the prepared pages. Frame 2 runs the follow-up
+  // measurements that layout triggers (chord positions, list scroll thumb).
+  // Frame 3 starts the motion with nothing left to do.
+  raf = requestAnimationFrame(() => {
+    raf = requestAnimationFrame(() => { raf = requestAnimationFrame(play); });
+  });
+}
+
 /* @begin:runPageSlideTransition */
 
 
-// Runs the push/pop slide for the two SLIDE_PAGES. Both pages involved are
-// simple CSS transforms on their own compositor layer (no layout/paint
-// work on the surrounding page), so this is cheap to animate even on
-// low-end devices — it's the same technique native app frameworks use for
-// this exact transition.
-function runPageSlideTransition(type, fromEl, toEl, opts = {}) {
-  const { onDone = null } = opts;
+// Runs the existing CSS push/pop for non-song detail pages. Its keyframes
+// also animate a shadow, so compositor-only rendering is not guaranteed.
+function runPageSlideTransition(type, fromEl, toEl) {
   // Anything other than the two pages actually involved stays hidden as
   // before — only these two are ever visible at once, and only briefly.
   Object.values(PAGES).forEach(p => {
@@ -1383,7 +1518,6 @@ function runPageSlideTransition(type, fromEl, toEl, opts = {}) {
     fromEl.hidden = true;
     topEl.removeEventListener('animationend', cleanup);
     topEl._slideCleanup = null;
-    if (onDone) onDone();
   };
   topEl._slideCleanup = cleanup;
   topEl.addEventListener('animationend', cleanup);
@@ -1783,16 +1917,13 @@ function renderSongList(opts = {}) {
 // page became visible again. The rows themselves are already current; the
 // fast-scroll rail needs its thumb synced to the visible page again.
 function onSongsPageEnter() {
-  const source = getSongbookSource();
   const listEl = document.getElementById('song-list');
 
-  if (!source || !source.loaded) {
+  if (!state.selectedDbSources.every(key => state.sources[key].loaded)) {
     renderSongLoadingState();
-    if (source) {
-      loadSelectedSongDatabases().then(() => {
-        if (state.currentPage === 'songs') renderSongList();
-      });
-    }
+    loadSelectedSongDatabases().then(() => {
+      if (state.currentPage === 'songs') renderSongList();
+    });
     return;
   }
 
@@ -1812,17 +1943,9 @@ function onSongsPageEnter() {
   // Favorites may have changed in song view, a playlist, or an import while
   // this list was hidden and its existing rows were retained.
   refreshSongbookFavoriteMarkers();
-  refreshSongScrollIndexMeasurements();
-}
-/* @end:onSongsPageEnter */
-
-/* @begin:refreshSongScrollIndexMeasurements */
-function refreshSongScrollIndexMeasurements() {
-  if (!scrollIndexEntries.length) return;
-  scrollIndexEntries = measureScrollIndexEntries(scrollIndexEntries);
   updateScrollThumbPosition();
 }
-/* @end:refreshSongScrollIndexMeasurements */
+/* @end:onSongsPageEnter */
 
 /* @begin:scrollIndexLetter */
 
@@ -2242,7 +2365,7 @@ function buildSongRow(song, hasNumbers, q, sourceKey) {
   li.dataset.songId = song.id;
   const row = document.createElement('button');
   row.className = 'song-row';
-  row.addEventListener('click', () => tapSongRowThenOpen(row, () => openSong(song, { sourceKey })));
+  row.addEventListener('click', () => openSong(song, { sourceKey }));
   li.appendChild(row);
   updateSongRowContent(li, song, hasNumbers, q);
   return li;
@@ -2339,13 +2462,31 @@ function bindSongView() {
   document.querySelectorAll('[data-font]').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.font;
-      if (action === 'lyrics-up') state.lyricsSize = Math.min(1.6, state.lyricsSize + 0.08);
-      if (action === 'lyrics-down') state.lyricsSize = Math.max(0.75, state.lyricsSize - 0.08);
-      if (action === 'chords-up') state.chordSize = Math.min(1.2, state.chordSize + 0.06);
-      if (action === 'chords-down') state.chordSize = Math.max(0.6, state.chordSize - 0.06);
+      // 12 levels each, the same grid as the sliders (min, max and step in
+      // index.html): lyrics 0.75 to 1.63 by 0.08, chords 0.6 to 1.26 by 0.06.
+      const round2 = v => Math.round(v * 100) / 100;
+      if (action === 'lyrics-up') state.lyricsSize = Math.min(1.63, round2(state.lyricsSize + 0.08));
+      if (action === 'lyrics-down') state.lyricsSize = Math.max(0.75, round2(state.lyricsSize - 0.08));
+      if (action === 'chords-up') state.chordSize = Math.min(1.26, round2(state.chordSize + 0.06));
+      if (action === 'chords-down') state.chordSize = Math.max(0.6, round2(state.chordSize - 0.06));
       applyFontSizes();
       localStorage.setItem('sb-lyrics-size', state.lyricsSize);
       localStorage.setItem('sb-chord-size', state.chordSize);
+    });
+  });
+
+  // Developer options → "Text size sliders": the slider version of the
+  // A−/A+ chips above. Resizing is live while dragging (input); the value is
+  // saved once the finger lifts (change), under the same keys as the chips.
+  [['lyrics-size-range', 'lyricsSize', 'sb-lyrics-size'], ['chords-size-range', 'chordSize', 'sb-chord-size']].forEach(([id, key, storeKey]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      state[key] = parseFloat(el.value);
+      applyFontSizes();
+    });
+    el.addEventListener('change', () => {
+      localStorage.setItem(storeKey, state[key]);
     });
   });
 
@@ -2574,6 +2715,9 @@ function fixNativeAudioControlsPaint() {
 /* @begin:openSong */
 function openSong(song, opts = {}) {
   const { pushHistory = true, sourceKey = state.activeDbSource } = opts;
+  if (pushHistory) {
+    pushNavState({ page: 'song-view', songId: song.id, sourceKey, playlistId: opts.playlistId });
+  }
   state.activeSong = song;
   state.activeSourceKey = sourceKey;
   state.transpose = Number.isInteger(opts.transpose) ? Math.max(-TRANSPOSE_LIMIT, Math.min(TRANSPOSE_LIMIT, opts.transpose)) : 0;
@@ -2666,9 +2810,6 @@ function openSong(song, opts = {}) {
   if (Number.isFinite(opts.scrollTop)) {
     const page = document.getElementById('page-song-view');
     page.scrollTop = Math.max(0, opts.scrollTop);
-  }
-  if (pushHistory) {
-    pushNavState({ page: 'song-view', songId: song.id, sourceKey, playlistId: opts.playlistId });
   }
 }
 /* @end:openSong */
@@ -3028,6 +3169,39 @@ function saveSongFromEditor() {
   });
 }
 /* @end:saveSongFromEditor */
+
+/* @begin:confirmDiscardEditorChanges */
+// The app's own "discard unsaved changes?" dialog, replacing window.confirm():
+// a native confirm looks like a browser alert on the website, and wrapped web
+// views often show it wrongly or not at all. Same modal pattern as
+// confirmDeleteUserSong(). Closing it any other way (backdrop, Escape) keeps
+// the person in the editor. Discarding clears the editor baseline and then
+// runs onDiscard() to repeat the navigation that was interrupted.
+function confirmDiscardEditorChanges(onDiscard) {
+  const wrap = document.createElement('div');
+  const p = document.createElement('p');
+  p.className = 'modal-hint';
+  p.style.marginTop = '0';
+  p.textContent = t('discardEditorChanges');
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  actions.innerHTML = `
+    <button type="button" class="btn-secondary" id="discard-editor-cancel"></button>
+    <button type="button" class="btn-primary btn-danger" id="discard-editor-confirm"></button>
+  `;
+  wrap.appendChild(p);
+  wrap.appendChild(actions);
+  actions.querySelector('#discard-editor-cancel').textContent = t('cancelBtn');
+  actions.querySelector('#discard-editor-confirm').textContent = t('discardBtn');
+  actions.querySelector('#discard-editor-cancel').addEventListener('click', closeModal);
+  actions.querySelector('#discard-editor-confirm').addEventListener('click', () => {
+    closeModal();
+    editorBaseline = null;
+    onDiscard();
+  });
+  openModal(t('discardBtn'), wrap);
+}
+/* @end:confirmDiscardEditorChanges */
 
 /* @begin:confirmDeleteUserSong */
 function confirmDeleteUserSong(song, opts = {}) {
@@ -3761,7 +3935,7 @@ function renderPlaylistView(opts = {}) {
         ${subtitle ? `<span class="song-row-sub">${escapeHtml(subtitle)}</span>` : ''}
       </span>
     `;
-    row.addEventListener('click', () => { if (!playlistEditMode) tapSongRowThenOpen(row, () => openSong(song, { sourceKey: ref.sourceKey, playlistId: pl.id })); });
+    row.addEventListener('click', () => { if (!playlistEditMode) openSong(song, { sourceKey: ref.sourceKey, playlistId: pl.id }); });
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -4022,6 +4196,34 @@ function openModal(title, bodyEl, options = {}) {
   if (card) card.focus({ preventScroll: true });
 }
 /* @end:openModal */
+
+function openChoiceModal(title, choices, selected, onChoose) {
+  const list = document.createElement('ul');
+  list.className = 'checklist';
+  for (const { value, label, lang } of choices) {
+    const row = document.createElement('li');
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'checklist-item';
+    option.dataset.choice = value;
+    if (lang) option.lang = lang;
+    option.setAttribute('aria-pressed', String(value === selected));
+    const text = document.createElement('span');
+    text.style.flex = '1';
+    text.textContent = label;
+    const check = document.createElement('span');
+    check.className = 'checklist-check';
+    check.innerHTML = '<svg data-icon="check" viewBox="0 0 24 24" aria-hidden="true"></svg>';
+    option.append(text, check);
+    option.addEventListener('click', () => {
+      closeModal({ immediate: true });
+      if (value !== selected) onChoose(value);
+    });
+    row.appendChild(option);
+    list.appendChild(row);
+  }
+  openModal(title, list);
+}
 
 /* @begin:restoreModalFocus */
 function restoreModalFocus(overlay) {

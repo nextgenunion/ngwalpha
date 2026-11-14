@@ -97,14 +97,24 @@
   // ---------- advanced look (font, colours, effect, dim) ----------
   const LS_ADV = 'sb-pres-adv';
   const HEX = /^#[0-9a-f]{6}$/i;
-  const ADV_DEFAULTS = { font: 'standard', textColor: null, bgColor: null, effect: 'shadow', dim: 0 };
-  // Only fonts that cover Mongolian (including Ө and Ү) on every device. Inter
-  // is not offered: this build ships it without Cyrillic Extended.
+  const ADV_DEFAULTS = { font: 'standard', fontStyle: 'normal', textColor: null, bgColor: null, effect: 'shadow', dim: 0 };
   const FONTS = {
     standard: ['presFontStandard', 'var(--font-lyrics)'],
     classic: ['presFontClassic', "ui-serif, 'Times New Roman', Georgia, serif"],
     system: ['presFontSystem', "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"],
   };
+  const ONLINE_FONTS = {
+    roboto: 'Roboto',
+    'open-sans': 'Open Sans',
+    lato: 'Lato',
+    montserrat: 'Montserrat',
+    poppins: 'Poppins',
+    inter: 'Inter',
+    merriweather: 'Merriweather',
+    playfair: 'Playfair Display',
+    'noto-sans-kr': 'Noto Sans KR',
+  };
+  const FONT_STYLES = { normal: 'lyricsWeightNormal', bold: 'lyricsWeightBold', italic: 'fontStyleItalic' };
   const EFFECTS = ['none', 'shadow', 'glow', 'outline'];
   const DIM_MAX = 70;
   let adv = { ...ADV_DEFAULTS };
@@ -114,7 +124,8 @@
     try {
       const saved = JSON.parse(localStorage.getItem(LS_ADV));
       if (!saved || typeof saved !== 'object') return;
-      if (FONTS[saved.font]) adv.font = saved.font;
+      if (Object.hasOwn(FONTS, saved.font) || Object.hasOwn(ONLINE_FONTS, saved.font)) adv.font = saved.font;
+      if (Object.hasOwn(FONT_STYLES, saved.fontStyle)) adv.fontStyle = saved.fontStyle;
       if (HEX.test(saved.textColor)) adv.textColor = saved.textColor;
       if (HEX.test(saved.bgColor)) adv.bgColor = saved.bgColor;
       if (EFFECTS.includes(saved.effect)) adv.effect = saved.effect;
@@ -166,7 +177,22 @@
     // Shadow and outline use the opposite of the text; glow uses the text colour.
     node.style.setProperty('--pres-fx', adv.effect === 'glow' ? text : (lightText ? '#000000' : '#ffffff'));
     node.style.setProperty('--pres-dim', String(adv.dim / 100));
-    node.style.setProperty('--pres-font', FONTS[adv.font][1]);
+    const online = ONLINE_FONTS[adv.font];
+    node.style.setProperty('--pres-font', online ? `"${online}", var(--font-lyrics)` : FONTS[adv.font][1]);
+    node.style.setProperty('--pres-font-weight', adv.fontStyle === 'bold' ? '700' : '400');
+    node.style.setProperty('--pres-font-style', adv.fontStyle === 'italic' ? 'italic' : 'normal');
+    // Load only the selected online family. The bundled font remains in
+    // the stack for offline use and glyphs missing from the selected font.
+    const id = `pres-font-${adv.font}`;
+    if (online && navigator.onLine && !document.getElementById(id)) {
+      const stylesheet = el('link');
+      stylesheet.id = id;
+      stylesheet.rel = 'stylesheet';
+      const axes = adv.font === 'noto-sans-kr' ? 'wght@400;700' : 'ital,wght@0,400;0,700;1,400';
+      stylesheet.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(online)}:${axes}&display=swap`;
+      stylesheet.addEventListener('error', () => stylesheet.remove(), { once: true });
+      document.head.appendChild(stylesheet);
+    }
   }
 
   function paintBackground(layer, preview = false, translate = cfg && cfg.t) {
@@ -193,8 +219,9 @@
   const titleOptions = ['presTitleSlide', 'presTitleText', 'presTitleNumber', 'presTitleArtist'];
   let titlePrefs = {};
   function loadTitlePrefs() {
-    try { titlePrefs = JSON.parse(localStorage.getItem('sb-pres-title') || '{}') || {}; }
-    catch (_) { titlePrefs = {}; }
+    titlePrefs = { presTitleArtist: false };
+    try { Object.assign(titlePrefs, JSON.parse(localStorage.getItem('sb-pres-title') || '{}')); }
+    catch (_) {}
   }
   // ---------- settings pages ----------
   // Built from the app's own components: colour swatches (like Settings →
@@ -264,7 +291,7 @@
     Object.entries(BACKGROUNDS).forEach(([id, [label, css]]) => {
       const button = el('button', 'accent-swatch pres-swatch');
       button.type = 'button';
-      button.style.background = css;
+      button.style.setProperty('--pres-swatch-color', css);
       button.dataset.presBackground = id;
       button.setAttribute('aria-label', translate(label));
       button.setAttribute('aria-pressed', String(background.kind === 'preset' && !adv.bgColor && background.preset === id));
@@ -331,22 +358,104 @@
   }
 
   // Advanced: font, custom colours, text effect, picture/video and dim.
-  function colorPicker(translate, labelKey, value, onInput) {
-    // A swatch-shaped label around the native colour input: the OS picker
-    // does the work, the swatch matches the app. Rainbow = "pick a colour".
-    const wrap = el('label', 'accent-swatch pres-swatch pres-custom');
-    const input = el('input');
-    input.type = 'color';
-    input.setAttribute('aria-label', translate(labelKey));
+  function choiceRow(translate, labelKey, choices, selected, onChoose) {
+    const button = el('button', 'settings-row settings-row-nav');
+    const text = el('div', 'settings-row-text');
+    const current = el('span', 'settings-row-sub', choices.find(choice => choice.value === selected).label);
+    text.append(el('span', 'settings-row-title', translate(labelKey)), current);
+    button.innerHTML = '<svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24" aria-hidden="true"></svg>';
+    button.prepend(text);
+    button.type = 'button';
+    button.dataset.presPicker = labelKey;
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.addEventListener('click', () => {
+      openChoiceModal(translate(labelKey), choices, selected, value => {
+        selected = value;
+        current.textContent = choices.find(choice => choice.value === value).label;
+        onChoose(value);
+      });
+    });
+    return button;
+  }
+
+  function colorPicker(translate, labelKey, value, fallback, onInput) {
+    const button = el('button', 'accent-swatch pres-swatch pres-custom');
+    button.type = 'button';
+    button.dataset.presPicker = labelKey;
+    button.setAttribute('aria-label', translate(labelKey));
+    button.setAttribute('aria-haspopup', 'dialog');
     const show = (hex) => {
-      wrap.style.background = hex || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)';
-      wrap.dataset.selected = String(!!hex);
-      if (hex) input.value = hex;
+      button.style.setProperty('--pres-swatch-color', hex || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)');
+      button.dataset.selected = String(!!hex);
     };
     show(value);
-    input.addEventListener('input', () => { show(input.value); onInput(input.value); });
-    wrap.appendChild(input);
-    return wrap;
+    button.addEventListener('click', () => {
+      const editor = el('div', 'pres-color-editor');
+      const preview = el('div', 'pres-color-sample');
+      const hexRow = el('label', 'pres-color-row', 'HEX');
+      const hexInput = el('input', 'pres-color-hex');
+      hexInput.type = 'text';
+      hexInput.spellcheck = false;
+      hexInput.maxLength = 7;
+      hexInput.value = value || fallback;
+      hexRow.appendChild(hexInput);
+      editor.append(preview, hexRow);
+
+      const channels = [['colorHue', 359, 1], ['colorSaturation', 100, 0.1], ['colorLightness', 100, 0.1]];
+      const sliders = channels.map(([label, max, step]) => {
+        const row = el('label', 'pres-color-row', translate(label));
+        const slider = el('input', 'app-range');
+        slider.type = 'range';
+        slider.min = '0';
+        slider.max = String(max);
+        slider.step = String(step);
+        row.appendChild(slider);
+        editor.appendChild(row);
+        return slider;
+      });
+      const actions = el('div', 'modal-actions');
+      const cancel = el('button', 'btn-secondary', translate('cancelBtn'));
+      const done = el('button', 'btn-primary', translate('doneBtn'));
+      cancel.type = done.type = 'button';
+      actions.append(cancel, done);
+      editor.appendChild(actions);
+      sliders[0].style.setProperty('--pres-channel-track', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
+      let draft;
+      const update = (fromHex) => {
+        if (fromHex) {
+          const candidate = hexInput.value.trim();
+          const hex = candidate.startsWith('#') ? candidate : '#' + candidate;
+          done.disabled = !HEX.test(hex);
+          hexInput.setAttribute('aria-invalid', String(done.disabled));
+          if (done.disabled) return;
+          const { h, s, l } = hexToHsl(hex);
+          [h, s * 100, l * 100].forEach((v, i) => { sliders[i].value = String(v); });
+          draft = hex.toLowerCase();
+        } else {
+          const [h, s, l] = sliders.map(slider => Number(slider.value));
+          draft = hslToHex(h, s / 100, l / 100);
+          hexInput.value = draft;
+          hexInput.setAttribute('aria-invalid', 'false');
+          done.disabled = false;
+        }
+        preview.style.backgroundColor = draft;
+        const [h, s, l] = sliders.map(slider => Number(slider.value));
+        sliders[1].style.setProperty('--pres-channel-track', `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`);
+        sliders[2].style.setProperty('--pres-channel-track', `linear-gradient(to right, #000, hsl(${h} ${s}% 50%), #fff)`);
+      };
+      hexInput.addEventListener('input', () => update(true));
+      for (const slider of sliders) slider.addEventListener('input', () => update(false));
+      cancel.addEventListener('click', () => closeModal({ immediate: true }));
+      done.addEventListener('click', () => {
+        value = draft;
+        show(value);
+        onInput(value);
+        closeModal({ immediate: true });
+      });
+      update(true);
+      openModal(translate(labelKey), editor);
+    });
+    return button;
   }
 
   function advanced(translate) {
@@ -357,11 +466,18 @@
 
     const text = el('section', 'settings-section');
     text.appendChild(el('h3', 'settings-heading', translate('presAdvText')));
-    text.appendChild(settingsRow(translate, 'presFont', segControl(translate, 'presFont',
-      Object.entries(FONTS).map(([id, [label]]) => [id, translate(label)]), adv.font, (value) => {
-        adv.font = value; saveAdvanced(); refresh();
-      }), true));
-    text.appendChild(settingsRow(translate, 'presTextColor', colorPicker(translate, 'presTextColor', adv.textColor, (hex) => {
+    const fonts = [
+      ...Object.entries(FONTS).map(([value, [label]]) => ({ value, label: translate(label) })),
+      ...Object.entries(ONLINE_FONTS).map(([value, label]) => ({ value, label })),
+    ];
+    const styles = Object.entries(FONT_STYLES).map(([value, label]) => ({ value, label: translate(label) }));
+    text.appendChild(choiceRow(translate, 'presFont', fonts, adv.font, (value) => {
+      adv.font = value; saveAdvanced(); refresh();
+    }));
+    text.appendChild(choiceRow(translate, 'fontStyle', styles, adv.fontStyle, (value) => {
+      adv.fontStyle = value; saveAdvanced(); refresh();
+    }));
+    text.appendChild(settingsRow(translate, 'presTextColor', colorPicker(translate, 'presTextColor', adv.textColor, textColor(), (hex) => {
       adv.textColor = hex; saveAdvanced(); refresh();
     })));
     text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
@@ -371,7 +487,7 @@
 
     const bg = el('section', 'settings-section');
     bg.appendChild(el('h3', 'settings-heading', translate('presAdvBackground')));
-    bg.appendChild(settingsRow(translate, 'presBgColor', colorPicker(translate, 'presBgColor', adv.bgColor, (hex) => {
+    bg.appendChild(settingsRow(translate, 'presBgColor', colorPicker(translate, 'presBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (hex) => {
       if (mediaURL) URL.revokeObjectURL(mediaURL);
       mediaURL = null;
       if (background.kind === 'media') { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
@@ -407,20 +523,24 @@
     mediaRow.append(mediaText, choose, picker);
     bg.appendChild(mediaRow);
 
-    const range = el('input', 'pres-range');
+    const range = el('input', 'pres-range app-range');
     range.type = 'range'; range.min = '0'; range.max = String(DIM_MAX); range.step = '5';
     range.value = String(adv.dim);
     range.setAttribute('aria-label', translate('presDim'));
     const value = el('span', 'pres-range-value', adv.dim + '%');
+    // --p is the filled part of the shared .app-range groove (0–100%).
+    const fill = () => range.style.setProperty('--p', (Number(range.value) / DIM_MAX * 100) + '%');
+    fill();
     range.addEventListener('input', () => {
       adv.dim = Number(range.value); value.textContent = adv.dim + '%';
+      fill();
       saveAdvanced(); refresh();
     });
     const rangeWrap = el('div', 'pres-range-wrap');
     rangeWrap.append(range, value);
     bg.appendChild(settingsRow(translate, 'presDim', rangeWrap));
 
-    const reset = el('button', 'btn-secondary', translate('presReset'));
+    const reset = el('button', 'btn-secondary', translate('transposeReset'));
     reset.type = 'button';
     reset.id = 'presentation-advanced-reset';
     reset.addEventListener('click', () => {
@@ -439,6 +559,7 @@
     bg.appendChild(resetRow);
 
     container.append(preview, text, bg);
+    if (typeof initIcons === 'function') initIcons(container);
   }
 
   // ---------- preferences ----------

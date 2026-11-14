@@ -18,8 +18,8 @@ function t(key, ...args) {
 // ---------------------------------------------------------
 // Preferences (persisted locally — offline-first, no cloud)
 // ---------------------------------------------------------
-// Builds/rebuilds the language <select>'s option list from whichever
-// lang/*.js files actually registered themselves on window.SONGBOOK_LANG
+// Updates the current-language button and returns the available languages
+// from the lang/*.js files registered on window.SONGBOOK_LANG
 // (see lang/config.js's SONGBOOK_LANG_ORDER for the preferred ordering).
 // Pulled out of loadPrefs() so it can also be re-run live when the
 // "Traditional Mongolian script" developer toggle flips — see
@@ -57,48 +57,17 @@ function refreshLangPicker({ isInit = false } = {}) {
   }
   document.documentElement.setAttribute('lang', state.lang);
 
-  const langSelect = document.getElementById('ui-lang-select');
-  if (langSelect) {
-    langSelect.innerHTML = orderedLangs
-      .map(code => `<option value="${code}">${(window.SONGBOOK_LANG[code].meta && window.SONGBOOK_LANG[code].meta.name) || code}</option>`)
-      .join('');
-    langSelect.value = state.lang;
-  }
+  const langButton = document.getElementById('ui-lang-select');
+  if (langButton) langButton.textContent = window.SONGBOOK_LANG[state.lang]?.meta?.name || state.lang;
+  return orderedLangs;
 }
 /* @end:refreshLangPicker */
 
 /* @begin:loadPrefs */
 function loadPrefs() {
-  // Default to the system's light/dark preference on first run (no saved
-  // choice yet) rather than hardcoding 'light'. This matters beyond just
-  // matching the phone's look: browsers that algorithmically "force dark"
-  // pages which don't visibly follow prefers-color-scheme (Chrome's Auto
-  // Dark Theme on Android, Samsung Internet's forced dark) back off once a
-  // page's own colors actually track the system setting — so following it
-  // ourselves, well, is also the fix for those forced/inverted-color
-  // renders. Once the person picks a theme in Settings, that explicit
-  // choice always wins over the system setting from then on.
-  const savedTheme = localStorage.getItem('sb-theme');
-  const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+  const theme = localStorage.getItem('sb-theme') === 'dark' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('theme-toggle').setAttribute('aria-checked', String(theme === 'dark'));
-
-  // If the person has never explicitly chosen a theme, keep following the
-  // system setting live (e.g. Android's scheduled dark mode kicking in at
-  // sunset) instead of freezing whatever it was on first load.
-  if (!savedTheme && window.matchMedia) {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onSystemThemeChange = (e) => {
-      if (localStorage.getItem('sb-theme')) return; // person has since made an explicit choice
-      const next = e.matches ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      const toggle = document.getElementById('theme-toggle');
-      if (toggle) toggle.setAttribute('aria-checked', String(next === 'dark'));
-    };
-    if (mq.addEventListener) mq.addEventListener('change', onSystemThemeChange);
-    else if (mq.addListener) mq.addListener(onSystemThemeChange); // older WebView/Samsung Internet
-  }
 
   const accent = localStorage.getItem('sb-accent') || 'aqua';
   document.documentElement.setAttribute('data-accent', accent);
@@ -112,7 +81,8 @@ function loadPrefs() {
   const chordSize = parseFloat(localStorage.getItem('sb-chord-size'));
   if (!Number.isNaN(lyricsSize)) state.lyricsSize = lyricsSize;
   if (!Number.isNaN(chordSize)) state.chordSize = chordSize;
-  applyFontSizes();
+  state.textSizeSliders = localStorage.getItem('sb-text-size-sliders') !== 'false';
+  applyTextSizeSliders();
 
   const savedChordStyle = localStorage.getItem('sb-chord-style');
   if (savedChordStyle === 'chip' || savedChordStyle === 'text') state.chordStyle = savedChordStyle;
@@ -183,6 +153,7 @@ function loadPrefs() {
 
 /* @begin:applyFontSizes */
 function applyFontSizes() {
+  syncSizeSliders();
   document.documentElement.style.setProperty('--lyrics-size', state.lyricsSize + 'rem');
   document.documentElement.style.setProperty('--chord-size', state.chordSize + 'rem');
 }
@@ -356,6 +327,35 @@ function applyHideVerseNumbers() {
   if (toggle) toggle.setAttribute('aria-checked', String(state.hideVerseNumbers));
 }
 /* @end:applyHideVerseNumbers */
+
+/* @begin:applyTextSizeSliders */
+// Developer options → Display → "Text size sliders": shows the slider
+// version of the song page's lyric/chord size controls instead of the
+// A−/A+ chips. Attribute-driven like applyHideVerseNumbers(): CSS picks
+// which block is visible, so an open song page updates immediately.
+function applyTextSizeSliders() {
+  document.documentElement.setAttribute('data-size-sliders', String(state.textSizeSliders));
+  const toggle = document.getElementById('text-size-sliders-toggle');
+  if (toggle) toggle.setAttribute('aria-checked', String(state.textSizeSliders));
+  applyFontSizes();
+}
+/* @end:applyTextSizeSliders */
+
+/* @begin:syncSizeSliders */
+// The browser snaps older sizes to the nearest slider step. Use that same
+// value for rendering while sliders are enabled, so the thumb and text agree.
+function syncSizeSliders() {
+  [['lyrics-size-range', 'lyricsSize'], ['chords-size-range', 'chordSize']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = state[key];
+    const value = el.valueAsNumber;
+    if (state.textSizeSliders) state[key] = value;
+    const pct = (value - Number(el.min)) / (Number(el.max) - Number(el.min)) * 100;
+    el.style.setProperty('--p', Math.max(0, Math.min(100, pct)) + '%');
+  });
+}
+/* @end:syncSizeSliders */
 
 /* @begin:isSheetMusicProductionEnabled */
 
@@ -654,6 +654,10 @@ function applyLanguage() {
     't-landscapeModeSub': 'landscapeModeSub',
     't-hideVerseNumbersTitle': 'hideVerseNumbersTitle',
     't-hideVerseNumbersSub': 'hideVerseNumbersSub',
+    't-textSizeSlidersTitle': 'textSizeSlidersTitle',
+    't-textSizeSlidersSub': 'textSizeSlidersSub',
+    't-lyricsGroupSlider': 'lyricsGroup',
+    't-chordsGroupSlider': 'chordsGroup',
     't-sectionDevInProgress': 'sectionDevInProgress',
     't-devTradMongolianTitle': 'devTradMongolianTitle',
     't-devTradMongolianSub': 'devTradMongolianSub',
@@ -874,6 +878,12 @@ function bindSettings() {
     localStorage.setItem('sb-hide-verse-numbers', String(state.hideVerseNumbers));
   });
 
+  document.getElementById('text-size-sliders-toggle').addEventListener('click', () => {
+    state.textSizeSliders = !state.textSizeSliders;
+    applyTextSizeSliders();
+    localStorage.setItem('sb-text-size-sliders', String(state.textSizeSliders));
+  });
+
   document.querySelectorAll('#lyrics-weight-toggle [data-lyrics-weight]').forEach(btn => {
     btn.addEventListener('click', () => {
       const weight = btn.dataset.lyricsWeight;
@@ -914,11 +924,16 @@ function bindSettings() {
     });
   });
 
-  const langSelect = document.getElementById('ui-lang-select');
-  langSelect.addEventListener('change', () => {
-    state.lang = langSelect.value;
-    localStorage.setItem('sb-ui-lang', state.lang);
-    applyLanguage();
+  document.getElementById('ui-lang-select').addEventListener('click', () => {
+    const languages = refreshLangPicker().map(code => ({
+      value: code, label: window.SONGBOOK_LANG[code]?.meta?.name || code, lang: code,
+    }));
+    openChoiceModal(t('uiLangTitle'), languages, state.lang, code => {
+      state.lang = code;
+      localStorage.setItem('sb-ui-lang', code);
+      refreshLangPicker();
+      applyLanguage();
+    });
   });
 
   document.getElementById('db-nav-row').addEventListener('click', openDbPickerModal);

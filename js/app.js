@@ -11,7 +11,9 @@
 // runtime. Each database may also ship a generated database.json bootstrap
 // snapshot for the one-request fast path. Individual song JSON files remain
 // authoritative and update that snapshot in the background, so rebuilding
-// database.json is optional for ordinary one-song corrections.
+// For sources without bundlePrimary, database.json does not need rebuilding
+// for ordinary one-song corrections. Bundle-primary sources such as English
+// require an updated database.json; see js/song-sources.js.
 // =========================================================
 
 // Sourced from version.js (loaded before this file in index.html) so this
@@ -147,8 +149,8 @@ const state = {
                        // openSongEditor(). Read by saveSongFromEditor() to
                        // decide insert vs update.
   transpose: 0,
-  lyricsSize: 1.05,   // rem
-  chordSize: 0.82,    // rem
+  lyricsSize: 1.07,   // rem (on the 12-level grid, see the size sliders in index.html)
+  chordSize: 0.84,    // rem (on the 12-level grid)
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
   noteNames: 'letters', // 'letters' | 'solfege' | 'mongolian' — display-only note labels
   hideChords: false,  // see applyHideChords()
@@ -165,6 +167,10 @@ const state = {
   // as .lyric-section-label instead and is NOT affected by this — see the
   // comment above sectionLabel in renderLyrics() for that split.
   hideVerseNumbers: true,
+  // Settings → Display settings → "Text size sliders" — see
+  // applyTextSizeSliders(). On by default; switched off, the A−/A+ chips are
+  // the song page's text size controls instead.
+  textSizeSliders: true,
   lang: 'mn',
   currentPage: 'songs', // mirrors whichever page is currently visible (see showPage)
   playlists: { order: [], byId: {} }, // see "Playlists" section below
@@ -250,7 +256,7 @@ const PAGES = {
 // being a sibling tab you switch between. These get the slide push/pop
 // transition in showPage(); tab switches (Songs/Playlists/Settings) stay
 // an instant cut, same as before.
-const SLIDE_PAGES = new Set(['presentation-settings', 'presentation-advanced', 'song-view', 'sheet-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
+const SLIDE_PAGES = new Set(['presentation-settings', 'presentation-advanced', 'sheet-view', 'playlist-view', 'song-display', 'about', 'chord-finder', 'trash', 'dev-options', 'song-editor']);
 
 // The four bottom-nav tabs — sibling pages switched via .nav-btn taps
 // rather than "opened on top of" one another, so they get the crossfade
@@ -384,7 +390,7 @@ function safe(label, fn) {
 
 async function init() {
   safe('initIcons', initIcons);
-  safe('initSplash', initSplash);
+  const finishSplash = initSplash();
   safe('loadPrefs', loadPrefs);
   safe('bindNav', bindNav);
   safe('bindSongsPage', bindSongsPage);
@@ -429,6 +435,7 @@ async function init() {
   await repairTrashedUserSongPlaylistRefs();
   await purgeExpiredTrash();
   safe('applyLanguage (post-load)', applyLanguage); // re-run so the results count reflects the loaded songs
+  finishSplash?.();
   // Search stays lazy-correct either way, but warming immutable song text
   // during idle time keeps the person's first keystroke from having to
   // chord-strip/normalise thousands of lyric lines at once.
@@ -500,8 +507,8 @@ let songbookRenderFrame = 0;
 const SONGDB_NAME = 'songbook-db';
 // Bumped 1 -> 2 to add 'user-songs', 2 -> 3 to add 'english-songs', then
 // 3 -> 4 to add 'sda-songs', 4 -> 5 to add trash, and 5 -> 6 to add
-// 'mongolian2-songs'. No schema change is needed for the bootstrap/sync
-// architecture: each fetched source still stores one array under 'all-songs'.
+// 'mongolian2-songs', and 6 -> 7 to add 'ko-songs'. Each fetched source stores
+// one array under 'all-songs'.
 const SONGDB_VERSION = SOURCE_REGISTRY.indexedDbVersion;
 const SONGDB_STORES = SOURCE_REGISTRY.stores;
 
@@ -817,7 +824,7 @@ if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => updateAllSegToggleThumbs({ instant: true })).catch(() => {});
 }/* @extracted:settings.js:applyHideChords */
 
-/* @extracted:settings.js:applyTextSizeVisibility *//* @extracted:settings.js:applyNoteNames *//* @extracted:settings.js:applyLyricsWeight *//* @extracted:settings.js:applyLyricsSpacing *//* @extracted:settings.js:applyLyricsWordSpacing *//* @extracted:settings.js:applySongListView *//* @extracted:settings.js:applyLandscapeMode *//* @extracted:settings.js:applyHideVerseNumbers *//* @extracted:ui.js:renderSongLoadingState */
+/* @extracted:settings.js:applyTextSizeVisibility *//* @extracted:settings.js:applyNoteNames *//* @extracted:settings.js:applyLyricsWeight *//* @extracted:settings.js:applyLyricsSpacing *//* @extracted:settings.js:applyLyricsWordSpacing *//* @extracted:settings.js:applySongListView *//* @extracted:settings.js:applyLandscapeMode *//* @extracted:settings.js:applyHideVerseNumbers *//* @extracted:settings.js:applyTextSizeSliders *//* @extracted:settings.js:syncSizeSliders *//* @extracted:ui.js:renderSongLoadingState */
 
 let dbSelectionRevision = 0;
 /* @extracted:data.js:applyDbSource */
@@ -887,7 +894,7 @@ const searchCacheWarmSources = new Set();
 
 /* @extracted:ui.js:renderSongList *//* @extracted:ui.js:onSongsPageEnter */
 
-/* @extracted:ui.js:refreshSongScrollIndexMeasurements *//* @extracted:ui.js:scrollIndexLetter *//* @extracted:ui.js:computeScrollIndexEntries */
+/* @extracted:ui.js:scrollIndexLetter *//* @extracted:ui.js:computeScrollIndexEntries */
 
 let scrollIndexEntries = [];
 let scrollIndexIsNumeric = false;/* @extracted:ui.js:measureScrollIndexEntries *//* @extracted:ui.js:updateSongScrollIndex */
@@ -975,7 +982,7 @@ const LYRIC_MD_BOLD_ITALIC = '\uE102';
 
 /* @extracted:ui.js:saveSongFromEditor */
 
-/* @extracted:ui.js:confirmDeleteUserSong *//* @extracted:data.js:createMirroredKeyValueStorage */
+/* @extracted:ui.js:confirmDiscardEditorChanges *//* @extracted:ui.js:confirmDeleteUserSong *//* @extracted:data.js:createMirroredKeyValueStorage */
 
 const PlaylistStorage = createMirroredKeyValueStorage({
   dbName: 'ngworship-playlists-db',
@@ -1215,6 +1222,13 @@ function isStandaloneNow() {
 }
 
 function setupInstallPrompt() {
+  // Inside a native wrapper the store already installed the app: no prompt,
+  // no listener, and CSS hides the whole row (html[data-platform="native"]).
+  if (window.NGPlatform && NGPlatform.isNative) {
+    installState = 'unavailable';
+    refreshInstallLabels();
+    return;
+  }
   if (isStandaloneNow()) {
     installState = 'installed';
     refreshInstallLabels();
@@ -1240,6 +1254,7 @@ function setupInstallPrompt() {
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
+    if (installState === 'installed') return;
     deferredPrompt = e;
     installState = 'promptable';
     refreshInstallLabels();
@@ -1257,10 +1272,9 @@ function setupInstallPrompt() {
       // dialog does not guarantee installation actually completed. The
       // `appinstalled` event (and isStandaloneNow() as a fallback) is the
       // only source of truth for "installed" — see the listener below.
-      if (!isStandaloneNow()) {
-        installState = 'unavailable';
-        refreshInstallLabels();
-      }
+      if (isStandaloneNow()) installState = 'installed';
+      else if (installState !== 'installed') installState = 'unavailable';
+      refreshInstallLabels();
     } else if (isIOS) {
       showToast(t('toastIosHint'));
     }
@@ -1270,14 +1284,18 @@ function setupInstallPrompt() {
   refreshInstallLabels();
 
   window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
     installState = 'installed';
     refreshInstallLabels();
   });
 }
 
 function refreshInstallLabels() {
+  const installRow = document.getElementById('install-row');
+  installRow.hidden = installState === 'installed';
+  if (installRow.hidden) return;
+
   const installBtn = document.getElementById('install-btn');
-  const installedBadge = document.getElementById('installed-badge');
   const installSub = document.getElementById('install-sub');
   const installTitle = document.getElementById('install-title');
 
@@ -1285,30 +1303,20 @@ function refreshInstallLabels() {
   installBtn.textContent = t('installBtn');
 
   switch (installState) {
-    case 'installed':
-      installBtn.hidden = true;
-      installedBadge.hidden = false;
-      installedBadge.textContent = t('installedBadgeDone');
-      installSub.textContent = t('installSubInstalled');
-      break;
     case 'insecure':
       installBtn.hidden = true;
-      installedBadge.hidden = true;
       installSub.textContent = t('installSubInsecure');
       break;
     case 'ios':
       installBtn.hidden = false;
-      installedBadge.hidden = true;
       installSub.textContent = t('installSubIOS');
       break;
     case 'promptable':
       installBtn.hidden = false;
-      installedBadge.hidden = true;
       installSub.textContent = t('installSub');
       break;
     default:
       installBtn.hidden = true;
-      installedBadge.hidden = true;
       installSub.textContent = t('installSub');
   }
 }
