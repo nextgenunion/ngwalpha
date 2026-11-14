@@ -9,7 +9,7 @@
   justify-content: center;
   opacity: 1;
   visibility: visible;
-  transition: opacity 1.1s cubic-bezier(0.4, 0, 0.2, 1), visibility 1.1s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 200ms ease-out, visibility 200ms ease-out;
 }
 #splash-screen.is-hidden {
   opacity: 0;
@@ -26,19 +26,8 @@
   max-height: 120px;
   object-fit: contain;
   border-radius: var(--radius-l);
-  animation: splash-pop 1s cubic-bezier(0.34, 1.2, 0.64, 1);
-  transition: transform 1.1s cubic-bezier(0.4, 0, 0.2, 1);
-}
-/* Mirrors the pop-in with a gentle shrink on the way out, synced to the
-   screen's own fade (same duration/curve) so the logo doesn't just sit
-   frozen while only the backdrop behind it fades. */
-#splash-screen.is-hidden #splash-logo { transform: scale(0.92); }
-@keyframes splash-pop {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  #splash-logo { animation: none; }
   #splash-screen { transition: none; }
 }
 
@@ -104,6 +93,27 @@ button, a {
      sort row could scroll after a long press. */
   -webkit-touch-callout: none;
 }
+
+/* iOS enlarges text after rotating unless told not to; the landscape layouts
+   already size their own text. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* Inside a native wrapper (html[data-platform="native"], set by
+   js/platform.js) the app should feel like an app: no long-press text
+   selection or callout on UI text, and no "Install app" row (the store
+   already installed it). Website and PWA are untouched by these rules.
+   Fields and the few things people copy stay selectable. */
+html[data-platform="native"] body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+html[data-platform="native"] :is(input, textarea, [contenteditable="true"], #about-contact-email, .selectable) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+html[data-platform="native"] #install-row { display: none; }
 
 /* ---------- page shell ---------- */
 .page {

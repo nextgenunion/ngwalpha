@@ -1,6 +1,6 @@
 # Editing NGWorship CSS
 
-The app still loads css/style.css. It imports these files in their existing cascade order; there is no build step. The split preserves every selector, declaration, media query and rule order from 5.0.51. Some features have later shared overrides, so search all CSS files for a selector before changing it.
+The app still loads css/style.css. It imports these files in their existing cascade order; there is no build step. The numbered files define the cascade order, with presentation styles in 14-presentation.css. Some features have later shared overrides, so search all CSS files for a selector before changing it.
 
 | File | What to edit |
 |---|---|

@@ -323,6 +323,64 @@
 }
 /* If font controls are placed in a settings row, give them a full line. */
 .settings-row > .font-controls { flex: 1 1 100%; margin-top: 12px; }
+
+/* Developer options → "Text size sliders": swap the A−/A+ block for the
+   slider block. Both blocks keep the .font-controls class so every existing
+   hide rule (Show text size controls, display mode, landscape) covers both;
+   these two rules only choose which one is shown. The attribute selector
+   outranks the plain .font-controls { display: flex } above. */
+html[data-size-sliders="true"] #page-song-view .font-controls:not(.font-controls-sliders) { display: none; }
+html:not([data-size-sliders="true"]) #page-song-view .font-controls-sliders { display: none; }
+.font-controls-sliders .font-group { align-items: center; gap: 10px; }
+.font-controls-sliders .font-group-label { margin-right: 0; flex: none; }
+
+/* THE slider look for the whole app — every <input type="range"> gets class
+   app-range (text size sliders on the song page, Presentation → Advanced →
+   Dim background). Same raised-chip language as .chip-btn: pale groove,
+   accent fill, white thumb with the chip border and lip that presses down
+   on touch. The fill is driven by --p (0–100%), which the page's JS sets
+   from the slider's value (see syncSizeSliders() and the Dim slider in
+   presentation.js). Don't style a slider any other way. */
+.app-range {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; min-width: 0; width: 100%;
+  height: 30px; margin: 0;
+  background: transparent;
+  cursor: pointer;
+  --p: 50%;
+}
+.app-range::-webkit-slider-runnable-track {
+  height: 10px; border-radius: 99px;
+  background: linear-gradient(to right, var(--accent) var(--p), var(--paper-dim) var(--p));
+  box-shadow: inset 0 -2px 0 rgba(31, 42, 68, 0.10);
+}
+.app-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px; height: 26px; margin-top: -8px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow), var(--shadow-1);
+  transition: background var(--dur-fast) ease, transform var(--dur-press) ease, box-shadow var(--dur-press) ease;
+}
+.app-range:active::-webkit-slider-thumb {
+  background: var(--accent-tint);
+  transform: translateY(var(--chip-lip));
+  box-shadow: 0 0 0 var(--chip-lip-shadow);
+}
+.app-range::-moz-range-track { height: 10px; border-radius: 99px; background: var(--paper-dim); }
+.app-range::-moz-range-progress { height: 10px; border-radius: 99px; background: var(--accent); }
+.app-range::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
+}
+.app-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 99px; }
+@media (max-width: 480px) {
+  .app-range::-webkit-slider-thumb { box-shadow: 0 var(--chip-lip-xs) 0 var(--chip-lip-shadow), var(--shadow-1); }
+  .app-range:active::-webkit-slider-thumb { transform: translateY(var(--chip-lip-xs)); }
+}
 .font-group {
   flex: 1;
   /* Sized for the chord-style toggle's segmented control (wider than an

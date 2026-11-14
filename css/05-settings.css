@@ -398,13 +398,6 @@ html[data-theme="dark"] .btn-primary.btn-danger:active {
 .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .btn-secondary:disabled:active { transform: none; }
 
-.installed-badge {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #3E7A52;
-  flex-shrink: 0;
-}
-
 .accent-swatches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; max-width: 100%; flex-shrink: 1; }
 .accent-swatch {
   width: 30px; height: 30px;
