@@ -1387,6 +1387,23 @@ function registerServiceWorker() {
   }).catch(err => {
     console.error('Songbook: service worker registration failed —', err);
   });
+
+  // The app lives in a folder of the main website (…/ngworship/). This worker
+  // only covers that folder, so the same address WITHOUT the trailing slash is
+  // outside it: offline, Chrome shows its own offline page there although the
+  // app is fully saved. The main website's root worker (sw-root.js, in the
+  // main website repo) fixes that address. Registering it from here means it
+  // is also installed for people who only ever open the app, never the main
+  // website. Skipped when the app is at the root of its own address (a
+  // Capacitor app, a custom domain) or when that file does not exist.
+  if (location.pathname.length > 1 && location.pathname !== '/index.html') {
+    fetch('/sw-root.js', { method: 'HEAD', cache: 'no-store' })
+      .then(r => {
+        if (!r.ok || !/javascript/i.test(r.headers.get('content-type') || '')) return;
+        return navigator.serviceWorker.register('/sw-root.js', { scope: '/', updateViaCache: 'none' });
+      })
+      .catch(() => { /* optional: offline, or no root worker on this site */ });
+  }
 }/* @extracted:ui.js:isSabbathToday */
 
 /* @extracted:ui.js:updateSabbathMascotText */

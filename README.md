@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.89-alpha)
+# Next Gen Worship — Worship Song App (v5.0.91-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,17 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.91 offline for the address without a trailing slash
+
+- Cause of "You're offline" (Chrome's own page) although the app is saved: the app's worker only covers `/ngworship/`. The address `/ngworship` (no trailing slash, e.g. an old shortcut, bookmark or typed address) is outside it, and GitHub Pages only redirects to the slash version when there is a connection. Reproduced in a GitHub-Pages-like test: with the slash it loads offline, without it Chrome's offline page appears.
+- Fix, part 1 (main website repo): `sw-root.js` + `offline.html` (see the separate `ngu-main-site-offline.zip`). The root worker redirects `/ngworship` and `/ngwalpha` to the slash version itself, and shows our own offline page for main-website pages.
+- Fix, part 2 (this app): `js/app.js` also registers `/sw-root.js` (only when the app is in a folder and that file exists), so the root worker is installed even for people who only ever open the app.
+- Still needed for people who installed the app from the slash-less address: open `…/ngworship/` once online with this version, then reinstall/re-add the app from that address.
+
+## v5.0.90 step dots on the text size sliders
+
+- The lyric and chord sliders now show one dot per level (12 each), drawn on the groove, so you can see and count the steps. The thumb sits exactly on a dot. Dots are pure CSS (`.app-range-ticks` in `css/03-song-view.css`, 12 generated background layers); if the number of levels changes in `index.html`, the layers must be regenerated. Presentation sliders are unchanged.
 
 ## v5.0.89 text size sliders setting moved to Display settings
 

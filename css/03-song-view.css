@@ -376,6 +376,31 @@ html:not([data-size-sliders="true"]) #page-song-view .font-controls-sliders { di
   border: 1px solid var(--line);
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
 }
+/* Step dots on the two text size sliders: one dot per level (12 levels, so
+   the first dot sits under the thumb at the minimum and the last at the
+   maximum). The thumb is 26px wide and travels from 13px to (width - 13px),
+   so dot k (0-11) is centred at 13px + k * (width - 26px) / 11. Written as
+   a percentage plus a pixel offset because background-position percentages
+   are measured against (width - dot width), here 3px. If the number of levels
+   changes (min, max and step in index.html), regenerate these layers. The
+   fill and groove are the last layer, same as the plain .app-range. */
+.app-range-ticks { --tick: color-mix(in srgb, var(--ink) 45%, transparent); }
+.app-range-ticks::-webkit-slider-runnable-track {
+  background:
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(0.0000% + 11.500px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(9.0909% + 9.409px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(18.1818% + 7.318px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(27.2727% + 5.227px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(36.3636% + 3.136px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(45.4545% + 1.045px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(54.5455% - 1.045px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(63.6364% - 3.136px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(72.7273% - 5.227px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(81.8182% - 7.318px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(90.9091% - 9.409px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(100.0000% - 11.500px) 50% / 3px 3px no-repeat,
+    linear-gradient(to right, var(--accent) var(--p), var(--paper-dim) var(--p));
+}
 .app-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 99px; }
 @media (max-width: 480px) {
   .app-range::-webkit-slider-thumb { box-shadow: 0 var(--chip-lip-xs) 0 var(--chip-lip-shadow), var(--shadow-1); }
