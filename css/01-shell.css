@@ -9,7 +9,7 @@
   justify-content: center;
   opacity: 1;
   visibility: visible;
-  transition: opacity 200ms ease-out, visibility 200ms ease-out;
+  transition: opacity 1.1s cubic-bezier(.4,0,.2,1), visibility 1.1s cubic-bezier(.4,0,.2,1);
 }
 #splash-screen.is-hidden {
   opacity: 0;
@@ -26,8 +26,16 @@
   max-height: min(38vh, 180px);
   object-fit: contain;
   border-radius: 0;
+  animation: splash-pop 1s cubic-bezier(.34,1.2,.64,1);
+  transition: transform 1.1s cubic-bezier(.4,0,.2,1);
+}
+#splash-screen.is-hidden #splash-logo { transform: scale(.92); }
+@keyframes splash-pop {
+  from { opacity: 0; transform: scale(.92); }
+  to { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
+  #splash-logo { animation: none; transition: none; }
   #splash-screen { transition: none; }
 }
 

@@ -626,18 +626,37 @@
         notes.appendChild(pill);
       });
 
-      alts.innerHTML = '';
-      if (result.alternatives && result.alternatives.length) {
-        const lead = document.createElement('span');
-        lead.className = 'cf-alts-label';
-        lead.textContent = tr('cfAlso');
-        alts.appendChild(lead);
-        result.alternatives.forEach(alt => {
-          const chip = document.createElement('span');
-          chip.className = 'cf-alt-chip';
-          chip.textContent = alt;
-          alts.appendChild(chip);
-        });
+      const nextAlternatives = (result.alternatives || []).join('\u001f');
+      if (alts.dataset.alternatives !== nextAlternatives) {
+        alts.dataset.alternatives = nextAlternatives;
+        const ticket = (alts._renderTicket || 0) + 1;
+        alts._renderTicket = ticket;
+        alts.getAnimations().forEach(animation => animation.cancel());
+        const render = () => {
+          if (alts._renderTicket !== ticket) return;
+          alts.innerHTML = '';
+          if (result.alternatives && result.alternatives.length) {
+            const lead = document.createElement('span');
+            lead.className = 'cf-alts-label';
+            lead.textContent = tr('cfAlso');
+            alts.appendChild(lead);
+            result.alternatives.forEach(alt => {
+              const chip = document.createElement('span');
+              chip.className = 'cf-alt-chip';
+              chip.textContent = alt;
+              alts.appendChild(chip);
+            });
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+              alts.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }],
+                { duration: 180, easing: 'cubic-bezier(.22,1,.36,1)' });
+            }
+          }
+        };
+        if (alts.childElementCount && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          const exit = alts.animate([{ opacity: 1 }, { opacity: 0 }],
+            { duration: 110, easing: 'ease-in' });
+          exit.finished.then(render, render);
+        } else render();
       }
     },
   };

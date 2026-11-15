@@ -17,6 +17,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function newPage(browser, opts) {
   const ctx = await browser.newContext(Object.assign({ serviceWorkers: 'block' }, opts));
+  await ctx.addInitScript(() => localStorage.setItem('sb-pres-fs', '0')); // full screen is covered by verify_presentation_v5094_browser.cjs
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', e => page.errors.push(String(e)));
@@ -136,7 +137,7 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   await page.keyboard.press('s');
   await sleep(300);
   const box = await page.evaluate(() => { const r = document.querySelector('.pres-bar').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height, top: r.top }; });
-  ok(box.w < 760 && box.h < 60, `panel is small (${Math.round(box.w)}x${Math.round(box.h)}px)`);
+  ok(box.w < 840 && box.h < 60, `panel is small (${Math.round(box.w)}x${Math.round(box.h)}px)`); // 5.0.94: +3 icon buttons
   await page.mouse.move(box.x, box.y);
   await sleep(3200);
   ok((await overlayState(page)).visible, 'panel stays open while the mouse is on it');
@@ -154,12 +155,12 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   await page.keyboard.press('s');
   const labels = await page.evaluate(() => ({
     lines: [...document.querySelectorAll('[data-pres-lines]')].map(b => b.textContent),
-    transition: [...document.querySelectorAll('[data-pres-transition]')].map(b => b.textContent),
+    transition: document.querySelectorAll('[data-pres-transition]').length,
     size: !!document.querySelector('[data-pres="smaller"]') && !!document.querySelector('[data-pres="larger"]'),
   }));
   ok(JSON.stringify(labels.lines) === JSON.stringify(['1', '2', '3', '4', 'Fill']) || labels.lines.slice(0, 4).join() === '1,2,3,4' && labels.lines.length === 5, `Lines choices: ${labels.lines.join(' ')}`);
   ok(!labels.lines.some(l => /^(All|Бүгд|전체)$/.test(l)), 'no "All" choice any more');
-  ok(labels.transition.length === 2 && labels.size, `Size and Transition present (${labels.transition.join(' / ')})`);
+  ok(labels.transition === 0 && labels.size, 'Size is in the panel; Transition moved to Settings (5.0.95)');
 
   // ---------------- 5.0.63: double-click and number keys ----------------
   await openPres(page, { lines: 2, size: 4, transition: 'cut' });
@@ -264,19 +265,28 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   ok(await page.evaluate(() => document.querySelectorAll('.pres-stage .pres-slide').length === 1), 'Fade: rapid presses leave a single slide');
   ok(await page.evaluate(() => { const c = document.querySelector('.pres-slide.is-current'); return parseFloat(getComputedStyle(c).opacity) === 1; }), 'Fade: final slide is fully opaque');
 
-  // Choose Cut in the panel: instant swap, remembered.
-  if (!(await overlayState(page)).visible) await page.keyboard.press('s');
-  await page.click('[data-pres-transition="cut"]');
+  // Choose Cut in Settings → Үзүүлэн (5.0.95: it left the panel): instant swap, remembered.
+  const reopen = async () => {
+    await page.evaluate(() => SongPresentation.open({ song: window.__song, titleInfo: { title: 'x' }, t, onRequestClose() {} }));
+    await sleep(400);
+  };
+  const pickTransition = async (value) => {
+    await page.evaluate(() => { SongPresentation.close(); showPage('presentation-settings'); });
+    await sleep(500);
+    await page.click(`#presentation-settings-content [data-value="${value}"]`);
+    ok(await page.evaluate((v) => document.querySelector(`#presentation-settings-content [data-value="${v}"]`).getAttribute('aria-pressed') === 'true', value), `Settings shows ${value} selected`);
+  };
+  await pickTransition('cut');
   ok(await page.evaluate(() => localStorage.getItem('sb-pres-transition') === 'cut'), 'Cut is remembered');
+  await reopen();
   await page.keyboard.press('ArrowRight');
   ok(await page.evaluate(() => document.querySelectorAll('.pres-stage .pres-slide').length === 1), 'Cut: instant swap, one slide at once');
-  if (!(await overlayState(page)).visible) await page.keyboard.press('s');
-  await page.click('[data-pres-transition="fade"]');
-  ok(await page.evaluate(() => localStorage.getItem('sb-pres-transition') === 'fade' && document.querySelector('[data-pres-transition="fade"]').getAttribute('aria-pressed') === 'true'), 'Fade is remembered');
+  await pickTransition('fade');
+  ok(await page.evaluate(() => localStorage.getItem('sb-pres-transition') === 'fade'), 'Fade is remembered');
   await page.evaluate(() => SongPresentation.close());
   await page.evaluate(() => { localStorage.setItem('sb-pres-lines', '2'); });
   await page.evaluate(() => SongPresentation.open({ song: window.__song, titleInfo: { title: 'x' }, t, onRequestClose() {} }));
-  ok(await page.evaluate(() => document.querySelector('[data-pres-transition="fade"]').getAttribute('aria-pressed') === 'true'), 'Fade is still selected when presentation is reopened');
+  ok(await page.evaluate(() => document.getElementById('presentation-overlay').dataset.transition === 'fade'), 'Fade is still in force when presentation is reopened');
   await page.evaluate(() => SongPresentation.close());
 
   ok(page.errors.length === 0, `desktop: no page errors ${page.errors.join(' | ')}`);
@@ -288,8 +298,9 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   await sleep(300);
   await rm.keyboard.press('ArrowRight');
   ok(await rm.evaluate(() => document.querySelectorAll('.pres-stage .pres-slide').length === 1), 'reduced motion: slides cut even though Fade is saved');
-  await rm.keyboard.press('s');
-  ok(await rm.evaluate(() => document.querySelector('[data-pres-transition-group]').hidden), 'reduced motion: the Transition choice is hidden');
+  await rm.evaluate(() => { SongPresentation.close(); showPage('presentation-settings'); });
+  await sleep(500);
+  ok(await rm.evaluate(() => !document.querySelector('#presentation-settings-content [data-value="cut"]')), 'reduced motion: the Transition choice is hidden in Settings');
   await rm.context().close();
 
   // ---------------- phone portrait ----------------
@@ -314,6 +325,8 @@ const wouldOverflow = (page, slide, extraLine) => page.evaluate(({ slide, extraL
   await ph.touchscreen.tap(195, 420);
   await ph.touchscreen.tap(195, 420);
   await sleep(2800);
+  ok((await overlayState(ph)).visible, 'phone: controls stay open longer than on desktop (touch needs time)');
+  await sleep(3800);
   ok(!(await overlayState(ph)).visible, 'phone: controls hide themselves');
   await ph.touchscreen.tap(340, 420);
   ok(await ph.evaluate(() => document.querySelector('.pres-counter').textContent.startsWith('2 /')), 'phone: right-side tap still goes forward');

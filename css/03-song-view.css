@@ -376,29 +376,21 @@ html:not([data-size-sliders="true"]) #page-song-view .font-controls-sliders { di
   border: 1px solid var(--line);
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
 }
-/* Step dots on the two text size sliders: one dot per level (12 levels, so
-   the first dot sits under the thumb at the minimum and the last at the
-   maximum). The thumb is 26px wide and travels from 13px to (width - 13px),
-   so dot k (0-11) is centred at 13px + k * (width - 26px) / 11. Written as
-   a percentage plus a pixel offset because background-position percentages
-   are measured against (width - dot width), here 3px. If the number of levels
-   changes (min, max and step in index.html), regenerate these layers. The
-   fill and groove are the last layer, same as the plain .app-range. */
-.app-range-ticks { --tick: color-mix(in srgb, var(--ink) 45%, transparent); }
-.app-range-ticks::-webkit-slider-runnable-track {
+/* Ten optional guide dots. Off for normal use; Developer Options can show them.
+   Their 4px diameter and 20% ink contrast keep the track understated. */
+.app-range-ticks { --tick: color-mix(in srgb, var(--ink) 20%, transparent); }
+html[data-slider-dots="true"] .app-range-ticks::-webkit-slider-runnable-track {
   background:
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(0.0000% + 11.500px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(9.0909% + 9.409px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(18.1818% + 7.318px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(27.2727% + 5.227px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(36.3636% + 3.136px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(45.4545% + 1.045px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(54.5455% - 1.045px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(63.6364% - 3.136px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(72.7273% - 5.227px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(81.8182% - 7.318px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(90.9091% - 9.409px) 50% / 3px 3px no-repeat,
-    radial-gradient(circle closest-side, var(--tick) 55%, transparent 100%) calc(100.0000% - 11.500px) 50% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(0.0000% +11.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(11.1111% +8.556px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(22.2222% +6.111px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(33.3333% +3.667px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(44.4444% +1.222px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(55.5556% -1.222px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(66.6667% -3.667px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(77.7778% -6.111px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(88.8889% -8.556px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(100.0000% -11.000px) 50% / 4px 4px no-repeat,
     linear-gradient(to right, var(--accent) var(--p), var(--paper-dim) var(--p));
 }
 .app-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 99px; }
@@ -495,6 +487,7 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
    which as author CSS beats the browser's own [hidden] default
    regardless of specificity. Same fix as .btn-pill-done[hidden] below. */
 .sv-labels[hidden] { display: none; }
+#page-song-view.display-mode #sv-labels { display: none; }
 .sv-label-chip {
   font-size: 0.72rem;
   font-weight: 600;

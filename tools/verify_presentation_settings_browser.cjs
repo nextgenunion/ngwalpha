@@ -25,7 +25,7 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
 
   ok(await q(() => document.querySelectorAll('#presentation-settings-content input[type=checkbox]').length === 0), 'no native checkboxes (uses the app switches)');
   ok(await q(() => document.querySelectorAll('#presentation-settings-content .switch').length === 4), 'title slide options are 4 app switches');
-  ok(await q(() => document.querySelectorAll('.pres-swatch').length === 6), 'six colour swatches');
+  ok(await q(() => document.querySelectorAll('[data-pres-background]').length === 6 && document.querySelectorAll('#presentation-settings-content .pres-swatch').length === 8), 'six preset swatches plus a custom swatch in each colour row (background, text)');
   ok(await q(() => !document.querySelector('#presentation-settings-content .btn-secondary[data-pres-background]')), 'background choices are no longer outlined buttons');
   ok(await q(() => parseFloat(document.querySelector('#presentation-settings-content .seg-toggle-thumb').style.width) > 20), 'segmented control thumb is positioned');
 

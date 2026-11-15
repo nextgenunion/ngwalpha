@@ -347,8 +347,8 @@ html[data-theme="dark"] .cf-dot { color: var(--paper); }
   letter-spacing: 0.04em;
 }
 .cf-alts {
-  min-height: 27px;
-  margin-top: 8px;
+  min-height: 31px;
+  margin-top: 12px;
   display: flex;
   align-items: center;
   justify-content: center;

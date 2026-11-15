@@ -58,7 +58,8 @@ function refreshLangPicker({ isInit = false } = {}) {
   document.documentElement.setAttribute('lang', state.lang);
 
   const langButton = document.getElementById('ui-lang-select');
-  if (langButton) langButton.textContent = window.SONGBOOK_LANG[state.lang]?.meta?.name || state.lang;
+  const currentLangName = document.getElementById('ui-lang-current');
+  if (currentLangName) currentLangName.textContent = window.SONGBOOK_LANG[state.lang]?.meta?.name || state.lang;
   return orderedLangs;
 }
 /* @end:refreshLangPicker */
@@ -492,6 +493,9 @@ function applyDevOptions() {
   const hideDescToggle = document.getElementById('dev-hide-desc-toggle');
   if (hideDescToggle) hideDescToggle.setAttribute('aria-checked', String(state.devHideDescriptions));
   document.documentElement.toggleAttribute('data-hide-setting-desc', state.devHideDescriptions);
+  document.documentElement.setAttribute('data-slider-dots', String(state.devSliderDots));
+  const dotsToggle = document.getElementById('dev-slider-dots-toggle');
+  if (dotsToggle) dotsToggle.setAttribute('aria-checked', String(state.devSliderDots));
 
 }
 /* @end:applyDevOptions */
@@ -530,6 +534,10 @@ function initDevOptions() {
   });
   document.getElementById('dev-credits-toggle').addEventListener('click', () => {
     state.devCredits = !state.devCredits;
+    applyDevOptions();
+  });
+  document.getElementById('dev-slider-dots-toggle')?.addEventListener('click', () => {
+    state.devSliderDots = !state.devSliderDots;
     applyDevOptions();
   });
   document.getElementById('dev-hide-desc-toggle').addEventListener('click', () => {
@@ -656,6 +664,8 @@ function applyLanguage() {
     't-hideVerseNumbersSub': 'hideVerseNumbersSub',
     't-textSizeSlidersTitle': 'textSizeSlidersTitle',
     't-textSizeSlidersSub': 'textSizeSlidersSub',
+    't-devSliderDotsTitle': 'devSliderDotsTitle',
+    't-devSliderDotsSub': 'devSliderDotsSub',
     't-lyricsGroupSlider': 'lyricsGroup',
     't-chordsGroupSlider': 'chordsGroup',
     't-sectionDevInProgress': 'sectionDevInProgress',
@@ -713,14 +723,11 @@ function applyLanguage() {
   document.getElementById('scripture-verse-ref').textContent = t('scriptureRef');
 
   const appConfig = window.SONGBOOK_APP_CONFIG || {};
-  const orgName = appConfig.orgName || '';
-  const showCopyright = appConfig.showCopyrightNotice !== false;
+  // NGWorship does not own third-party song content. Keep the blanket notice hidden.
   const copyrightEl = document.getElementById('about-copyright');
   const copyrightTermsEl = document.getElementById('about-copyright-terms');
-  copyrightEl.hidden = copyrightTermsEl.hidden = !showCopyright;
-  copyrightEl.textContent = showCopyright
-    ? `© ${new Date().getFullYear()} ${orgName}. All rights reserved.` : '';
-  copyrightTermsEl.textContent = showCopyright ? t('copyrightTerms') : '';
+  copyrightEl.hidden = copyrightTermsEl.hidden = true;
+  copyrightEl.textContent = copyrightTermsEl.textContent = '';
 
   document.getElementById('t-contactBtn').textContent = t('contactBtn');
   document.getElementById('about-contact-copy').setAttribute('aria-label', t('copyEmailAria'));

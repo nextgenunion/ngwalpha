@@ -72,7 +72,7 @@
    index.html are affected; other settings-row-sub text (Playlists
    backup, Reload library, the About page's own description, etc.) is
    untouched regardless of this toggle. */
-html[data-hide-setting-desc] .settings-desc-hideable { display: none; }
+html[data-hide-setting-desc] .settings-row-sub:not(.settings-row-current-value) { display: none !important; }
 .settings-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .settings-row-actions .btn-secondary { white-space: nowrap; }
 

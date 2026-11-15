@@ -62,6 +62,8 @@ const REQUIRED_OFFLINE = [
   './icons/svg/copy.svg',
   './icons/svg/dark-mode.svg',
   './icons/svg/presentation.svg',
+  './icons/svg/fullscreen.svg',
+  './icons/svg/fullscreen-exit.svg',
   './icons/svg/reading-mode.svg',
   './icons/svg/download.svg',
   './icons/svg/filter-tune.svg',

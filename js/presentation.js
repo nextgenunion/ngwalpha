@@ -14,6 +14,12 @@
 // double-tapping the middle).
 // Number keys select slides within the current song. Shift+number selects a playlist entry.
 //
+// It asks for full screen as soon as it opens (the open click is the user
+// gesture browsers require) and remembers if the person leaves full screen on
+// purpose. The panel has three quiet icon buttons: Blank screen, Full screen
+// and Settings. For the first few launches a short hint shows how to open the
+// panel; it stops for good once the panel has been opened.
+//
 // This module owns only the overlay. ui.js decides how it is opened/closed
 // (history entry, popstate) and passes in what it needs — see
 // openPresentationMode() there. No app state is read from here.
@@ -41,7 +47,12 @@
   const SIZE_STEPS = [0.45, 0.55, 0.67, 0.82, 1.0, 1.2, 1.45, 1.75, 2.1, 2.5];
   const DEFAULT_SIZE = 4;
   const MIN_FONT_PX = 12;
-  const CONTROLS_IDLE_MS = 2200;
+  const CONTROLS_IDLE_MS = 2200;        // mouse / keyboard: the panel hides quickly
+  const CONTROLS_IDLE_TOUCH_MS = 6000;  // touch: a finger needs longer to reach the next button
+  const LS_FS = 'sb-pres-fs';           // '0' = the person left full screen on purpose
+  const LS_INTRO = 'sb-pres-intro';     // { n: launches that showed the hint, done: panel was opened }
+  const INTRO_MAX_LAUNCHES = 4;
+  const INTRO_SHOW_MS = 4500;
   const EDGE_PX = 3;        // mouse this close to the top edge asks for the controls...
   const EDGE_DWELL_MS = 150; // ...and has to stay there briefly, so a fly-by doesn't flash them
   const SWIPE_PX = 50;
@@ -65,6 +76,8 @@
   let restoreFocus = null;
   let swipe = null;
   let lastMiddleClick = null;
+  let inputIsTouch = false; // last pointer was a finger/pen: keep the panel open longer
+  let introTimer = null;
   // [string key, CSS background, text tone that reads well on it]
   const BACKGROUNDS = {
     black: ['presBlack', '#000', 'light'],
@@ -89,9 +102,85 @@
   }
 
   function saveBackground() {
-    // Only the choice and filename are saved. File bytes and blob URLs remain
-    // in this page's memory and never enter IndexedDB or Cache Storage.
+    // Only the choice and file name go to localStorage. The file itself is kept
+    // in IndexedDB (see "picture / video background" below).
     try { localStorage.setItem('sb-pres-background', JSON.stringify(background)); } catch (_) {}
+  }
+
+  // ---------- picture / video background, kept on this device ----------
+  // The chosen file is remembered automatically in this browser's IndexedDB
+  // (database "ngw-presentation"). It is never put in Cache Storage, so the
+  // service worker and the app's offline files are untouched; nothing is
+  // uploaded; and it works offline. The overlay and the settings preview read
+  // it through a blob: URL. Only one file is kept: choosing another file, a
+  // colour or Reset removes the old one.
+  const MEDIA_DB = 'ngw-presentation';
+  const MEDIA_STORE = 'media';
+  const MEDIA_KEY = 'background';
+  const MEDIA_MAX_BYTES = 300 * 1024 * 1024;
+  // none | saving | saved | session (could not be kept; works until the app closes) | missing
+  let mediaState = 'none';
+  let mediaRestore = null;
+
+  function openMediaDB() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      const req = indexedDB.open(MEDIA_DB, 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(MEDIA_STORE)) req.result.createObjectStore(MEDIA_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+      req.onblocked = () => reject(new Error('IndexedDB blocked'));
+    });
+  }
+  function mediaTx(mode, action) {
+    return openMediaDB().then(db => new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(MEDIA_STORE, mode);
+        const request = action(tx.objectStore(MEDIA_STORE));
+        tx.oncomplete = () => { db.close(); resolve(request ? request.result : undefined); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('IndexedDB transaction failed')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('IndexedDB transaction aborted')); };
+      } catch (err) { db.close(); reject(err); }
+    }));
+  }
+  function saveMediaFile(file, kind) {
+    if (file.size > MEDIA_MAX_BYTES) return Promise.reject(new Error('file too large'));
+    return mediaTx('readwrite', store => store.put({ blob: file, name: file.name, media: kind }, MEDIA_KEY));
+  }
+  function deleteMediaFile() {
+    return mediaTx('readwrite', store => store.delete(MEDIA_KEY)).catch(() => {});
+  }
+  function releaseMedia() {
+    if (mediaURL) URL.revokeObjectURL(mediaURL);
+    mediaURL = null;
+  }
+  // Forget the current picture/video everywhere (memory and storage). Call it
+  // before `background` is changed to something else.
+  function dropMedia() {
+    const had = background.kind === 'media' || !!mediaURL;
+    releaseMedia();
+    mediaState = 'none';
+    if (had) deleteMediaFile();
+  }
+  // Bring the saved file back into memory (once per page load, and again if it
+  // is needed while that is still running). Resolves true when it is ready.
+  function ensureMedia() {
+    if (background.kind !== 'media') return Promise.resolve(false);
+    if (mediaURL) return Promise.resolve(true);
+    if (mediaRestore) return mediaRestore;
+    const wanted = background.name;
+    const run = mediaTx('readonly', store => store.get(MEDIA_KEY)).then(record => {
+      if (background.kind !== 'media' || mediaURL) return !!mediaURL; // changed while loading
+      if (!record || !record.blob || record.name !== wanted) { mediaState = 'missing'; return false; }
+      mediaURL = URL.createObjectURL(record.blob);
+      mediaState = 'saved';
+      return true;
+    }).catch(() => { if (!mediaURL) mediaState = 'missing'; return !!mediaURL; });
+    mediaRestore = run;
+    run.then(() => { if (mediaRestore === run) mediaRestore = null; });
+    return run;
   }
 
   // ---------- advanced look (font, colours, effect, dim) ----------
@@ -103,20 +192,32 @@
     classic: ['presFontClassic', "ui-serif, 'Times New Roman', Georgia, serif"],
     system: ['presFontSystem', "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"],
   };
+  // Online fonts are listed only if they cover Cyrillic Extended (Ө, Ү), so a
+  // Mongolian song visibly changes when one is chosen. Noto Sans KR is for the
+  // Korean interface. The offline fonts above always work without internet.
   const ONLINE_FONTS = {
     roboto: 'Roboto',
     'open-sans': 'Open Sans',
-    lato: 'Lato',
     montserrat: 'Montserrat',
-    poppins: 'Poppins',
     inter: 'Inter',
     merriweather: 'Merriweather',
-    playfair: 'Playfair Display',
     'noto-sans-kr': 'Noto Sans KR',
   };
+  function fontChoices(translate, selected) {
+    const lang = document.documentElement.getAttribute('lang') || '';
+    const korean = lang === 'kr' || lang.startsWith('ko');
+    const tag = translate('presFontOnlineTag');
+    const list = Object.entries(FONTS).map(([value, [label]]) => ({ value, label: translate(label) }));
+    Object.entries(ONLINE_FONTS).forEach(([value, label]) => {
+      if (value === 'noto-sans-kr' && !korean && selected !== value) return;
+      list.push({ value, label: `${label} · ${tag}` });
+    });
+    return list;
+  }
   const FONT_STYLES = { normal: 'lyricsWeightNormal', bold: 'lyricsWeightBold', italic: 'fontStyleItalic' };
   const EFFECTS = ['none', 'shadow', 'glow', 'outline'];
   const DIM_MAX = 70;
+  const AUTO_DIM = 30; // a new picture/video starts a little dimmed so lyrics stay readable
   let adv = { ...ADV_DEFAULTS };
 
   function loadAdvanced() {
@@ -228,7 +329,15 @@
   // Colour), the sliding segmented control (like Chord style) and switches
   // (like Dark mode). Controls update in place instead of re-rendering the
   // page, so their press animations play.
+  function loadTransition() {
+    try {
+      const saved = localStorage.getItem(LS_TRANSITION);
+      transition = TRANSITIONS.includes(saved) ? saved : DEFAULT_TRANSITION;
+    } catch (_) { transition = DEFAULT_TRANSITION; }
+  }
+
   function loadAll() {
+    loadTransition();
     loadTitlePrefs();
     loadBackground();
     loadTextPref();
@@ -261,18 +370,25 @@
     thumb.setAttribute('aria-hidden', 'true');
     seg.appendChild(thumb);
     const place = (opts) => { if (typeof positionSegToggleThumb === 'function') positionSegToggleThumb(seg, opts); };
+    // select(value) moves the highlight; select(null) clears it (used when a
+    // custom colour is active and none of the fixed choices applies).
+    seg.select = (value) => {
+      seg.querySelectorAll('.seg-toggle-btn').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.value === value)));
+      seg.classList.toggle('is-none', value == null);
+      place();
+    };
     choices.forEach(([value, labelText]) => {
       const b = el('button', 'seg-toggle-btn', labelText);
       b.type = 'button';
       b.dataset.value = value;
       b.setAttribute('aria-pressed', String(value === current));
       b.addEventListener('click', () => {
-        seg.querySelectorAll('.seg-toggle-btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-        place();
+        seg.select(value);
         onChange(value);
       });
       seg.appendChild(b);
     });
+    seg.classList.toggle('is-none', current == null);
     // The page may still be hidden while it is built; place the thumb once it shows.
     requestAnimationFrame(() => requestAnimationFrame(() => place({ instant: true })));
     return seg;
@@ -283,11 +399,24 @@
     const container = document.getElementById('presentation-settings-content');
     container.replaceChildren();
     const { preview, refresh } = makePreview(translate);
+    ensureMedia().then(ok => { if (ok) refresh(); });
 
     // Look: background colour + text colour (Auto follows the background).
+    // The last swatch of each row is the custom colour. It opens the same
+    // editor as before, is lit while a custom colour is in use, and is cleared
+    // by picking any fixed choice.
     const section = el('section', 'settings-section');
     section.appendChild(el('h3', 'settings-heading', translate('presLook')));
     const swatches = el('div', 'accent-swatches');
+    const presetButtons = [];
+    const customBg = colorPicker(translate, 'presCustomBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (hex) => {
+      const wasMedia = background.kind === 'media';
+      dropMedia(); // a colour replaces any picture/video (and its saved file)
+      if (wasMedia) { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
+      adv.bgColor = hex; saveAdvanced();
+      presetButtons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+      refresh();
+    });
     Object.entries(BACKGROUNDS).forEach(([id, [label, css]]) => {
       const button = el('button', 'accent-swatch pres-swatch');
       button.type = 'button';
@@ -296,40 +425,64 @@
       button.setAttribute('aria-label', translate(label));
       button.setAttribute('aria-pressed', String(background.kind === 'preset' && !adv.bgColor && background.preset === id));
       button.addEventListener('click', () => {
-        if (mediaURL) URL.revokeObjectURL(mediaURL);
-        mediaURL = null;
+        dropMedia(); // a colour replaces any picture/video (and its saved file)
         background = { kind: 'preset', preset: id };
         adv.bgColor = null;
         saveBackground();
         saveAdvanced();
-        swatches.querySelectorAll('.pres-swatch').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+        presetButtons.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+        customBg.setColor(null);
         refresh();
       });
+      presetButtons.push(button);
       swatches.appendChild(button);
     });
+    swatches.appendChild(customBg);
     section.appendChild(settingsRow(translate, 'presColor', swatches));
-    section.appendChild(settingsRow(translate, 'presTextColor', segControl(translate, 'presTextColor',
-      TEXT_CHOICES.map(c => [c, translate('presText' + c[0].toUpperCase() + c.slice(1))]), textPref, (choice) => {
-        textPref = choice;
-        adv.textColor = null; // a basic choice replaces any custom colour
-        savePref(LS_TEXT, choice);
-        saveAdvanced();
-        refresh();
-      })));
 
-    // Advanced opens its own page, like the other sub-pages in Settings.
-    const nav = el('button', 'settings-row settings-row-nav');
-    nav.type = 'button';
-    nav.id = 'presentation-advanced-nav-row';
-    const navText = el('div', 'settings-row-text');
-    navText.append(el('span', 'settings-row-title', translate('presAdvancedTitle')), el('span', 'settings-row-sub', translate('presAdvancedSub')));
-    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('class', 'settings-row-chevron');
-    chevron.setAttribute('data-icon', 'back-arrow');
-    chevron.setAttribute('viewBox', '0 0 24 24');
-    nav.append(navText, chevron);
-    nav.addEventListener('click', () => { if (hooks.openAdvanced) hooks.openAdvanced(); });
-    section.appendChild(nav);
+    // Text colour: Auto / White / Black on a line of its own, with the custom
+    // swatch beside it (same two-line shape as the Effect row).
+    const textChoices = TEXT_CHOICES.map(c => [c, translate('presText' + c[0].toUpperCase() + c.slice(1))]);
+    const textSeg = segControl(translate, 'presTextColor', textChoices, adv.textColor ? null : textPref, (choice) => {
+      textPref = choice;
+      adv.textColor = null; // a fixed choice replaces any custom colour
+      customText.setColor(null);
+      savePref(LS_TEXT, choice);
+      saveAdvanced();
+      refresh();
+    });
+    const customText = colorPicker(translate, 'presCustomTextColor', adv.textColor, textColor(), (hex) => {
+      adv.textColor = hex; saveAdvanced();
+      textSeg.select(null);
+      refresh();
+    });
+    const textControl = el('div', 'pres-text-control');
+    textControl.append(textSeg, customText);
+    section.appendChild(settingsRow(translate, 'presTextColor', textControl, true));
+
+    // Text: font, style and effect.
+    const text = el('section', 'settings-section');
+    text.appendChild(el('h3', 'settings-heading', translate('presAdvText')));
+    text.appendChild(choiceRow(translate, 'presFont', fontChoices(translate, adv.font), adv.font, (value) => {
+      adv.font = value; saveAdvanced(); refresh();
+    }));
+    text.appendChild(settingsRow(translate, 'fontStyle', segControl(translate, 'fontStyle',
+      Object.entries(FONT_STYLES).map(([value, label]) => [value, translate(label)]), adv.fontStyle, (value) => {
+        adv.fontStyle = value; saveAdvanced(); refresh();
+      }), true));
+    text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
+      EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
+        adv.effect = value; saveAdvanced(); refresh();
+      }), true));
+    // Slide change: Cut or Fade. (Used to live in the presentation panel; it is
+    // rarely changed mid-song. Hidden when the device asks for reduced motion,
+    // because slides always cut then.)
+    if (!reducedMotion()) {
+      text.appendChild(settingsRow(translate, 'presentationTransitionLabel', segControl(translate, 'presentationTransitionLabel',
+        TRANSITIONS.map(tr => [tr, translate(tr === 'cut' ? 'presentationCut' : 'presentationFade')]), transition, (value) => {
+          transition = value; savePref(LS_TRANSITION, value);
+        }), true));
+    }
 
     // Title slide: one switch per part.
     const titles = el('section', 'settings-section');
@@ -353,15 +506,56 @@
       if (key !== 'presTitleSlide') sw.disabled = titlePrefs.presTitleSlide === false;
       titles.appendChild(settingsRow(translate, key, sw));
     }
-    container.append(preview, section, titles);
+
+    // Advanced opens its own page, like the other sub-pages in Settings. It
+    // sits in a section of its own so it reads as optional, not as one more
+    // basic setting.
+    const more = el('section', 'settings-section');
+    const nav = el('button', 'settings-row settings-row-nav');
+    nav.type = 'button';
+    nav.id = 'presentation-advanced-nav-row';
+    const navText = el('div', 'settings-row-text');
+    navText.append(el('span', 'settings-row-title', translate('presAdvancedTitle')), el('span', 'settings-row-sub', translate('presAdvancedSub')));
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'settings-row-chevron');
+    chevron.setAttribute('data-icon', 'back-arrow');
+    chevron.setAttribute('viewBox', '0 0 24 24');
+    nav.append(navText, chevron);
+    nav.addEventListener('click', () => { if (hooks.openAdvanced) hooks.openAdvanced(); });
+    more.appendChild(nav);
+
+    // One Reset for the whole look (basic and advanced). Title-slide switches
+    // are content choices, not look, so they stay.
+    const reset = el('button', 'btn-secondary', translate('presResetLook'));
+    reset.type = 'button';
+    reset.id = 'presentation-reset';
+    reset.addEventListener('click', () => {
+      dropMedia();
+      background = { kind: 'preset', preset: 'black' };
+      adv = { ...ADV_DEFAULTS };
+      textPref = 'auto';
+      transition = DEFAULT_TRANSITION;
+      saveBackground();
+      saveAdvanced();
+      savePref(LS_TEXT, 'auto');
+      savePref(LS_TRANSITION, DEFAULT_TRANSITION);
+      settings(translate, hooks); // rebuild with the defaults
+    });
+    const resetSection = el('section', 'settings-section');
+    const resetRow = el('div', 'settings-row pres-reset-row');
+    resetRow.appendChild(reset);
+    resetSection.appendChild(resetRow);
+
+    container.append(preview, section, text, titles, more, resetSection);
     if (typeof initIcons === 'function') initIcons(container);
   }
 
-  // Advanced: font, custom colours, text effect, picture/video and dim.
+  // A row that opens a list in a dialog (used for Font).
   function choiceRow(translate, labelKey, choices, selected, onChoose) {
     const button = el('button', 'settings-row settings-row-nav');
     const text = el('div', 'settings-row-text');
-    const current = el('span', 'settings-row-sub', choices.find(choice => choice.value === selected).label);
+    const labelOf = (value) => (choices.find(choice => choice.value === value) || choices[0]).label;
+    const current = el('span', 'settings-row-sub', labelOf(selected));
     text.append(el('span', 'settings-row-title', translate(labelKey)), current);
     button.innerHTML = '<svg class="settings-row-chevron" data-icon="back-arrow" viewBox="0 0 24 24" aria-hidden="true"></svg>';
     button.prepend(text);
@@ -371,7 +565,7 @@
     button.addEventListener('click', () => {
       openChoiceModal(translate(labelKey), choices, selected, value => {
         selected = value;
-        current.textContent = choices.find(choice => choice.value === value).label;
+        current.textContent = labelOf(value);
         onChoose(value);
       });
     });
@@ -387,8 +581,11 @@
     const show = (hex) => {
       button.style.setProperty('--pres-swatch-color', hex || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)');
       button.dataset.selected = String(!!hex);
+      button.setAttribute('aria-pressed', String(!!hex));
     };
     show(value);
+    // Lets the page clear (or set) this swatch when a fixed choice is picked.
+    button.setColor = (hex) => { value = hex || null; show(value); };
     button.addEventListener('click', () => {
       const editor = el('div', 'pres-color-editor');
       const preview = el('div', 'pres-color-sample');
@@ -458,70 +655,46 @@
     return button;
   }
 
+  // Advanced: picture or video, dim. (Colours, font, style, effect and slide
+  // change are on the main page.)
   function advanced(translate) {
     loadAll();
     const container = document.getElementById('presentation-advanced-content');
     container.replaceChildren();
     const { preview, refresh } = makePreview(translate);
 
-    const text = el('section', 'settings-section');
-    text.appendChild(el('h3', 'settings-heading', translate('presAdvText')));
-    const fonts = [
-      ...Object.entries(FONTS).map(([value, [label]]) => ({ value, label: translate(label) })),
-      ...Object.entries(ONLINE_FONTS).map(([value, label]) => ({ value, label })),
-    ];
-    const styles = Object.entries(FONT_STYLES).map(([value, label]) => ({ value, label: translate(label) }));
-    text.appendChild(choiceRow(translate, 'presFont', fonts, adv.font, (value) => {
-      adv.font = value; saveAdvanced(); refresh();
-    }));
-    text.appendChild(choiceRow(translate, 'fontStyle', styles, adv.fontStyle, (value) => {
-      adv.fontStyle = value; saveAdvanced(); refresh();
-    }));
-    text.appendChild(settingsRow(translate, 'presTextColor', colorPicker(translate, 'presTextColor', adv.textColor, textColor(), (hex) => {
-      adv.textColor = hex; saveAdvanced(); refresh();
-    })));
-    text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
-      EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
-        adv.effect = value; saveAdvanced(); refresh();
-      }), true));
-
     const bg = el('section', 'settings-section');
     bg.appendChild(el('h3', 'settings-heading', translate('presAdvBackground')));
-    bg.appendChild(settingsRow(translate, 'presBgColor', colorPicker(translate, 'presBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (hex) => {
-      if (mediaURL) URL.revokeObjectURL(mediaURL);
-      mediaURL = null;
-      if (background.kind === 'media') { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
-      adv.bgColor = hex; saveAdvanced(); refresh();
-      status.textContent = '';
-      choose.textContent = translate('presChooseMedia');
-    })));
 
-    // Picture or video from this device.
+    // Picture or video from this device. It is remembered automatically on
+    // this device (IndexedDB), so it is still there after the app is closed.
     const picker = el('input'); picker.type = 'file'; picker.accept = 'image/*,video/*'; picker.hidden = true;
     picker.id = 'pres-background-file';
-    const choose = el('button', 'btn-secondary', translate(background.kind === 'media' ? 'presRelinkMedia' : 'presChooseMedia'));
+    const choose = el('button', 'btn-secondary');
     choose.type = 'button'; choose.addEventListener('click', () => picker.click());
-    const mediaRow = el('div', 'settings-row');
+    const remove = el('button', 'btn-secondary', translate('presRemoveMedia'));
+    remove.type = 'button'; remove.id = 'pres-background-remove';
+    const mediaRow = el('div', 'settings-row pres-row-wide');
     const mediaText = el('div', 'settings-row-text');
     mediaText.append(el('span', 'settings-row-title', translate('presMedia')), el('p', 'settings-row-sub', translate('presLocalHelp')));
     const status = el('p', 'settings-row-sub'); status.id = 'pres-media-status'; status.setAttribute('role', 'status');
-    if (background.kind === 'media') status.textContent = background.name + ' — ' + translate(mediaURL ? 'presFileReady' : 'presFileMissing');
     mediaText.appendChild(status);
-    picker.addEventListener('change', () => {
-      const file = picker.files[0];
-      if (!file) return;
-      const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
-      if (!kind) { status.textContent = translate('presMediaError'); picker.value = ''; return; }
-      if (mediaURL) URL.revokeObjectURL(mediaURL);
-      mediaURL = URL.createObjectURL(file);
-      background = { kind: 'media', media: kind, name: file.name };
-      saveBackground();
-      status.textContent = file.name + ' — ' + translate('presFileReady');
-      choose.textContent = translate('presRelinkMedia');
-      refresh();
-    });
-    mediaRow.append(mediaText, choose, picker);
+    const actions = el('div', 'settings-row-actions');
+    actions.append(choose, remove);
+    mediaRow.append(mediaText, actions, picker);
     bg.appendChild(mediaRow);
+
+    function mediaStatusKey() {
+      return { saved: 'presFileSaved', session: 'presFileNotSaved', missing: 'presFileMissing' }[mediaState] || null;
+    }
+    function syncMediaUI() {
+      const isMedia = background.kind === 'media';
+      choose.textContent = translate(!isMedia ? 'presChooseMedia' : mediaState === 'missing' ? 'presRelinkMedia' : 'presChangeMedia');
+      remove.hidden = !isMedia;
+      const key = mediaStatusKey();
+      status.textContent = isMedia ? background.name + (key ? ' — ' + translate(key) : '') : '';
+      status.hidden = !status.textContent; // an empty line would leave a gap above the buttons
+    }
 
     const range = el('input', 'pres-range app-range');
     range.type = 'range'; range.min = '0'; range.max = String(DIM_MAX); range.step = '5';
@@ -531,34 +704,52 @@
     // --p is the filled part of the shared .app-range groove (0–100%).
     const fill = () => range.style.setProperty('--p', (Number(range.value) / DIM_MAX * 100) + '%');
     fill();
+    function syncDim() { range.value = String(adv.dim); value.textContent = adv.dim + '%'; fill(); }
     range.addEventListener('input', () => {
       adv.dim = Number(range.value); value.textContent = adv.dim + '%';
       fill();
       saveAdvanced(); refresh();
     });
+
+    picker.addEventListener('change', () => {
+      const file = picker.files[0];
+      if (!file) return;
+      const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null;
+      if (!kind) { status.textContent = translate('presMediaError'); picker.value = ''; return; }
+      releaseMedia();
+      mediaURL = URL.createObjectURL(file);
+      background = { kind: 'media', media: kind, name: file.name };
+      saveBackground();
+      mediaState = 'saving';
+      // Lyrics over a raw photo are hard to read: start a little dimmed.
+      if (adv.dim === 0) { adv.dim = AUTO_DIM; saveAdvanced(); syncDim(); }
+      syncMediaUI();
+      refresh();
+      const stillCurrent = () => background.kind === 'media' && background.name === file.name;
+      saveMediaFile(file, kind).then(() => {
+        if (stillCurrent()) { mediaState = 'saved'; syncMediaUI(); }
+      }).catch(() => {
+        deleteMediaFile(); // never leave an older file behind under the new name
+        if (stillCurrent()) { mediaState = 'session'; syncMediaUI(); }
+      });
+      picker.value = '';
+    });
+    remove.addEventListener('click', () => {
+      dropMedia();
+      background = { kind: 'preset', preset: 'black' };
+      saveBackground();
+      syncMediaUI();
+      refresh();
+    });
+
     const rangeWrap = el('div', 'pres-range-wrap');
     rangeWrap.append(range, value);
     bg.appendChild(settingsRow(translate, 'presDim', rangeWrap));
 
-    const reset = el('button', 'btn-secondary', translate('transposeReset'));
-    reset.type = 'button';
-    reset.id = 'presentation-advanced-reset';
-    reset.addEventListener('click', () => {
-      adv = { ...ADV_DEFAULTS };
-      saveAdvanced();
-      if (background.kind === 'media') {
-        if (mediaURL) URL.revokeObjectURL(mediaURL);
-        mediaURL = null;
-        background = { kind: 'preset', preset: 'black' };
-        saveBackground();
-      }
-      advanced(translate); // rebuild with the defaults
-    });
-    const resetRow = el('div', 'settings-row pres-reset-row');
-    resetRow.appendChild(reset);
-    bg.appendChild(resetRow);
+    syncMediaUI();
+    ensureMedia().then(ok => { syncMediaUI(); if (ok) refresh(); });
 
-    container.append(preview, text, bg);
+    container.append(preview, bg);
     if (typeof initIcons === 'function') initIcons(container);
   }
 
@@ -745,16 +936,27 @@
         <button type="button" class="pres-btn pres-chip pres-round-btn" data-pres="smaller" aria-label="${escapeAttr(t('presentationSmaller'))}">A−</button>
         <button type="button" class="pres-btn pres-chip pres-round-btn" data-pres="larger" aria-label="${escapeAttr(t('presentationLarger'))}">A+</button>
       </div>
-      <div class="pres-group" data-pres-transition-group role="group" aria-label="${escapeAttr(t('presentationTransitionLabel'))}">
-        <span class="pres-group-label">${escapeHtmlLocal(t('presentationTransitionLabel'))}</span>
-        ${chip('data-pres-transition', 'cut', t('presentationCut'))}
-        ${chip('data-pres-transition', 'fade', t('presentationFade'))}
+      <div class="pres-tools">
+        <button type="button" class="pres-btn pres-icon-btn" data-pres="blank" aria-pressed="false" aria-label="${escapeAttr(t('presentationBlank'))}" title="${escapeAttr(t('presentationBlank'))}"><svg data-icon="visibility-off" viewBox="0 0 24 24"></svg></button>
+        <button type="button" class="pres-btn pres-icon-btn" data-pres="fullscreen" aria-pressed="false" aria-label="${escapeAttr(t('presentationFullscreen'))}" title="${escapeAttr(t('presentationFullscreen'))}"><svg class="pres-fs-on" data-icon="fullscreen" viewBox="0 0 24 24"></svg><svg class="pres-fs-off" data-icon="fullscreen-exit" viewBox="0 0 24 24" hidden></svg></button>
+        <button type="button" class="pres-btn pres-icon-btn" data-pres="settings" aria-label="${escapeAttr(t('presentationSettings'))}" title="${escapeAttr(t('presentationSettings'))}"><svg data-icon="nav-settings" viewBox="0 0 24 24"></svg></button>
       </div>`;
+    // Only offer what can work here: no Full screen where the browser has no
+    // element full screen (iPhone), no Settings button without a handler.
+    bar.querySelector('[data-pres="fullscreen"]').hidden = !fsSupported();
+    bar.querySelector('[data-pres="settings"]').hidden = typeof cfg.onOpenSettings !== 'function';
     o.appendChild(bar);
 
     const hint = el('div', 'pres-hint');
     hint.textContent = t('presentationHint');
     o.appendChild(hint);
+
+    // Shown briefly on the first few launches (see showIntro) so the hidden
+    // panel can be found without reading any manual.
+    const intro = el('div', 'pres-intro');
+    intro.setAttribute('aria-hidden', 'true');
+    intro.textContent = t(window.matchMedia && window.matchMedia('(hover: none)').matches ? 'presentationIntroTouch' : 'presentationIntroMouse');
+    o.appendChild(intro);
     return o;
   }
 
@@ -915,7 +1117,10 @@
 
   function setBlank(value) {
     blanked = value;
-    if (root) root.querySelector('.pres-stage').classList.toggle('is-blank', blanked);
+    if (root) {
+      root.querySelector('.pres-stage').classList.toggle('is-blank', blanked);
+      syncControls();
+    }
   }
 
   function syncControls() {
@@ -924,12 +1129,17 @@
     root.querySelectorAll('[data-pres-lines]').forEach(btn => {
       btn.setAttribute('aria-pressed', String(parseInt(btn.dataset.presLines, 10) === linesPerSlide));
     });
-    root.querySelectorAll('[data-pres-transition]').forEach(btn => {
-      btn.setAttribute('aria-pressed', String(btn.dataset.presTransition === effectiveTransition()));
-    });
-    root.querySelector('[data-pres-transition-group]').hidden = reducedMotion();
     root.querySelector('[data-pres="smaller"]').disabled = sizeIndex <= 0;
     root.querySelector('[data-pres="larger"]').disabled = sizeIndex >= SIZE_STEPS.length - 1;
+    root.querySelector('[data-pres="blank"]').setAttribute('aria-pressed', String(blanked));
+    const full = root.querySelector('[data-pres="fullscreen"]');
+    const isFull = !!fsElement();
+    full.setAttribute('aria-pressed', String(isFull));
+    const fullLabel = cfg.t(isFull ? 'presentationExitFullscreen' : 'presentationFullscreen');
+    full.setAttribute('aria-label', fullLabel);
+    full.title = fullLabel;
+    full.querySelector('.pres-fs-on').hidden = isFull;
+    full.querySelector('.pres-fs-off').hidden = !isFull;
   }
 
   // ---------- navigation and settings ----------
@@ -1007,19 +1217,74 @@
     else fitText();
   }
 
-  function setTransition(next) {
-    if (!TRANSITIONS.includes(next) || next === transition) return;
-    transition = next;
-    savePref(LS_TRANSITION, next);
-    syncControls();
+  // ---------- full screen ----------
+  // Opening presentation mode asks for full screen right away: the click that
+  // opened it is the user gesture browsers insist on. Browsers without element
+  // full screen (iPhone Safari) simply skip it; an installed PWA there already
+  // has no browser bars.
+  function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function fsSupported() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled); }
+  function enterFullscreen() {
+    if (!root || fsElement() || !fsSupported()) return;
+    try {
+      const request = root.requestFullscreen || root.webkitRequestFullscreen;
+      const result = request && request.call(root, { navigationUI: 'hide' });
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch (_) {}
   }
-
+  function exitFullscreen() {
+    try {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      const result = exit && exit.call(document);
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch (_) {}
+  }
   function toggleFullscreen() {
     if (!root) return;
+    if (fsElement()) exitFullscreen(); else enterFullscreen();
+  }
+  // Leaving full screen by hand (button, F, Esc) is remembered, so the next
+  // launch respects it; going back in remembers that too.
+  function onFullscreenChange() {
+    if (!root) return;
+    savePref(LS_FS, fsElement() ? '1' : '0');
+    syncControls();
+    scheduleRefresh();
+  }
+
+  function openSettings() {
+    if (cfg && typeof cfg.onOpenSettings === 'function') cfg.onOpenSettings();
+  }
+
+  // ---------- first-launch hint ----------
+  function readIntro() {
     try {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else if (root.requestFullscreen) root.requestFullscreen().catch(() => {});
+      const rec = JSON.parse(localStorage.getItem(LS_INTRO));
+      if (rec && typeof rec === 'object') return { n: Number(rec.n) || 0, done: !!rec.done };
     } catch (_) {}
+    return { n: 0, done: false };
+  }
+  function writeIntro(rec) {
+    try { localStorage.setItem(LS_INTRO, JSON.stringify(rec)); } catch (_) {}
+  }
+  // A small line at the bottom for a few seconds, only for the first few
+  // launches and never again once the panel has been opened.
+  function showIntro() {
+    const rec = readIntro();
+    if (!root || rec.done || rec.n >= INTRO_MAX_LAUNCHES) return;
+    rec.n += 1;
+    writeIntro(rec);
+    root.classList.add('show-intro');
+    introTimer = setTimeout(() => { introTimer = null; if (root) root.classList.remove('show-intro'); }, INTRO_SHOW_MS);
+  }
+  function endIntro(learned) {
+    clearTimeout(introTimer);
+    introTimer = null;
+    if (root) root.classList.remove('show-intro');
+    if (learned) {
+      const rec = readIntro();
+      if (!rec.done) { rec.done = true; writeIntro(rec); }
+    }
   }
 
   // ---------- controls visibility ----------
@@ -1033,12 +1298,13 @@
   function scheduleHide() {
     clearTimeout(idleTimer);
     if (panelHover) return;
-    idleTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);
+    idleTimer = setTimeout(hideControls, inputIsTouch ? CONTROLS_IDLE_TOUCH_MS : CONTROLS_IDLE_MS);
   }
 
   function showControls() {
     if (!root) return;
     root.classList.add('controls-visible');
+    endIntro(true);
     scheduleHide();
   }
 
@@ -1109,10 +1375,12 @@
     if (!btn) return;
     e.stopPropagation();
     if (btn.dataset.presLines != null) setLines(parseInt(btn.dataset.presLines, 10));
-    else if (btn.dataset.presTransition != null) setTransition(btn.dataset.presTransition);
     else if (btn.dataset.pres === 'close') requestClose();
     else if (btn.dataset.pres === 'smaller') setSize(sizeIndex - 1);
     else if (btn.dataset.pres === 'larger') setSize(sizeIndex + 1);
+    else if (btn.dataset.pres === 'blank') setBlank(!blanked);
+    else if (btn.dataset.pres === 'fullscreen') toggleFullscreen();
+    else if (btn.dataset.pres === 'settings') { openSettings(); return; }
     // After a mouse/touch click give focus back to the slide, so the panel's
     // focus doesn't keep it open and Space/arrows keep changing slides.
     if (e.detail > 0 && root) root.focus({ preventScroll: true });
@@ -1196,6 +1464,7 @@
     bar.addEventListener('click', onBarClick);
     bar.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') { panelHover = true; clearTimeout(idleTimer); } });
     bar.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { panelHover = false; if (controlsVisible()) scheduleHide(); } });
+    root.addEventListener('pointerdown', e => { inputIsTouch = e.pointerType !== 'mouse'; }, true);
     root.addEventListener('pointerdown', onStagePointerDown);
     root.addEventListener('pointerup', onStagePointerUp);
     root.addEventListener('pointercancel', () => { swipe = lastMiddleClick = null; });
@@ -1203,6 +1472,8 @@
     document.addEventListener('keydown', onKeydown, true);
     window.addEventListener('resize', scheduleRefresh);
     document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
     if (document.fonts) {
       // Lyric fonts can arrive after the first layout; Fill depends on them.
       document.fonts.addEventListener('loadingdone', scheduleRefresh);
@@ -1213,6 +1484,19 @@
     document.documentElement.classList.add('pres-open');
     root.focus({ preventScroll: true });
     acquireWakeLock();
+
+    // A saved picture/video that is not in memory yet (rare: it is normally
+    // restored when the app starts) is painted as soon as it arrives.
+    if (background.kind === 'media' && !mediaURL) {
+      ensureMedia().then(ok => { if (ok && root) paintBackground(root.querySelector('.pres-bg')); });
+    }
+    // Full screen first (it needs the open click's user gesture), unless the
+    // person left it on purpose last time.
+    let wantFullscreen = true;
+    try { wantFullscreen = localStorage.getItem(LS_FS) !== '0'; } catch (_) {}
+    if (wantFullscreen) enterFullscreen();
+    syncControls();
+    showIntro();
   }
 
   function requestClose() {
@@ -1230,9 +1514,15 @@
     document.removeEventListener('keydown', onKeydown, true);
     window.removeEventListener('resize', scheduleRefresh);
     document.removeEventListener('visibilitychange', onVisibility);
+    document.removeEventListener('fullscreenchange', onFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
     if (document.fonts) document.fonts.removeEventListener('loadingdone', scheduleRefresh);
     if (motionQuery && motionQuery.removeEventListener) motionQuery.removeEventListener('change', onMotionChange);
-    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
+    clearTimeout(introTimer);
+    introTimer = null;
+    // The listener is already removed, so leaving full screen here is not
+    // mistaken for the person turning it off.
+    if (fsElement()) exitFullscreen();
     releaseWakeLock();
     root.querySelectorAll('.pres-bg video').forEach(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     root.remove();
@@ -1248,6 +1538,11 @@
       try { back.focus({ preventScroll: true }); } catch (_) {}
     }
   }
+
+  // Bring a saved picture/video back into memory while the app is idle, so the
+  // first presentation after a restart already has its background.
+  loadBackground();
+  ensureMedia();
 
   window.SongPresentation = {
     settings,

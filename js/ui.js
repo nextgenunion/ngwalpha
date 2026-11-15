@@ -685,17 +685,23 @@ function initHistoryNav() {
 // ---------------------------------------------------------
 function initSplash() {
   const splash = document.getElementById('splash-screen');
-  if (!splash) return;
+  if (!splash) return () => {};
+  const shownAt = performance.now();
+  let leaving = false;
   const hide = () => {
-    if (splash.classList.contains('is-hidden')) return;
+    if (leaving) return;
+    leaving = true;
     clearTimeout(timeout);
-    splash.classList.add('is-hidden');
-    document.documentElement.removeAttribute('data-splash');
-    const duration = prefersReducedMotion() ? 0 : 200;
-    setTimeout(() => { splash.remove(); renderAnnouncements(); }, duration);
+    // Match the v4.1.1 launch: allow the logo to arrive before fading away.
+    const remaining = prefersReducedMotion() ? 0 : Math.max(0, 900 - (performance.now() - shownAt));
+    setTimeout(() => {
+      splash.classList.add('is-hidden');
+      document.documentElement.removeAttribute('data-splash');
+      setTimeout(() => { splash.remove(); renderAnnouncements(); }, prefersReducedMotion() ? 0 : 1100);
+    }, remaining);
   };
-  // On a slow launch, let the song list show its loading state.
-  const timeout = setTimeout(hide, 2500);
+  // Loading is never held hostage by an optional resource or failed database.
+  const timeout = setTimeout(hide, 3500);
   return hide;
 }
 /* @end:initSplash */
@@ -1253,9 +1259,9 @@ function showPage(name, opts = {}) {
       // Fade only the visible song page. History and input stay available
       // immediately, including when Back is pressed during the fade.
       if (!isSamePage && !prefersReducedMotion()) {
-        targetEl.animate?.([{ opacity: 0.88 }, { opacity: 1 }], {
-          duration: 150,
-          easing: 'ease-out',
+        targetEl.animate?.([{ opacity: 0.5, transform: 'translateY(9px)' }, { opacity: 1, transform: 'translateY(0)' }], {
+          duration: 250,
+          easing: 'cubic-bezier(.22,1,.36,1)',
         });
       }
     }
@@ -2463,13 +2469,14 @@ function bindSongView() {
   document.querySelectorAll('[data-font]').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.font;
-      // 12 levels each, the same grid as the sliders (min, max and step in
-      // index.html): lyrics 0.75 to 1.63 by 0.08, chords 0.6 to 1.26 by 0.06.
-      const round2 = v => Math.round(v * 100) / 100;
-      if (action === 'lyrics-up') state.lyricsSize = Math.min(1.63, round2(state.lyricsSize + 0.08));
-      if (action === 'lyrics-down') state.lyricsSize = Math.max(0.75, round2(state.lyricsSize - 0.08));
-      if (action === 'chords-up') state.chordSize = Math.min(1.26, round2(state.chordSize + 0.06));
-      if (action === 'chords-down') state.chordSize = Math.max(0.6, round2(state.chordSize - 0.06));
+      // Ten positions, matching the range inputs. Round off-grid legacy sizes.
+      const stepSize = (value, min, step, max, direction) =>
+        Math.round(Math.max(min, Math.min(max,
+          min + (Math.round((value - min) / step) + direction) * step)) * 100) / 100;
+      if (action === 'lyrics-up') state.lyricsSize = stepSize(state.lyricsSize, .75, .10, 1.65, 1);
+      if (action === 'lyrics-down') state.lyricsSize = stepSize(state.lyricsSize, .75, .10, 1.65, -1);
+      if (action === 'chords-up') state.chordSize = stepSize(state.chordSize, .60, .07, 1.23, 1);
+      if (action === 'chords-down') state.chordSize = stepSize(state.chordSize, .60, .07, 1.23, -1);
       applyFontSizes();
       localStorage.setItem('sb-lyrics-size', state.lyricsSize);
       localStorage.setItem('sb-chord-size', state.chordSize);
@@ -2664,6 +2671,7 @@ function openPresentationMode() {
     titleInfo: { number: song.number, title: song.title, artist: song.artist },
     t,
     onRequestClose: closePresentationMode,
+    onOpenSettings: openPresentationSettingsFromOverlay,
   });
 }
 /* @end:openPresentationMode */
@@ -2676,6 +2684,23 @@ function closePresentationMode() {
   else window.SongPresentation.close();
 }
 /* @end:closePresentationMode */
+
+/* @begin:openPresentationSettingsFromOverlay */
+// The gear in the presentation panel. Close the overlay right away, turn the
+// presentation history entry back into a plain song entry (so Back does not
+// land on a stale one), then open Settings → Presentation on top. Back from
+// there returns to the song.
+function openPresentationSettingsFromOverlay() {
+  if (!window.SongPresentation || !window.SongPresentation.isOpen()) return;
+  const st = history.state;
+  window.SongPresentation.close();
+  if (st && st.presentation) {
+    const { presentation, ...plain } = st;
+    try { history.replaceState(plain, '', location.href); } catch (_) {}
+  }
+  showPage('presentation-settings', { pushHistory: true, resetScroll: true });
+}
+/* @end:openPresentationSettingsFromOverlay */
 
 /* @begin:updateFavoriteButtonUI */
 function updateFavoriteButtonUI() {
@@ -4356,40 +4381,44 @@ function bindModalShell() {
 function initViewportSync() {
   if (!window.visualViewport) return;
   const root = document.documentElement;
-  const KEYBOARD_MIN_PX = 120;   // smaller gaps are browser toolbars, not a keyboard
+  const KEYBOARD_MIN_PX = 120;
   let keyboardOpen = false;
+  let cardStartTop = null;
+  let lastCard = null;
   let frame = 0;
 
   const sync = () => {
     frame = 0;
     const vv = window.visualViewport;
-    // Pinch-zoom also shrinks the visual viewport; it is not a keyboard.
     const open = vv.scale <= 1.01 && (window.innerHeight - vv.height) > KEYBOARD_MIN_PX;
-
     const overlay = document.getElementById('modal-overlay');
     const card = overlay && !overlay.hidden ? overlay.querySelector('.modal-card') : null;
-
     if (open && card) {
-      // Measure BEFORE --vvh changes, so the first reading is the
-      // pre-keyboard (centered) position; later readings are already pinned.
       const overlayTop = overlay.getBoundingClientRect().top;
       const rect = card.getBoundingClientRect();
+      // Remember the first card position rather than recursively measuring
+      // the position that the last keyboard resize already adjusted.
+      if (card !== lastCard) cardStartTop = null;
+      if (cardStartTop === null) cardStartTop = rect.top - overlayTop;
+      lastCard = card;
       const margin = 12;
-      const wanted = rect.top - overlayTop;
       const maxTop = Math.max(margin, vv.height - rect.height - margin);
-      root.style.setProperty('--kb-card-top', `${Math.round(Math.min(Math.max(wanted, margin), maxTop))}px`);
+      const top = Math.max(margin, Math.min(cardStartTop, maxTop));
+      root.style.setProperty('--kb-card-top', `${Math.round(top)}px`);
     }
     if (open !== keyboardOpen) {
       keyboardOpen = open;
       root.classList.toggle('keyboard-open', open);
-      if (!open) root.style.removeProperty('--kb-card-top');
+      if (!open) {
+        cardStartTop = null;
+        lastCard = null;
+        root.style.removeProperty('--kb-card-top');
+      }
     }
-
     root.style.setProperty('--vvh', `${vv.height}px`);
     root.style.setProperty('--vv-top', `${vv.offsetTop}px`);
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
-
   sync();
   window.visualViewport.addEventListener('resize', schedule);
   window.visualViewport.addEventListener('scroll', schedule);
@@ -4850,12 +4879,8 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
     const query = input.value.trim();
     const currentLower = getLabels().map(l => l.toLowerCase());
     const candidates = [];
-    LABEL_PRESETS.forEach(p => {
-      if (!currentLower.includes(p.toLowerCase())) candidates.push({ value: p, display: labelDisplayText(p) });
-    });
     const usedElsewhere = suggestionSourceKey ? labelsInUse(suggestionSourceKey) : Array.from(allPersonalLabelValues());
     usedElsewhere.forEach(value => {
-      if (LABEL_PRESETS.includes(value)) return; // already covered above
       if (currentLower.includes(value.toLowerCase())) return;
       if (candidates.some(c => c.value === value)) return;
       candidates.push({ value, display: value });
@@ -4895,7 +4920,7 @@ function buildLabelEditor({ getLabels, addLabel, removeLabel, suggestionSourceKe
     input.value = '';
     renderChips();
     renderSuggestions();
-    input.focus();
+    // Tapping an existing label must not pull the phone keyboard back up.
   }
 
   input.addEventListener('input', renderSuggestions);

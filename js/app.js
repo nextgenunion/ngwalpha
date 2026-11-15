@@ -1,6 +1,6 @@
 // =========================================================
 // Songbook — app.js
-// Copyright (c) 2026 Next Gen Union. All rights reserved.
+// Copyright (c) 2026 Next Gen Union — original application code only.
 // Proprietary and confidential. No unauthorized copying, modification,
 // or redistribution, in whole or in part, without prior written
 // permission from Next Gen Union. See LICENSE for full terms.
@@ -202,7 +202,8 @@ const state = {
   devSheetMusic: false,   // WIP Sheet Music feature gate; session-only
   devTradMongolian: false, // see refreshLangPicker()
   devCredits: false,       // see renderCredits()
-  devHideDescriptions: false, // see applyDevOptions() — toggles .settings-desc-hideable
+  devHideDescriptions: true,
+  devSliderDots: false, // see applyDevOptions() — toggles .settings-desc-hideable
 };
 
 // Registry of every page the router (showPage/bindNav) knows about. Adding
@@ -308,6 +309,8 @@ const ICON_FILES = {
   'menu-kebab': 'icons/svg/menu-kebab.svg',
   'reading-mode': 'icons/svg/reading-mode.svg',
   'presentation': 'icons/svg/presentation.svg',
+  'fullscreen': 'icons/svg/fullscreen.svg',
+  'fullscreen-exit': 'icons/svg/fullscreen-exit.svg',
   'tag': 'icons/svg/tag.svg',
   'plus': 'icons/svg/plus.svg',
   'trash': 'icons/svg/trash.svg',
@@ -953,6 +956,7 @@ let songViewMenuOpen = false;
 /* @extracted:ui.js:closeSongViewMenu *//* @extracted:ui.js:toggleDisplayMode */
 /* @extracted:ui.js:applyDisplayMode */
 /* @extracted:ui.js:openPresentationMode *//* @extracted:ui.js:closePresentationMode */
+/* @extracted:ui.js:openPresentationSettingsFromOverlay */
 
 /* @extracted:ui.js:updateFavoriteButtonUI *//* @extracted:ui.js:fixNativeAudioControlsPaint */
 

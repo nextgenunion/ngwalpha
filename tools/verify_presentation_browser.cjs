@@ -23,6 +23,9 @@ const ok = (c, m) => { console.log(c ? 'PASS' : 'FAIL', m); if (!c) failures++; 
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_EXECUTABLE || undefined });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, serviceWorkers: 'block' });
+  // Presentation now asks for full screen on open (see verify_presentation_v5094_browser.cjs);
+  // a fullscreen window cannot be resized by the test, so this run opts out.
+  await ctx.addInitScript(() => localStorage.setItem('sb-pres-fs', '0'));
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));

@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.93-alpha)
+# Next Gen Worship — Worship Song App (v5.0.95-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,29 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.95 presentation settings: custom colours where you see them, lighter panel
+
+Builds on v5.0.94 and ports four fixes from a parallel v5.0.94 review.
+
+- **Custom colours on the main page.** The last swatch of the Background row and of the Text colour row is the custom colour. It opens the same editor, is lit while a custom colour is in use, and is cleared by picking any preset or Автомат/Цагаан/Хар. With a custom text colour none of those three is selected (`seg.select(null)`, `.seg-toggle.is-none`), so the page no longer says "Автомат" over yellow text. The Text colour row is two lines like Effect. `colorPicker()` now sets `aria-pressed` and has `setColor()`.
+- **Advanced is picture/video and dim only.** The duplicate colour rows (and the `presAdvColors` string) are gone, so each setting has one place.
+- **Slide change moved to Settings.** Cut/Fade is a row in the Text section instead of a group in the live panel (hidden under reduced motion, where slides always cut). Reset also restores it. The panel is now Lines, Size and the three icons.
+- **Reset** is labelled **Буцаах** (`presResetLook`; Reset / 초기화 in en / kr) and sits below the cards.
+- **Gap fixed** above the picture/video button (the empty status line is now hidden).
+- **Dark theme:** swatches get a light hairline so black/charcoal stay visible.
+- Tests: the Advanced and v5062 tests were updated for the new places; the Advanced test now checks the custom swatches lighting up and clearing, no empty status line, and Reset restoring the slide change.
+
+## v5.0.94 presentation: easier panel, full screen on open, one settings page, saved backgrounds
+
+- **Full screen on open.** Presentation mode now asks for full screen the moment it opens (the open click is the user gesture browsers require), on the web, in an installed PWA and on Android. Leaving full screen on purpose (button, **F** or Esc) is remembered in `sb-pres-fs` and respected next time. Browsers without element full screen (iPhone Safari) skip it and hide the button.
+- **Panel: three quiet icons** at the end of the panel: **Blank screen** (same as **B**; lit while on), **Full screen** (same as **F**), and **Settings** (opens Settings → Үзүүлэн; the presentation history entry is replaced so Back returns to the song). Strings: `presentationBlank`, `presentationFullscreen`, `presentationExitFullscreen`, `presentationSettings`. New icons `fullscreen.svg`, `fullscreen-exit.svg` (registered in `ICON_FILES`, precached by the service worker, listed in `icons/THIRD_PARTY.md`).
+- **Finding the panel.** For the first few launches (at most 4, saved in `sb-pres-intro`) a small line at the bottom says how to open it (**S** with a keyboard, a double-tap on touch). It stops for good once the panel has been opened. On touch the panel stays open 6 s instead of 2.2 s.
+- **Name.** Mongolian (`mn`, `mn2`) now says **Үзүүлэн** everywhere (menu, exit label, dialog, Settings).
+- **Settings reorganised.** Main page: Look (background, text colour), Text (**font, font style, effect** moved here from Advanced), Title slide, Advanced (its own section), and one **Reset** that restores the whole look (title-slide switches are kept). Advanced page: **custom text/background colour**, **picture or video**, **dim**. The Advanced Reset button is gone (`presentation-advanced-reset`); the main-page one is `presentation-reset`. The custom colour rows are now labelled *Custom text colour / Custom background colour* so they no longer share a name with the Auto/White/Black row. New strings: `presAdvColors`, `presCustomTextColor`, `presCustomBgColor`, `presResetLook`, and updated `presSettingsSub`/`presAdvancedSub`.
+- **Fonts.** Removed Lato, Poppins and Playfair Display from the online list: they lack Cyrillic Extended (Ө, Ү), so choosing them changed nothing for Mongolian lyrics. Noto Sans KR is listed only in the Korean interface. Online fonts are tagged *online* (`presFontOnlineTag`). A saved font that is no longer offered falls back to Standard.
+- **Picture or video is remembered on this device.** This reverses the earlier "memory only" rule. The file is stored in this browser's **IndexedDB** (database `ngw-presentation`, store `media`, key `background`), never in Cache Storage, so the service worker, the atomic offline install and the app's cached files are untouched; nothing is uploaded; it works offline. It is restored into memory when the app starts, so the first presentation already has it. One file only: choosing another file, a colour or Reset removes the old one; **Remove** deletes it. Files over 300 MB, or a failed/quota-limited save, still work for the current session and say so (`presFileNotSaved`). A new picture starts at 30% dim. Status strings: `presFileSaved`, `presRemoveMedia`, `presChangeMedia`. Caveat: a browser may clear site storage (Safari after about 7 days of non-use unless the app is installed to the Home Screen); the settings page then says the file was not found and offers to choose it again.
+- Tests: `tools/verify_presentation_v5094_browser.cjs` (new: full screen, buttons, Settings handoff and history, hint, touch timing, Mongolian name, IndexedDB persistence across a restart, Remove, colour replacing the file, failed save); the Advanced test was rewritten for the new layout; the other presentation tests opt out of auto full screen (`sb-pres-fs`) because a full-screen window cannot be resized.
 
 ## v5.0.93 merge of v5.0.92 with v5.0.90 and v5.0.91, first paint matches the new splash
 

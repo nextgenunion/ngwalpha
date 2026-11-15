@@ -127,6 +127,7 @@ span.trash-row-check {
 html.keyboard-open .modal-overlay {
   align-items: flex-start;
   padding-top: var(--kb-card-top, max(12px, env(safe-area-inset-top)));
+  transition: opacity var(--dur-base) ease, padding-top .18s cubic-bezier(.22,1,.36,1);
 }
 html.keyboard-open .modal-card {
   max-height: calc(var(--vvh, 100vh) - var(--kb-card-top, 12px) - 12px);
