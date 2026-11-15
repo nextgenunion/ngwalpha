@@ -1572,13 +1572,29 @@ function matchesSongLabelFilter(song, sourceKey) {
 
 
 /* @begin:loadAnnouncements */
-async function loadAnnouncements() {
-  // Optional online-only content. No polling, startup wait, or offline dependency.
+// Live notices are completely optional: no startup dependency, no app cache.
+const ANNOUNCEMENT_CHECK_MS = 5 * 60 * 1000;
+const ANNOUNCEMENT_TIMEOUT_MS = 5000;
+let lastAnnouncementCheckAt = 0;
+let announcementCheckPending = false;
+async function loadAnnouncements({ force = false } = {}) {
+  if (document.hidden || announcementCheckPending) return;
+  if (!force && Date.now() - lastAnnouncementCheckAt < ANNOUNCEMENT_CHECK_MS) return;
+  lastAnnouncementCheckAt = Date.now();
+  announcementCheckPending = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANNOUNCEMENT_TIMEOUT_MS);
   try {
-    const response = await fetch('announcements.json', { cache: 'no-store' });
+    const response = await fetch('announcements.json', { cache: 'no-store', signal: controller.signal });
     const items = response.ok ? await response.json() : [];
     announcements = Array.isArray(items) ? items : [];
-  } catch (_) { announcements = []; }
-  renderAnnouncements();
+  } catch (_) {
+    // Network failures and offline operation must not resurrect expired notices.
+    announcements = [];
+  } finally {
+    clearTimeout(timeout);
+    announcementCheckPending = false;
+    renderAnnouncements();
+  }
 }
 /* @end:loadAnnouncements */

@@ -7,7 +7,7 @@
   prior written permission from Next Gen Union. See LICENSE for full terms.
 -->
 <!DOCTYPE html>
-<html lang="mn" translate="no" data-theme="light">
+<html lang="mn" translate="no" data-theme="light" data-splash>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -41,11 +41,14 @@
 
 <!-- First paint: the stylesheet below is 15 chained @imports, so until it has
      loaded the page would show the WebView's default canvas (black on a phone
-     in dark mode, otherwise white). These two values are --paper from
-     css/00-foundation.css; keep them the same. -->
+     in dark mode, otherwise white). While the launch splash is up (data-splash
+     on <html>, removed in initSplash) the page is black like the splash, so
+     there is no white-then-black flash. After it, these two values are --paper
+     from css/00-foundation.css; keep them the same. -->
 <style>
   html { background: #FFFFFF; }
   html[data-theme="dark"] { background: #141A2B; }
+  html[data-splash] { background: #000; }
 </style>
 <script>
   try {

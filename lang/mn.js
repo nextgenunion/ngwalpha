@@ -72,7 +72,7 @@ window.SONGBOOK_LANG.mn = {
   sortDesc: "Буурах",
   resultsAll: (n) => `${n} дуу`,
   resultsFiltered: (n, total) => `${total}-с ${n} дуу`,
-  emptyState: "Хайсан дуу олдсонгүй.",
+  emptyState: "Магтаал олдсонгүй 🧐 Та ирээдүйд нэмэж болох юм😉",
   songLoadError: "Дуунуудын жагсаалтыг ачаалж чадсангүй. Дараа дахин оролдоно уу.",
   songLoadOfflineError: "Энэ дууны сан офлайнаар хадгалагдаагүй. Интернэттэй үед нээвэл хадгалагдана.",
   navSongs: "Дууны ном",

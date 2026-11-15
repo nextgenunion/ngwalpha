@@ -690,6 +690,7 @@ function initSplash() {
     if (splash.classList.contains('is-hidden')) return;
     clearTimeout(timeout);
     splash.classList.add('is-hidden');
+    document.documentElement.removeAttribute('data-splash');
     const duration = prefersReducedMotion() ? 0 : 200;
     setTimeout(() => { splash.remove(); renderAnnouncements(); }, duration);
   };
@@ -5723,7 +5724,7 @@ function renderAnnouncements() {
   // Ordinary notices reuse the existing dialog. Never cover a song, another
   // dialog, or the launch splash. Several messages share one Done button.
   const overlay = document.getElementById('modal-overlay');
-  if (!messages.length || state.currentPage !== 'songs' || document.getElementById('splash-screen') || !overlay.hidden) return;
+  if (!messages.length || document.hidden || state.currentPage !== 'songs' || document.getElementById('splash-screen') || !overlay.hidden) return;
   messages.forEach(remember);
   openAnnouncementDialog(messages, { onClose: () => {
     messages.forEach(item => dismissedAnnouncements.add(item.id));

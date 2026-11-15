@@ -2,7 +2,9 @@
 
 Edit `announcements.json` in the project root. The shipped file contains `[]`,
 so nothing appears. An absent file also shows nothing. Deploy the file to the
-same folder as index.html; it is requested once per page launch/reload.
+same folder as index.html. It is fetched at launch, every five minutes while
+the app is visible, and on returning when the last check is at least five
+minutes old. Reconnecting to the internet triggers a new check.
 
 Ordinary announcements use the app's existing small dialog. Several messages
 share one dialog and one Done button. It waits until the launch splash is gone
@@ -14,7 +16,9 @@ main tabs and hides wherever the navigation hides: songs, editor, Chord Finder,
 and other full-screen views. Page padding reserves space for it; it does not
 cover list rows or navigation buttons. Keep banner text short.
 
-There is no polling, admin screen, push notification or extra announcement page.
+There is no admin screen, push notification or extra announcement page.
+Periodic network checks never block the Songbook, and each request is cancelled
+after five seconds if the network does not respond.
 Returning between pages does not repeat a dismissed notice.
 
 ```json
@@ -46,15 +50,16 @@ The dates and messages above are examples, not active scheduled maintenance.
 - `once`: remembered as seen when displayed. It remains until dismissed during
   that launch, but does not show on later launches.
   Use a new ID when you want to announce a new version of a message.
-- `every-open`: shown on each fresh launch/reload, even if previously dismissed.
-  Dismissal lasts for that launch; switching pages does not reset it.
+- `every-open`: shown once per fresh launch/reload, even if previously dismissed
+  on a previous launch. It does not repeat every five minutes. Dismissal
+  lasts for that launch; switching pages does not reset it.
 - `title` is optional. Both title and text are plain text, not HTML. Write in
   the language your audience uses; this simple file does not translate content.
 - `startsAt` and `endsAt` are optional ISO timestamps with a timezone. Omit them
   for an immediate notice without an expiry. Invalid dates hide that entry.
   Dates use the device clock and are checked when a notice is rendered.
-- Set the file to `[]` or remove it to stop showing notices on subsequent opens.
-  Already-open apps keep their current notice until dismissal or another launch.
+- Set the file to `[]` or remove it to hide current banners on the next successful
+  refresh. A dialog already being read stays open until the user dismisses it.
 
 ## Offline behavior
 

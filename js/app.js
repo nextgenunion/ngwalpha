@@ -419,6 +419,19 @@ async function init() {
   window.addEventListener('resize', renderAnnouncements);
   if (document.fonts) document.fonts.ready.then(renderAnnouncements);
   loadAnnouncements(); // Optional online content; never blocks startup.
+  // Live checks are inexpensive and only run while the app is visible.
+  // Browsers may throttle background timers; visibility/focus catches up.
+  setInterval(() => { if (!document.hidden) loadAnnouncements(); }, ANNOUNCEMENT_CHECK_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { loadAnnouncements(); renderAnnouncements(); }
+  });
+  window.addEventListener('focus', () => { if (!document.hidden) loadAnnouncements(); });
+  window.addEventListener('online', () => { if (!document.hidden) loadAnnouncements({ force: true }); });
+  // If new content arrives behind another dialog, wait until it closes.
+  const announcementModal = document.getElementById('modal-overlay');
+  if (announcementModal) new MutationObserver(() => {
+    if (announcementModal.hidden) renderAnnouncements();
+  }).observe(announcementModal, { attributes: true, attributeFilter: ['hidden'] });
   requestPersistentStorage(); // fire-and-forget; never block startup on this
 
   // Load the saved selection at startup. Unselected databases stay lazy

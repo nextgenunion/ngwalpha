@@ -55,4 +55,4 @@ keep it together unless it becomes uncomfortable to maintain.
 
 The editor compares fields and labels with its opening snapshot. Dirty forms use the standard discard confirmation; history entries now carry an index so cancelled multi-entry navigation returns to the exact draft. Successful saves/deletes clear the draft baseline. No autosave or storage schema change is introduced.
 
-Optional announcement content is loaded once by data.js. ui.js renders ordinary notices through the shared dialog and rare explicit banners within bottom navigation. The optional JSON is network-only and never required for offline installation. See ANNOUNCEMENTS.md for the file format.
+Optional announcement content is fetched on launch and checked every five minutes while visible by data.js. ui.js renders ordinary notices through the shared dialog and rare explicit banners within bottom navigation. The optional JSON is network-only and never required for offline installation. See ANNOUNCEMENTS.md for the file format.

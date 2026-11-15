@@ -76,7 +76,7 @@ window.SONGBOOK_LANG.en = {
   sortDesc: "Descent",
   resultsAll: (n) => `${n} songs`,
   resultsFiltered: (n, total) => `${n} of ${total} songs`,
-  emptyState: "No matching songs found.",
+  emptyState: "No hymn like that in the songbook. Maybe it's one to add someday 😉",
   songLoadError: "Couldn't load the song list. Please try again later.",
   songLoadOfflineError: "This song library isn't saved offline yet. Open it once while connected.",
   navSongs: "Songs",

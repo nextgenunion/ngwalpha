@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.91-alpha)
+# Next Gen Worship — Worship Song App (v5.0.93-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,11 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.0.93 merge of v5.0.92 with v5.0.90 and v5.0.91, first paint matches the new splash
+
+- v5.0.92 (uploaded) was based on v5.0.89, so it did not have the slider dots (v5.0.90) or the offline fix for the address without a trailing slash (v5.0.91). This version has everything: v5.0.92's black splash with the larger NGU logo (`SPLASH_UPDATE.md`), new app icons (`ICON_UPDATE.md`), live announcement checks every five minutes while visible (`ANNOUNCEMENTS.md`) and the playful empty-search text, plus the slider dots and the root worker registration. `js/app.js` was merged automatically without conflicts.
+- v5.0.87's first-paint background (white, or navy in dark mode) would have flashed white before the new black splash. While the splash is up, `<html>` now carries `data-splash` and the page is black like the splash; `initSplash` removes it when the splash starts fading, and the white/navy paper colors apply from then on.
 
 ## v5.0.91 offline for the address without a trailing slash
 

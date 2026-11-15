@@ -73,7 +73,7 @@ window.SONGBOOK_LANG.mn2 = {
   sortDesc: "ᠪᠠᠭᠤᠷᠠᠬᠤ",
   resultsAll: (n) => `${n} дуу`,
   resultsFiltered: (n, total) => `${total}-с ${n} дуу`,
-  emptyState: "Хайсан дуу олдсонгүй.",
+  emptyState: "ᠲᠣᢈᠢᠷᠠᠬᠤ ᠳᠠᠭᠤᠤ ᠣᠯᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ ᠭᠠᠷᠴᠠᠭ᠂ ᠳ᠋ᠤᠭᠠᠷ᠂ ᠡᠰᠡᠪᠡᠯ ᠦᢉᠡ ᠪᠡᠷ ᠬᠠᠶᠢᠵᠤ ᠦᠵᠡᠨ᠎ᠡ ᠦᠦ᠃ ",
   songLoadError: "ᠳᠠᠭᠤᠤ ᠨᠤᠭᠤᠳ ᠤ᠋ᠨ ᠵᠢᠭᠰᠠᠭᠠᠯᠲᠠ ᠶ᠋ᠢ ᠠᠴᠢᠶᠠᠯᠠᠵᠤ ᠴᠢᠳᠠᠭᠰᠠᠨ ᠦᢉᠡᠢ᠃ Дараа дахин оролдоно уу.",
   // TODO: placeholder Cyrillic until traditional-script translation is completed.
   songLoadOfflineError: "Энэ дууны сан офлайнаар хадгалагдаагүй. Интернэттэй үед нээвэл хадгалагдана.",

@@ -72,7 +72,7 @@ window.SONGBOOK_LANG.kr = {
   sortDesc: "내림차순",
   resultsAll: (n) => `${n}곡`,
   resultsFiltered: (n, total) => `${total}곡 중 ${n}곡`,
-  emptyState: "검색 결과가 없습니다.",
+  emptyState: "찬양집 속에 그런 곡은 없네요. 언젠가 추가될지도 몰라요 😉",
   songLoadError: "곡 목록을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
   songLoadOfflineError: "이 찬양집은 아직 오프라인으로 저장되지 않았습니다. 인터넷에 연결된 상태에서 한 번 열면 저장됩니다.",
   navSongs: "찬양",
