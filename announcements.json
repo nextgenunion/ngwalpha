@@ -1,1 +1,15 @@
-[Buh ALPHA bolon BETA testeruudiin anhaarald! Udahgui alban yosoor tsatsagdah tuluvlult hiigdej baigaa tul ta uuriin hiisen, hadgalsan duunuud bolon playlistee hadgalj avaarai. bayrllaa]
+[
+  {
+    "id": "new-feature-2026-12",
+    "mode": "once",
+    "title": "Zasvariin ajillagaa",
+    "text": "Buh ALPHA bolon BETA testeruudiin anhaarald! Udahgui zasvariin ajil yvahdah tul ta uursdiin hadgalsan duunuud bolon playlisiig Backup hiij hadgalj avaarai."
+  },
+  {
+    "id": "maintenance-2026-12-10",
+    "mode": "every-open",
+    "display": "banner",
+    "title": "Scheduled maintenance",
+    "text": "Duunuudaa aldahaas sergiilj uridchilan tataj hadgalj avaarai!.",
+    "startsAt": "2026-12-09T00:00:00+08:00",
+    "endsAt": "2026-12-10T21:00:00+08:00"
