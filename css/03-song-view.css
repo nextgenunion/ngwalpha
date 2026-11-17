@@ -376,21 +376,29 @@ html:not([data-size-sliders="true"]) #page-song-view .font-controls-sliders { di
   border: 1px solid var(--line);
   box-shadow: 0 var(--chip-lip) 0 var(--chip-lip-shadow);
 }
-/* Ten optional guide dots. Off for normal use; Developer Options can show them.
-   Their 4px diameter and 20% ink contrast keep the track understated. */
-.app-range-ticks { --tick: color-mix(in srgb, var(--ink) 20%, transparent); }
+/* Twelve optional guide dots (matching the twelve slider positions).
+   Off by default; Developer Options enables them. Each dot is 4px, faint.
+   Keep the accent-fill gradient as the final background layer. Whitespace
+   around + and - in calc() is mandatory: without it WebKit rejects the
+   whole track background, making the slider look plain/white. */
+.app-range-ticks { --tick: rgba(35, 38, 47, 0.20); }
+html[data-theme="dark"] .app-range-ticks { --tick: rgba(236, 233, 222, 0.20); }
 html[data-slider-dots="true"] .app-range-ticks::-webkit-slider-runnable-track {
+  /* Fallback if a browser doesn't support an optional dot layer. */
+  background-color: var(--paper-dim);
   background:
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(0.0000% +11.000px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(11.1111% +8.556px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(22.2222% +6.111px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(33.3333% +3.667px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(44.4444% +1.222px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(55.5556% -1.222px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(66.6667% -3.667px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(77.7778% -6.111px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(88.8889% -8.556px) 50% / 4px 4px no-repeat,
-    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(100.0000% -11.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(0.0000% + 11.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(9.0909% + 9.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(18.1818% + 7.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(27.2727% + 5.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(36.3636% + 3.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(45.4545% + 1.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(54.5455% - 1.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(63.6364% - 3.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(72.7273% - 5.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(81.8182% - 7.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(90.9091% - 9.000px) 50% / 4px 4px no-repeat,
+    radial-gradient(circle, var(--tick) 0 45%, transparent 75%) calc(100.0000% - 11.000px) 50% / 4px 4px no-repeat,
     linear-gradient(to right, var(--accent) var(--p), var(--paper-dim) var(--p));
 }
 .app-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 99px; }

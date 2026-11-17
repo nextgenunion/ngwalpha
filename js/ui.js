@@ -625,6 +625,13 @@ function initHistoryNav() {
       }
     }
     if (st && st.page) {
+      if (st.page === 'song-view' && st.presentation && presentationSettingsResume) {
+        const resume = presentationSettingsResume;
+        presentationSettingsResume = null;
+        showPage('song-view', { pushHistory: false });
+        openPresentationMode({ resume });
+        return;
+      }
       if (st.page === 'song-view' && st.songId) {
         const sourceKey = st.sourceKey || DEFAULT_DB_SOURCE;
         const source = state.sources[sourceKey];
@@ -700,8 +707,12 @@ function initSplash() {
       setTimeout(() => { splash.remove(); renderAnnouncements(); }, prefersReducedMotion() ? 0 : 1100);
     }, remaining);
   };
-  // Loading is never held hostage by an optional resource or failed database.
+  // Match the original splash's timing: begin the fade after window load,
+  // with at least 900 ms for the logo to arrive. App data can finish later.
+  // Keep the existing fail-safe for a stalled load event.
   const timeout = setTimeout(hide, 3500);
+  if (document.readyState === 'complete') hide();
+  else window.addEventListener('load', hide, { once: true });
   return hide;
 }
 /* @end:initSplash */
@@ -1128,10 +1139,6 @@ function bindNav() {
 }
 /* @end:bindNav */
 
-// Own only the native song animation; any subsequent navigation must settle
-// it before choosing its next pair of pages.
-let nativeSongSlide = null;
-
 /* @begin:showPage */
 function showPage(name, opts = {}) {
   const { pushHistory = false, replaceHistory = false, resetScroll = false } = opts;
@@ -1190,13 +1197,6 @@ function showPage(name, opts = {}) {
   }
 
   const targetEl = document.getElementById(page.elId);
-  let interruptedSlide = null;
-  if (nativeSongSlide) {
-    // Read only when interrupting an animation, never to start a normal slide.
-    interruptedSlide = { el: nativeSongSlide.el, transform: getComputedStyle(nativeSongSlide.el).transform };
-    nativeSongSlide.finish();
-  }
-
   // Bottom-nav spacing belongs to the page that is actually being shown,
   // not to the whole document. During push/pop transitions two pages are
   // deliberately visible at once; changing a body-wide padding rule here
@@ -1207,22 +1207,13 @@ function showPage(name, opts = {}) {
   // geometry stable instead.
   targetEl.classList.toggle('page-no-bottom-nav', !!page.hideNav);
 
-  // Slide transition for detail pages: pushed forward (opened)
-  // slides in from the right over whatever's underneath; popped (backed
-  // out of) slides back out to the right, revealing what was underneath —
-  // which was never hidden or moved, so nothing has to re-render for it.
-  // See pendingNavDirection/SLIDE_PAGES for how the direction is decided.
+  // Restore the v4.1.1 navigation semantics for song pages: the song
+  // pushes in from the right, and Back pops it out to reveal the unmodified
+  // song list underneath. Do not substitute a tiny fade (web) or a delayed
+  // WebView-only animation (Android). A single shared slide also behaves
+  // consistently across PWA, desktop browser and native wrapper.
   let transitionType = null;
-  const nativeSongMotion = window.NGPlatform?.isAndroid &&
-    typeof targetEl.animate === 'function' && !isSamePage && !prefersReducedMotion();
-  if (nativeSongMotion && name === 'song-view' && PAGES[prevName]) {
-    transitionType = 'native-song-push';
-  } else if (nativeSongMotion && prevName === 'song-view' && pendingNavDirection === 'back') {
-    transitionType = 'native-song-pop';
-  }
-  // Web/PWA retain their existing song fade. Other detail pages retain
-  // their CSS slide; the Android song uses the transform-only path below.
-  if (!transitionType && !isSamePage && name !== 'song-view' && prevName !== 'song-view' && !prefersReducedMotion()) {
+  if (!isSamePage && !prefersReducedMotion()) {
     const prevEl = PAGES[prevName] && document.getElementById(PAGES[prevName].elId);
     if (pendingNavDirection === 'back' && SLIDE_PAGES.has(prevName) && prevEl) {
       transitionType = 'pop';
@@ -1234,10 +1225,7 @@ function showPage(name, opts = {}) {
   }
   pendingNavDirection = 'forward';
 
-  if (transitionType === 'native-song-push' || transitionType === 'native-song-pop') {
-    runNativeSongSlide(transitionType === 'native-song-push' ? 'push' : 'pop',
-      document.getElementById(PAGES[prevName].elId), targetEl, !!page.hideNav, interruptedSlide);
-  } else if (transitionType === 'push' || transitionType === 'pop') {
+  if (transitionType === 'push' || transitionType === 'pop') {
     const prevEl = document.getElementById(PAGES[prevName].elId);
     runPageSlideTransition(transitionType, prevEl, targetEl);
   } else if (transitionType === 'tabfade') {
@@ -1254,17 +1242,7 @@ function showPage(name, opts = {}) {
     // half-drawn until something forces a reflow. A tap "fixes" it because
     // that's exactly the kind of forced reflow. Do that proactively instead
     // of waiting on the user to discover the trick.
-    if (name === 'song-view') {
-      fixNativeAudioControlsPaint();
-      // Fade only the visible song page. History and input stay available
-      // immediately, including when Back is pressed during the fade.
-      if (!isSamePage && !prefersReducedMotion()) {
-        targetEl.animate?.([{ opacity: 0.5, transform: 'translateY(9px)' }, { opacity: 1, transform: 'translateY(0)' }], {
-          duration: 250,
-          easing: 'cubic-bezier(.22,1,.36,1)',
-        });
-      }
-    }
+    if (name === 'song-view') fixNativeAudioControlsPaint();
   }
 
   document.querySelectorAll('.nav-btn[data-nav]').forEach(b => b.classList.remove('is-active'));
@@ -1274,13 +1252,10 @@ function showPage(name, opts = {}) {
   }
   if (page.onEnter) page.onEnter();
 
-  // A page can opt to hide the bottom tab bar so nothing competes with its
-  // content (song-view does this — it has its own slim top bar instead).
-  // The Android song slide changes the tab bar itself (see runNativeSongSlide),
-  // so it never vanishes or appears while the other page is still visible.
-  if (transitionType !== 'native-song-push' && transitionType !== 'native-song-pop') {
-    document.getElementById('bottom-nav').hidden = !!page.hideNav;
-  }
+  // Match v4 song navigation. The outgoing list stays geometrically stable
+  // under the incoming song page; the shared bottom nav is only hidden on
+  // the active detail screen.
+  document.getElementById('bottom-nav').hidden = !!page.hideNav;
 
   if (resetScroll) {
     // Explicit override: always end up at the top, same page or not.
@@ -1383,100 +1358,10 @@ function tapSongRowThenOpen(rowEl, openFn) {
 }
 /* @end:tapSongRowThenOpen */
 
-// Android song navigation keeps the background page stationary and moves
-// only the song surface (translation only, no animated shadow or scale).
-//
-// The motion itself is compositor-only, but opening or leaving a song also
-// makes the WebView lay out a whole page (lyrics, or the long song list) and
-// measure the chords. If that work lands after the animation has been
-// created, the first frames are late and the slide looks jerky. So the pages
-// are prepared and measured first, while the screen is still, and the
-// animation is created three frames later on a quiet main thread.
-function runNativeSongSlide(type, fromEl, toEl, hideNav, interrupted) {
-  const pushing = type === 'push';
-  const topEl = pushing ? toEl : fromEl;
-  const bottomEl = pushing ? fromEl : toEl;
-  Object.values(PAGES).forEach(p => {
-    const el = document.getElementById(p.elId);
-    el.hidden = el !== fromEl && el !== toEl;
-  });
-  // An interrupted ordinary tab/detail animation must not later hide one
-  // of these pages or apply a competing transform.
-  [fromEl, toEl].forEach(el => {
-    for (const key of ['_slideCleanup', '_tabFadeCleanup']) {
-      if (el[key]) {
-        el.removeEventListener('animationend', el[key]);
-        el.style.zIndex = '';
-      }
-      el[key] = null;
-    }
-    el.classList.remove('page-slide-in', 'page-slide-out', 'tab-fade-in');
-  });
-  const oldTopZ = topEl.style.zIndex;
-  const oldBottomZ = bottomEl.style.zIndex;
-  const oldInert = bottomEl.inert;
-  topEl.style.zIndex = '2';
-  bottomEl.style.zIndex = '1';
-  bottomEl.inert = true;
-  // The tab bar belongs to the list page: during the slide it sits under the
-  // moving song page (not above it), and stays visible while that page covers
-  // it. Opening: it is removed only when the slide ends. Back: it is already
-  // there, under the song page, from the first frame.
-  const nav = document.getElementById('bottom-nav');
-  const oldNavZ = nav.style.zIndex;
-  nav.style.zIndex = '1';
-  if (!pushing) nav.hidden = hideNav;
-  // Own layer from the start, and parked off-screen until the animation
-  // exists, so nothing shows at its final position while we wait.
-  topEl.style.willChange = 'transform';
-  const hasStart = interrupted?.el === topEl;
-  if (pushing && !hasStart) topEl.style.transform = 'translateX(100%)';
-  const start = hasStart ? interrupted.transform :
-    (pushing ? 'translateX(100%)' : 'translateX(0)');
-
-  let animation = null;
-  let raf = 0;
-  const play = () => {
-    raf = 0;
-    if (nativeSongSlide !== slide) return;
-    animation = topEl.animate([
-      { transform: start },
-      { transform: pushing ? 'translateX(0)' : 'translateX(100%)' },
-    ], { duration: pushing ? 300 : 260, easing: 'cubic-bezier(.2, 0, .2, 1)', fill: 'both' });
-    animation.onfinish = animation.oncancel = slide.finish;
-  };
-  const slide = { el: topEl, finish: () => {
-    if (nativeSongSlide !== slide) return;
-    nativeSongSlide = null;
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    if (animation) {
-      animation.onfinish = animation.oncancel = null;
-      animation.cancel();
-    }
-    topEl.style.transform = '';
-    topEl.style.willChange = '';
-    topEl.style.zIndex = oldTopZ;
-    bottomEl.style.zIndex = oldBottomZ;
-    bottomEl.inert = oldInert;
-    fromEl.hidden = true;
-    toEl.hidden = false;
-    nav.style.zIndex = oldNavZ;
-    nav.hidden = hideNav;
-    if (toEl.id === PAGES['song-view'].elId) fixNativeAudioControlsPaint();
-  } };
-  nativeSongSlide = slide;
-  // Frame 1 lays out the prepared pages. Frame 2 runs the follow-up
-  // measurements that layout triggers (chord positions, list scroll thumb).
-  // Frame 3 starts the motion with nothing left to do.
-  raf = requestAnimationFrame(() => {
-    raf = requestAnimationFrame(() => { raf = requestAnimationFrame(play); });
-  });
-}
-
 /* @begin:runPageSlideTransition */
 
 
-// Runs the existing CSS push/pop for non-song detail pages. Its keyframes
+// Runs v4's CSS push/pop for song pages and other detail pages. Its keyframes
 // also animate a shadow, so compositor-only rendering is not guaranteed.
 function runPageSlideTransition(type, fromEl, toEl) {
   // Anything other than the two pages actually involved stays hidden as
@@ -1490,30 +1375,33 @@ function runPageSlideTransition(type, fromEl, toEl) {
 
   const topEl = type === 'push' ? toEl : fromEl;
   const bottomEl = type === 'push' ? fromEl : toEl;
-  topEl.style.zIndex = '2';
-  bottomEl.style.zIndex = '1';
-
-  topEl.classList.remove('page-slide-in', 'page-slide-out');
-  // Force a reflow so re-adding the same animation class (e.g. opening a
-  // second song while one is already mid-transition) restarts it instead
-  // of the browser treating it as a no-op.
-  void topEl.offsetWidth;
-  topEl.classList.add(type === 'push' ? 'page-slide-in' : 'page-slide-out');
-
-  // If a previous transition involving either of these elements got
-  // interrupted before finishing (rapid back-to-back navigation), its
-  // 'animationend' listener never fired and is still attached. Left in
-  // place, it can fire later and hide whatever element that stale
-  // closure captured as *its* fromEl — even after this new transition has
-  // moved on to a different fromEl/toEl pairing. Drop stale cleanups on
-  // both elements, not just topEl, before attaching this one.
+  // Cancel stale effects on both pages *before* applying the new class.
+  // Otherwise a still-running previous slide can override this navigation,
+  // or an old animationend can hide the new active page.
   [topEl, bottomEl].forEach(el => {
     if (el._slideCleanup) {
       el.removeEventListener('animationend', el._slideCleanup);
       el._slideCleanup = null;
+      if (el._slideTimer) clearTimeout(el._slideTimer);
+      el._slideTimer = null;
+      el.classList.remove('page-slide-in', 'page-slide-out');
     }
   });
-  const cleanup = () => {
+  topEl.style.zIndex = '2';
+  bottomEl.style.zIndex = '1';
+  topEl.classList.remove('page-slide-in', 'page-slide-out');
+  // Restart the same slide cleanly even after interrupted navigation.
+  void topEl.offsetWidth;
+  topEl.classList.add(type === 'push' ? 'page-slide-in' : 'page-slide-out');
+
+  const expectedAnimation = type === 'push' ? 'page-slide-in' : 'page-slide-out';
+  const cleanup = (event) => {
+    // Descendant animations bubble their animationend through the page.
+    // Only our own slide may finish this navigation; otherwise a chord
+    // pop/row animation can hide the page halfway through its entrance.
+    if (event && (event.target !== topEl || event.animationName !== expectedAnimation)) return;
+    if (topEl._slideTimer) clearTimeout(topEl._slideTimer);
+    topEl._slideTimer = null;
     topEl.classList.remove('page-slide-in', 'page-slide-out');
     topEl.style.zIndex = '';
     bottomEl.style.zIndex = '';
@@ -1525,9 +1413,15 @@ function runPageSlideTransition(type, fromEl, toEl) {
     fromEl.hidden = true;
     topEl.removeEventListener('animationend', cleanup);
     topEl._slideCleanup = null;
+    if (toEl.id === PAGES['song-view'].elId) fixNativeAudioControlsPaint();
   };
   topEl._slideCleanup = cleanup;
   topEl.addEventListener('animationend', cleanup);
+  // Browsers occasionally suppress animationend after tab suspension.
+  // This fallback cleans up only if the transition is still current.
+  topEl._slideTimer = setTimeout(() => {
+    if (topEl._slideCleanup === cleanup) cleanup();
+  }, (type === 'push' ? 320 : 260) + 120);
 }
 /* @end:runPageSlideTransition */
 
@@ -2469,14 +2363,14 @@ function bindSongView() {
   document.querySelectorAll('[data-font]').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.font;
-      // Ten positions, matching the range inputs. Round off-grid legacy sizes.
+      // Twelve positions, matching the range inputs. Round off-grid legacy sizes.
       const stepSize = (value, min, step, max, direction) =>
         Math.round(Math.max(min, Math.min(max,
           min + (Math.round((value - min) / step) + direction) * step)) * 100) / 100;
-      if (action === 'lyrics-up') state.lyricsSize = stepSize(state.lyricsSize, .75, .10, 1.65, 1);
-      if (action === 'lyrics-down') state.lyricsSize = stepSize(state.lyricsSize, .75, .10, 1.65, -1);
-      if (action === 'chords-up') state.chordSize = stepSize(state.chordSize, .60, .07, 1.23, 1);
-      if (action === 'chords-down') state.chordSize = stepSize(state.chordSize, .60, .07, 1.23, -1);
+      if (action === 'lyrics-up') state.lyricsSize = stepSize(state.lyricsSize, .75, .08, 1.63, 1);
+      if (action === 'lyrics-down') state.lyricsSize = stepSize(state.lyricsSize, .75, .08, 1.63, -1);
+      if (action === 'chords-up') state.chordSize = stepSize(state.chordSize, .60, .06, 1.26, 1);
+      if (action === 'chords-down') state.chordSize = stepSize(state.chordSize, .60, .06, 1.26, -1);
       applyFontSizes();
       localStorage.setItem('sb-lyrics-size', state.lyricsSize);
       localStorage.setItem('sb-chord-size', state.chordSize);
@@ -2654,21 +2548,25 @@ function applyDisplayMode() {
 }
 /* @end:applyDisplayMode */
 
+let presentationSettingsResume = null;
 /* @begin:openPresentationMode */
 // Presentation mode: full-screen lyric slides (js/presentation.js). It gets
 // its own history entry so the hardware/browser Back button closes it and
 // returns to the song instead of leaving the song view underneath.
-function openPresentationMode() {
-  const song = state.activeSong;
+function openPresentationMode({ resume = null } = {}) {
+  const song = resume?.song || state.activeSong;
   if (!song || !window.SongPresentation || window.SongPresentation.isOpen()) return;
-  const playlist = history.state?.playlistId && getPlaylist(history.state.playlistId);
-  const queue = playlist ? playlist.songs.map(ref => findSongByRef(ref.sourceKey, ref.songId)).filter(Boolean) : [];
+  const playlist = !resume && history.state?.playlistId && getPlaylist(history.state.playlistId);
+  const queue = resume?.queue || (playlist ? playlist.songs.map(ref => findSongByRef(ref.sourceKey, ref.songId)).filter(Boolean) : []);
   closeModal({ immediate: true });
-  pushNavState({ page: 'song-view', songId: song.id, sourceKey: state.activeSourceKey, presentation: true });
+  // On return from Settings we are already on the presentation history entry.
+  // Never push a second one or change the Back button's destination.
+  if (!resume) pushNavState({ page: 'song-view', songId: song.id, sourceKey: state.activeSourceKey, presentation: true });
   window.SongPresentation.open({
     queue,
     song,
-    titleInfo: { number: song.number, title: song.title, artist: song.artist },
+    titleInfo: resume?.titleInfo || { number: song.number, title: song.title, artist: song.artist },
+    resume,
     t,
     onRequestClose: closePresentationMode,
     onOpenSettings: openPresentationSettingsFromOverlay,
@@ -2686,18 +2584,13 @@ function closePresentationMode() {
 /* @end:closePresentationMode */
 
 /* @begin:openPresentationSettingsFromOverlay */
-// The gear in the presentation panel. Close the overlay right away, turn the
-// presentation history entry back into a plain song entry (so Back does not
-// land on a stale one), then open Settings → Presentation on top. Back from
-// there returns to the song.
+// Open settings above the presentation history entry, keeping its song and
+// slide position. Going Back resumes the same presentation instead of landing
+// in the song reader. Exiting fullscreen is necessary to show Settings.
 function openPresentationSettingsFromOverlay() {
   if (!window.SongPresentation || !window.SongPresentation.isOpen()) return;
-  const st = history.state;
+  presentationSettingsResume = window.SongPresentation.snapshot();
   window.SongPresentation.close();
-  if (st && st.presentation) {
-    const { presentation, ...plain } = st;
-    try { history.replaceState(plain, '', location.href); } catch (_) {}
-  }
   showPage('presentation-settings', { pushHistory: true, resetScroll: true });
 }
 /* @end:openPresentationSettingsFromOverlay */
@@ -4193,7 +4086,32 @@ function openModal(title, bodyEl, options = {}) {
     overlay._closeTimer = null;
   }
   overlay.classList.remove('modal-overlay-closing');
+  // Freeze the dialog's original centered position while the mobile keyboard
+  // resizes the visual viewport. Only its compositor translate may change.
+  // Keeping the overlay's height/offset fixed prevents the instantaneous
+  // re-center that previously occurred before our easing could run.
+  const vv = window.visualViewport;
+  overlay._baseViewportHeight = vv ? vv.height : window.innerHeight;
+  overlay.style.height = `${Math.round(overlay._baseViewportHeight)}px`;
+  overlay.style.setProperty('--modal-height-limit', `${Math.floor(Math.min(overlay._baseViewportHeight * .78, overlay._baseViewportHeight - 32))}px`);
+  overlay.style.top = `${Math.round(vv ? vv.offsetTop : 0)}px`;
+  overlay.style.removeProperty('--keyboard-card-shift');
+  if (card) {
+    card.style.maxHeight = '';
+    card.classList.remove('modal-card-anchored');
+  }
   overlay.hidden = false;
+  // Text-entry popups use a stable *top* in addition to a stable overlay.
+  // A large label editor may need to shorten its scrollable body when the
+  // keyboard opens; flex centering would otherwise move its top downward
+  // instantly. Absolute anchoring prevents even that smaller layout jump.
+  if (card && body.querySelector('input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable="true"]')) {
+    const cardTop = card.getBoundingClientRect().top - overlay.getBoundingClientRect().top;
+    overlay.style.setProperty('--modal-card-top', `${Math.round(cardTop)}px`);
+    card.classList.add('modal-card-anchored');
+  } else {
+    overlay.style.removeProperty('--modal-card-top');
+  }
 
   if (prefersReducedMotion()) {
     overlay.style.opacity = '';
@@ -4265,6 +4183,18 @@ function restoreModalFocus(overlay) {
 /* @end:restoreModalFocus */
 
 /* @begin:closeModal */
+function resetModalKeyboardGeometry(overlay) {
+  overlay.style.height = '';
+  overlay.style.top = '';
+  overlay.style.removeProperty('--keyboard-card-shift');
+  overlay.style.removeProperty('--modal-height-limit');
+  overlay.style.removeProperty('--modal-card-top');
+  overlay._baseViewportHeight = null;
+  const card = overlay.querySelector('.modal-card');
+  card?.style.removeProperty('max-height');
+  card?.classList.remove('modal-card-anchored');
+}
+
 function closeModal({ immediate = false } = {}) {
   const overlay = document.getElementById('modal-overlay');
   if (overlay.hidden) return;
@@ -4281,6 +4211,7 @@ function closeModal({ immediate = false } = {}) {
     overlay.classList.remove('modal-overlay-closing');
     overlay.style.opacity = '';
     overlay.hidden = true;
+    resetModalKeyboardGeometry(overlay);
     document.getElementById('modal-body').innerHTML = '';
     restoreModalFocus(overlay);
     return;
@@ -4289,6 +4220,7 @@ function closeModal({ immediate = false } = {}) {
 
   if (prefersReducedMotion()) {
     overlay.hidden = true;
+    resetModalKeyboardGeometry(overlay);
     document.getElementById('modal-body').innerHTML = '';
     restoreModalFocus(overlay);
     return;
@@ -4307,6 +4239,7 @@ function closeModal({ immediate = false } = {}) {
     if (overlay._closeTimer) clearTimeout(overlay._closeTimer);
     overlay._closeTimer = null;
     overlay.hidden = true;
+    resetModalKeyboardGeometry(overlay);
     overlay.classList.remove('modal-overlay-closing');
     overlay.style.opacity = '';
     document.getElementById('modal-body').innerHTML = '';
@@ -4354,102 +4287,80 @@ function bindModalShell() {
 /* @end:bindModalShell */
 
 /* @begin:initViewportSync */
-
-
-// ---------------------------------------------------------
-// Mobile keyboard / viewport fix
-// ---------------------------------------------------------
-// On phones (mainly Android Chrome), opening the on-screen keyboard
-// resizes the *visual* viewport but not the *layout* viewport. Our
-// modal overlay is `position: fixed; inset: 0`, which is sized against
-// the layout viewport — so it doesn't know the keyboard ate the bottom
-// half of the screen. Depending on the device this makes the sheet
-// jump upward, get clipped, or appear to only show part of its content.
-//
-// The fix: mirror window.visualViewport's height/offset into CSS custom
-// properties (--vvh, --vv-top) that the modal uses instead of 100vh/0.
-// Browsers without visualViewport support just keep the old 100vh/0
-// fallback defined in the CSS.
-//
-// Keyboard-open state: the overlay centers its card, so shrinking the
-// overlay to the area above the keyboard used to re-center the card and make
-// it jump upward. When the keyboard opens we now measure where the card
-// already is (before the new height is applied) and pin it there with
-// --kb-card-top, moving it only as far as needed to stay fully visible. The
-// same state also sets html.keyboard-open, which the stylesheet uses to tuck
-// the bottom nav away while typing.
+// A phone keyboard changes visualViewport.height repeatedly while sliding in.
+// The modal overlay is anchored at its original size when opened, rather
+// than recentering on each resize. Only a small, eased compositor translate
+// moves the card up if the input would otherwise be covered. Large dialogs
+// can still scroll internally above the keyboard.
 function initViewportSync() {
   if (!window.visualViewport) return;
   const root = document.documentElement;
   const KEYBOARD_MIN_PX = 120;
+  const vv = window.visualViewport;
+  let normalHeight = vv.height;
   let keyboardOpen = false;
-  let cardStartTop = null;
-  let lastCard = null;
   let frame = 0;
-
   const sync = () => {
     frame = 0;
-    const vv = window.visualViewport;
-    const open = vv.scale <= 1.01 && (window.innerHeight - vv.height) > KEYBOARD_MIN_PX;
     const overlay = document.getElementById('modal-overlay');
     const card = overlay && !overlay.hidden ? overlay.querySelector('.modal-card') : null;
-    if (open && card) {
-      const overlayTop = overlay.getBoundingClientRect().top;
-      const rect = card.getBoundingClientRect();
-      // Remember the first card position rather than recursively measuring
-      // the position that the last keyboard resize already adjusted.
-      if (card !== lastCard) cardStartTop = null;
-      if (cardStartTop === null) cardStartTop = rect.top - overlayTop;
-      lastCard = card;
-      const margin = 12;
-      const maxTop = Math.max(margin, vv.height - rect.height - margin);
-      const top = Math.max(margin, Math.min(cardStartTop, maxTop));
-      root.style.setProperty('--kb-card-top', `${Math.round(top)}px`);
+    const baseline = card && overlay._baseViewportHeight ? overlay._baseViewportHeight : normalHeight;
+    const focused = document.activeElement;
+    const typing = focused && (focused.matches?.('input, textarea, [contenteditable="true"]') || keyboardOpen);
+    const open = vv.scale <= 1.01 && (baseline - vv.height) > KEYBOARD_MIN_PX && !!typing;
+    if (!open && !keyboardOpen) normalHeight = Math.max(normalHeight, vv.height);
+    if (card) {
+      if (open) {
+        // Only constrain dialogs too tall for the visible area. For small
+        // playlist/label popups, the card's size and resting center do not
+        // change at all as the keyboard animates.
+        const maxHeight = Math.max(120, Math.floor(vv.height - 24));
+        card.style.maxHeight = `${maxHeight}px`;
+        // offsetTop/offsetHeight are layout coordinates, unaffected by the
+        // current interpolated CSS translate. Measuring the transformed rect
+        // here made each keyboard resize re-calculate against a moving target.
+        const unshiftedTop = overlay.getBoundingClientRect().top + card.offsetTop;
+        const unshiftedBottom = unshiftedTop + card.offsetHeight;
+        const keyboardTop = vv.offsetTop + vv.height;
+        // Never allow the popup to move above the visible area. If it is
+        // taller than the keyboard-free area its body is scrollable.
+        const upward = Math.min(0, keyboardTop - 12 - unshiftedBottom);
+        const minimum = Math.min(0, vv.offsetTop + 12 - unshiftedTop);
+        const desired = Math.max(upward, minimum);
+        overlay.style.setProperty('--keyboard-card-shift', `${Math.round(desired)}px`);
+      } else {
+        card.style.maxHeight = '';
+        overlay.style.removeProperty('--keyboard-card-shift');
+      }
     }
-    if (open !== keyboardOpen) {
+    if (keyboardOpen !== open) {
       keyboardOpen = open;
       root.classList.toggle('keyboard-open', open);
-      if (!open) {
-        cardStartTop = null;
-        lastCard = null;
-        root.style.removeProperty('--kb-card-top');
-      }
     }
     root.style.setProperty('--vvh', `${vv.height}px`);
     root.style.setProperty('--vv-top', `${vv.offsetTop}px`);
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
   sync();
-  window.visualViewport.addEventListener('resize', schedule);
-  window.visualViewport.addEventListener('scroll', schedule);
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+  window.addEventListener('resize', schedule);
+  // Orientation changes establish a new keyboard-free baseline.
+  window.addEventListener('orientationchange', () => { normalHeight = vv.height; schedule(); });
 }
 /* @end:initViewportSync */
 
 /* @begin:focusModalInput */
-
-
-// Focuses `input` only after any in-flight modal-open animation has
-// settled, then — once the keyboard has actually finished animating in —
-// scrolls the input into view within the modal body. Opening the
-// keyboard the instant the sheet starts sliding up was the other half
-// of the "jumps/only shows part of itself" behavior; giving the sheet
-// a moment to land first avoids the two animations fighting each other.
-function focusModalInput(input, delay = 260) {
+// Wait for the popup opening motion to settle. The viewport controller
+// shifts the *card* only if the keyboard obscures its input; do not call
+// scrollIntoView(), which makes Android jump the underlying layout.
+function focusModalInput(input, delay = 360) {
   if (!input) return;
   setTimeout(() => {
-    // preventScroll: the browser's own "scroll the focused field into view"
-    // was a third, separate movement on top of the sheet and the keyboard.
+    const overlay = document.getElementById('modal-overlay');
+    if (!overlay || overlay.hidden || !overlay.contains(input)) return;
     input.focus({ preventScroll: true });
-    // Only nudge if the keyboard actually left the field covered.
-    setTimeout(() => {
-      const vv = window.visualViewport;
-      const bottomEdge = vv ? vv.height : window.innerHeight;
-      const rect = input.getBoundingClientRect();
-      if (rect.bottom > bottomEdge - 8 || rect.top < 0) {
-        input.scrollIntoView({ block: 'nearest' });
-      }
-    }, 300);
-  }, delay);
+  }, prefersReducedMotion() ? 0 : delay);
 }
 /* @end:focusModalInput */
 
@@ -4632,7 +4543,7 @@ function openDbPickerModal() {
 
   const multi = document.createElement('button');
   multi.type = 'button';
-  multi.className = 'db-picker-multi icon-btn';
+  multi.className = 'db-picker-multi icon-btn icon-btn-float';
   multi.setAttribute('aria-label', t('dbSelectMultiple'));
   multi.title = t('dbSelectMultiple');
   multi.innerHTML = '<svg data-icon="check" viewBox="0 0 24 24" aria-hidden="true"></svg>';
@@ -5315,7 +5226,6 @@ function bindAboutPage() {
 function bindChordFinderPage() {
   document.getElementById('presentation-settings-nav-row').addEventListener('click', () => showPage('presentation-settings', { pushHistory: true, resetScroll: true }));
   document.getElementById('presentation-settings-back-btn').addEventListener('click', () => history.back());
-  document.getElementById('presentation-advanced-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-back-btn').addEventListener('click', () => history.back());
   document.getElementById('chord-finder-nav-row').addEventListener('click', () => {
     showPage('chord-finder', { pushHistory: true, resetScroll: true });
@@ -5695,6 +5605,43 @@ function editorHasChanges() {
 }
 /* @end:editorHasChanges */
 
+// Select one whole localized message per notice. Legacy {title, text} remains valid.
+// The application uses mn, en, kr and mn2 as its language identifiers.
+function ngwResolveAnnouncement(item, language) {
+  if (!item || typeof item !== 'object') return null;
+  const locale = String(language || 'en').toLowerCase().replace(/_/g, '-');
+  const canonical = code => {
+    const id = String(code || '').toLowerCase().replace(/_/g, '-');
+    if (id === 'mn2' || id === 'mn-mong' || id === 'mn-mong-mn') return 'mn2';
+    if (id === 'kr' || id === 'ko' || id.startsWith('ko-')) return 'kr';
+    if (id === 'mn' || id.startsWith('mn-')) return 'mn';
+    if (id === 'en' || id.startsWith('en-')) return 'en';
+    return id;
+  };
+  const clean = value => {
+    if (typeof value === 'string') return value.trim() ? { text: value, title: '' } : null;
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        typeof value.text !== 'string' || !value.text.trim()) return null;
+    return {
+      text: value.text,
+      title: typeof value.title === 'string' ? value.title : ''
+    };
+  };
+  const available = new Map();
+  if (item.translations && typeof item.translations === 'object' && !Array.isArray(item.translations)) {
+    for (const [code, value] of Object.entries(item.translations)) {
+      const content = clean(value);
+      if (content && !available.has(canonical(code))) available.set(canonical(code), content);
+    }
+  }
+  const legacy = clean(item);
+  // An exact translation wins. Otherwise use English, then legacy text,
+  // then the sole/first available translation. Never display an empty notice.
+  const result = available.get(canonical(locale)) || available.get('en') || legacy ||
+    available.values().next().value;
+  return result || null;
+}
+
 /* @begin:renderAnnouncements */
 function renderAnnouncements() {
   const container = document.getElementById('app-announcements');
@@ -5719,15 +5666,18 @@ function renderAnnouncements() {
     }
   };
   for (const item of items) {
-    if (!item || typeof item.id !== 'string' || !item.id.trim() || typeof item.text !== 'string' || !item.text.trim()) continue;
+    if (!item || typeof item.id !== 'string' || !item.id.trim()) continue;
     if (!['once', 'every-open'].includes(item.mode) || ids.has(item.id)) continue;
     if (item.display && !['dialog', 'banner'].includes(item.display)) continue;
+    const localized = ngwResolveAnnouncement(item, state.lang);
+    if (!localized) continue;
+    const shownItem = { ...item, ...localized };
     ids.add(item.id);
     if (!preview && dismissedAnnouncements.has(item.id)) continue;
     if (item.startsAt && (!Number.isFinite(Date.parse(item.startsAt)) || now < Date.parse(item.startsAt))) continue;
     if (item.endsAt && (!Number.isFinite(Date.parse(item.endsAt)) || now >= Date.parse(item.endsAt))) continue;
     if (item.mode === 'once' && seen.includes(item.id) && !shownAnnouncements.has(item.id)) continue;
-    if (item.display !== 'banner') { messages.push(item); continue; }
+    if (item.display !== 'banner') { messages.push(shownItem); continue; }
     const card = document.createElement('article'); card.className = 'announcement';
     const dismiss = document.createElement('button');
     dismiss.type = 'button'; dismiss.className = 'announcement-dismiss';
@@ -5741,7 +5691,7 @@ function renderAnnouncements() {
       } else { dismissedAnnouncements.add(item.id); renderAnnouncements(); }
       const activeTab = nav.querySelector('.nav-btn.is-active'); if (activeTab) activeTab.focus({ preventScroll: true });
     });
-    card.append(buildAnnouncementContent(item), dismiss); container.appendChild(card); remember(item);
+    card.append(buildAnnouncementContent(shownItem), dismiss); container.appendChild(card); remember(item);
   }
   container.hidden = container.childElementCount === 0;
   nav.classList.toggle('has-announcement', !container.hidden);

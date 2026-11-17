@@ -214,7 +214,7 @@
     });
     return list;
   }
-  const FONT_STYLES = { normal: 'lyricsWeightNormal', bold: 'lyricsWeightBold', italic: 'fontStyleItalic' };
+  const FONT_STYLES = { normal: 'lyricsWeightNormal', bold: 'lyricsWeightBold', italic: 'fontStyleItalic', boldItalic: 'fontStyleBoldItalic' };
   const EFFECTS = ['none', 'shadow', 'glow', 'outline'];
   const DIM_MAX = 70;
   const AUTO_DIM = 30; // a new picture/video starts a little dimmed so lyrics stay readable
@@ -259,7 +259,7 @@
     return BACKGROUNDS[background.preset][2] === 'dark';
   }
   // Auto follows the background (white on photos and video); White/Black force
-  // it; a custom colour from Advanced wins over all of them.
+  // it; an explicitly selected custom colour wins over all of them.
   function textColor() {
     if (adv.textColor) return adv.textColor;
     if (textPref === 'light') return '#ffffff';
@@ -280,8 +280,8 @@
     node.style.setProperty('--pres-dim', String(adv.dim / 100));
     const online = ONLINE_FONTS[adv.font];
     node.style.setProperty('--pres-font', online ? `"${online}", var(--font-lyrics)` : FONTS[adv.font][1]);
-    node.style.setProperty('--pres-font-weight', adv.fontStyle === 'bold' ? '700' : '400');
-    node.style.setProperty('--pres-font-style', adv.fontStyle === 'italic' ? 'italic' : 'normal');
+    node.style.setProperty('--pres-font-weight', (adv.fontStyle === 'bold' || adv.fontStyle === 'boldItalic') ? '700' : '400');
+    node.style.setProperty('--pres-font-style', (adv.fontStyle === 'italic' || adv.fontStyle === 'boldItalic') ? 'italic' : 'normal');
     // Load only the selected online family. The bundled font remains in
     // the stack for offline use and glyphs missing from the selected font.
     const id = `pres-font-${adv.font}`;
@@ -289,7 +289,7 @@
       const stylesheet = el('link');
       stylesheet.id = id;
       stylesheet.rel = 'stylesheet';
-      const axes = adv.font === 'noto-sans-kr' ? 'wght@400;700' : 'ital,wght@0,400;0,700;1,400';
+      const axes = adv.font === 'noto-sans-kr' ? 'wght@400;700' : 'ital,wght@0,400;0,700;1,400;1,700';
       stylesheet.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(online)}:${axes}&display=swap`;
       stylesheet.addEventListener('error', () => stylesheet.remove(), { once: true });
       document.head.appendChild(stylesheet);
@@ -344,13 +344,44 @@
     loadAdvanced();
   }
 
-  function makePreview(translate) {
+  // The same 16:9 preview can show the lyrics or the actual title-slide
+  // layout. This keeps Settings compact while making the title switches
+  // visible immediately, without opening Presentation Mode.
+  function makePreview(translate, hooks = {}) {
+    const wrap = el('div', 'pres-preview-wrap');
+    const bar = el('div', 'pres-preview-toolbar');
+    bar.appendChild(el('span', 'settings-row-title', translate('presPreviewLabel')));
     const preview = el('div', 'pres-background-preview');
     const layer = el('div', 'pres-bg');
-    preview.append(layer, el('span', 'pres-background-sample', translate('presBackgroundSample')));
-    const refresh = () => { paintBackground(layer, true, translate); applyTone(preview); };
+    const sample = el('div', 'pres-background-sample');
+    preview.append(layer, sample);
+    let mode = 'lyrics';
+    const refresh = () => {
+      paintBackground(layer, true, translate);
+      applyTone(preview);
+      sample.replaceChildren();
+      sample.classList.toggle('is-title-preview', mode === 'title');
+      if (mode === 'lyrics') {
+        sample.textContent = translate('presBackgroundSample');
+      } else if (titlePrefs.presTitleSlide !== false) {
+        const song = hooks.previewSong;
+        const card = buildCard({
+          kind: 'title',
+          number: titlePrefs.presTitleNumber === false ? null : (song?.number ?? '108'),
+          title: titlePrefs.presTitleText === false ? null : (song?.title || translate('presPreviewExampleTitle')),
+          artist: titlePrefs.presTitleArtist === false ? null : (song?.artist || translate('presPreviewExampleArtist')),
+        });
+        sample.appendChild(card);
+      }
+    };
+    const modes = segControl(translate, 'presPreviewLabel',
+      [['lyrics', translate('presPreviewLyrics')], ['title', translate('presPreviewTitle')]], mode,
+      value => { mode = value; refresh(); });
+    modes.classList.add('pres-preview-modes');
+    bar.appendChild(modes);
+    wrap.append(bar, preview);
     refresh();
-    return { preview, refresh };
+    return { preview: wrap, refresh };
   }
 
   function settingsRow(translate, titleKey, control, wide) {
@@ -398,7 +429,7 @@
     loadAll();
     const container = document.getElementById('presentation-settings-content');
     container.replaceChildren();
-    const { preview, refresh } = makePreview(translate);
+    const { preview, refresh } = makePreview(translate, hooks);
     ensureMedia().then(ok => { if (ok) refresh(); });
 
     // Look: background colour + text colour (Auto follows the background).
@@ -466,10 +497,12 @@
     text.appendChild(choiceRow(translate, 'presFont', fontChoices(translate, adv.font), adv.font, (value) => {
       adv.font = value; saveAdvanced(); refresh();
     }));
-    text.appendChild(settingsRow(translate, 'fontStyle', segControl(translate, 'fontStyle',
+    const fontStyleControl = segControl(translate, 'fontStyle',
       Object.entries(FONT_STYLES).map(([value, label]) => [value, translate(label)]), adv.fontStyle, (value) => {
         adv.fontStyle = value; saveAdvanced(); refresh();
-      }), true));
+      });
+    fontStyleControl.classList.add('pres-font-style-toggle');
+    text.appendChild(settingsRow(translate, 'fontStyle', fontStyleControl, true));
     text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
       EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
         adv.effect = value; saveAdvanced(); refresh();
@@ -502,29 +535,17 @@
         titlePrefs[key] = on;
         try { localStorage.setItem('sb-pres-title', JSON.stringify(titlePrefs)); } catch (_) {}
         if (key === 'presTitleSlide') titleOptions.slice(1).forEach(k => { switches[k].disabled = !on; });
+        refresh();
       });
       if (key !== 'presTitleSlide') sw.disabled = titlePrefs.presTitleSlide === false;
       titles.appendChild(settingsRow(translate, key, sw));
     }
 
-    // Advanced opens its own page, like the other sub-pages in Settings. It
-    // sits in a section of its own so it reads as optional, not as one more
-    // basic setting.
-    const more = el('section', 'settings-section');
-    const nav = el('button', 'settings-row settings-row-nav');
-    nav.type = 'button';
-    nav.id = 'presentation-advanced-nav-row';
-    const navText = el('div', 'settings-row-text');
-    navText.append(el('span', 'settings-row-title', translate('presAdvancedTitle')), el('span', 'settings-row-sub', translate('presAdvancedSub')));
-    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('class', 'settings-row-chevron');
-    chevron.setAttribute('data-icon', 'back-arrow');
-    chevron.setAttribute('viewBox', '0 0 24 24');
-    nav.append(navText, chevron);
-    nav.addEventListener('click', () => { if (hooks.openAdvanced) hooks.openAdvanced(); });
-    more.appendChild(nav);
+    // Background media and dimming belong directly to Presentation Settings;
+    // there is no separate Advanced page to hunt through.
+    const media = mediaControls(translate, refresh);
 
-    // One Reset for the whole look (basic and advanced). Title-slide switches
+    // One Reset for the entire look. Title-slide switches
     // are content choices, not look, so they stay.
     const reset = el('button', 'btn-secondary', translate('presResetLook'));
     reset.type = 'button';
@@ -546,7 +567,7 @@
     resetRow.appendChild(reset);
     resetSection.appendChild(resetRow);
 
-    container.append(preview, section, text, titles, more, resetSection);
+    container.append(preview, section, media, text, titles, resetSection);
     if (typeof initIcons === 'function') initIcons(container);
   }
 
@@ -655,14 +676,9 @@
     return button;
   }
 
-  // Advanced: picture or video, dim. (Colours, font, style, effect and slide
-  // change are on the main page.)
-  function advanced(translate) {
-    loadAll();
-    const container = document.getElementById('presentation-advanced-content');
-    container.replaceChildren();
-    const { preview, refresh } = makePreview(translate);
-
+  // Media / dimming controls on the ordinary Presentation Settings page.
+  // The picker is an ordinary app dialog; nothing requires a second page.
+  function mediaControls(translate, refresh) {
     const bg = el('section', 'settings-section');
     bg.appendChild(el('h3', 'settings-heading', translate('presAdvBackground')));
 
@@ -749,8 +765,7 @@
     syncMediaUI();
     ensureMedia().then(ok => { syncMediaUI(); if (ok) refresh(); });
 
-    container.append(preview, bg);
-    if (typeof initIcons === 'function') initIcons(container);
+    return bg;
   }
 
   // ---------- preferences ----------
@@ -1439,11 +1454,25 @@
   }
 
   // ---------- open / close ----------
-  // cfg: { song, titleInfo:{number,title,artist}, t, onRequestClose }
+  // Capture a presentation before visiting Settings. An unsaved playlist
+  // order or current slide must not disappear just because Settings was opened.
+  function snapshot() {
+    if (!root || !cfg) return null;
+    return {
+      song: cfg.song, queue: cfg.queue, titleInfo: { ...cfg.titleInfo },
+      index, queuePosition, anchor: anchorOf(slides[index]),
+      onTitle: slides[index]?.kind === 'title', blanked,
+    };
+  }
+  // cfg: { song, titleInfo:{number,title,artist}, t, onRequestClose, resume? }
   function open(options) {
     if (root || !options || !options.song) return;
     cfg = { ...options };
     queuePosition = cfg.queue ? cfg.queue.indexOf(cfg.song) : -1;
+    if (options.resume && Number.isInteger(options.resume.queuePosition) &&
+        options.resume.queuePosition >= 0 && options.resume.queuePosition < (cfg.queue?.length || 0)) {
+      queuePosition = options.resume.queuePosition;
+    }
     loadPrefs();
     index = 0;
     blanked = false;
@@ -1457,8 +1486,15 @@
     // Fill measures real layout, so the slides are built once the overlay is in
     // the page.
     slides = computeSlides();
+    if (options.resume) {
+      const previous = options.resume;
+      index = previous.onTitle && slides[0]?.kind === 'title' ? 0 :
+        previous.anchor ? locate(slides, previous.anchor) : Math.min(previous.index || 0, Math.max(0, slides.length - 1));
+      blanked = !!previous.blanked;
+    }
     syncControls();
     renderSlide();
+    if (blanked) setBlank(true);
 
     const bar = root.querySelector('.pres-bar');
     bar.addEventListener('click', onBarClick);
@@ -1546,7 +1582,7 @@
 
   window.SongPresentation = {
     settings,
-    advanced,
+    snapshot,
     open,
     close,
     isOpen: () => !!root,

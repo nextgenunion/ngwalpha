@@ -544,7 +544,10 @@ function initDevOptions() {
     state.devHideDescriptions = !state.devHideDescriptions;
     applyDevOptions();
   });
-  applySheetMusicFeatureUI();
+  // Apply the default display preferences on startup, not only after a
+  // Developer Options switch is tapped. In particular descriptions and
+  // slider dots must be hidden *before* the user first opens Settings.
+  applyDevOptions();
 }
 /* @end:initDevOptions */
 
@@ -615,7 +618,6 @@ function applyLanguage() {
     't-presSettingsTitle': 'presSettingsTitle',
     't-presSettingsTitle2': 'presSettingsTitle',
     't-presSettingsSub': 'presSettingsSub',
-    't-presAdvancedTitle2': 'presAdvancedTitle',
     't-settingsTitle': 'settingsTitle',
     't-sectionAppearance': 'sectionAppearance',
     't-darkModeTitle': 'darkModeTitle',

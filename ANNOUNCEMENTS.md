@@ -43,7 +43,7 @@ Returning between pages does not repeat a dismissed notice.
 
 The dates and messages above are examples, not active scheduled maintenance.
 
-- `id`, `mode`, and `text` are required. Give every notice a unique, stable ID.
+- `id` and `mode` are required. Provide either plain `text` or a `translations` object with at least one nonempty translated `text`. Give every notice a unique, stable ID.
 - `display` is optional: omitted or `"dialog"` is an ordinary announcement.
   Use `"banner"` only for a genuinely important notice. Presentation and
   repetition are independent: either presentation supports either mode.
@@ -53,8 +53,8 @@ The dates and messages above are examples, not active scheduled maintenance.
 - `every-open`: shown once per fresh launch/reload, even if previously dismissed
   on a previous launch. It does not repeat every five minutes. Dismissal
   lasts for that launch; switching pages does not reset it.
-- `title` is optional. Both title and text are plain text, not HTML. Write in
-  the language your audience uses; this simple file does not translate content.
+- `title` is optional. Both title and text are plain text, not HTML.
+  Use `translations` for language-specific content as described below.
 - `startsAt` and `endsAt` are optional ISO timestamps with a timezone. Omit them
   for an immediate notice without an expiry. Invalid dates hide that entry.
   Dates use the device clock and are checked when a notice is rendered.
@@ -96,3 +96,52 @@ Both work offline and when announcements.json is missing. Samples are clearly
 labelled Preview and never publish content, overwrite the JSON, reset real seen
 IDs, or dismiss real notices. Real notice display is temporarily suspended while
 previewing the banner. Normal notices resume on subsequent navigation/reload.
+
+## Language-specific announcements
+
+Each announcement may contain `translations` using the same language keys as
+NGWorship's interface: `mn` (Mongolian Cyrillic), `en` (English), `kr`
+(Korean), and `mn2` (Traditional Mongolian, experimental).
+
+```json
+[
+  {
+    "id": "feature-2026-11",
+    "mode": "once",
+    "display": "dialog",
+    "translations": {
+      "en": { "title": "What's new", "text": "The songbook has been updated." },
+      "mn": { "title": "Шинэ зүйл", "text": "Дууны ном шинэчлэгдлээ." },
+      "kr": { "title": "새 소식", "text": "찬송가 앱이 업데이트되었습니다." }
+    }
+  }
+]
+```
+
+Language choice follows the current **app interface language**, not the
+phone's language. If that translation is missing, NGWorship uses `en` if
+available; otherwise an existing plain `text`/`title` entry; otherwise the
+only (or first available) translation. Both translated and older single-
+language announcement entries can coexist in the same `announcements.json`.
+
+You can also publish an announcement in only one language:
+
+```json
+[
+  {
+    "id": "mongolian-only",
+    "mode": "once",
+    "translations": { "mn": { "title": "Мэдээлэл", "text": "Шинэ мэдэгдэл." } }
+  }
+]
+```
+
+Every user will see the available Mongolian text in that example, even if
+their app is set to English. Changing languages updates a visible banner
+without fetching the JSON again. Each announcement's `id` is shared across
+all languages: a `once` notice is remembered as one notice regardless of
+which translation the user saw. To publish a *new* notice, give it a new ID.
+
+These are optional online messages. Announcements still refresh every five
+minutes while visible and never block, install with, or cache alongside the
+offline songbook.

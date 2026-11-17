@@ -53,7 +53,7 @@ const REQUIRED_OFFLINE = [
   './icons/app-icon-512.png',
   './icons/app-icon-maskable.png',
   './icons/app-icon.png',
-  './icons/splash-logo.png',
+  './icons/splash-logo.webp',
   './icons/svg/back-arrow.svg',
   './icons/svg/brand-music-note.svg',
   './icons/svg/check.svg',

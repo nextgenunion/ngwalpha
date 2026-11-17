@@ -173,7 +173,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   // ---------- 6. picture/video remembered on this device ----------
   {
     const { ctx, page } = await boot({}, () => { localStorage.setItem('sb-pres-fs', '0'); localStorage.setItem('sb-pres-intro', JSON.stringify({ n: 9, done: true })); });
-    await page.evaluate(() => { ['sb-pres-background', 'sb-pres-adv'].forEach(k => localStorage.removeItem(k)); showPage('presentation-advanced'); });
+    await page.evaluate(() => { ['sb-pres-background', 'sb-pres-adv'].forEach(k => localStorage.removeItem(k)); showPage('presentation-settings'); });
     await page.waitForTimeout(500);
     ok(await page.evaluate(() => document.getElementById('pres-background-remove').hidden === true), 'Remove is hidden while no picture is chosen');
     await page.setInputFiles('#pres-background-file', { name: 'church.png', mimeType: 'image/png', buffer: PNG });
@@ -202,9 +202,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     const bg = await page.evaluate(() => { const i = document.querySelector('#presentation-overlay .pres-bg img'); return i ? { src: i.src.slice(0, 5), w: i.naturalWidth } : null; });
     ok(bg && bg.src === 'blob:' && bg.w === 1, 'after restarting the app the picture is already the background');
     await closeOverlay(page);
-    await page.evaluate(() => showPage('presentation-advanced'));
+    await page.evaluate(() => showPage('presentation-settings'));
     await page.waitForTimeout(500);
-    ok(await page.evaluate(() => document.getElementById('pres-media-status').textContent.includes(t('presFileSaved'))), 'Advanced still says saved after a restart');
+    ok(await page.evaluate(() => document.getElementById('pres-media-status').textContent.includes(t('presFileSaved'))), 'Presentation Settings still says saved after a restart');
 
     // Remove clears memory and storage
     await page.click('#pres-background-remove');
@@ -216,7 +216,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
       return { rec: !!rec, bg: JSON.parse(localStorage.getItem('sb-pres-background')).kind };
     });
     ok(!gone.rec && gone.bg === 'preset', 'Remove deletes the saved file and returns to a colour');
-    ok(await page.evaluate(() => document.getElementById('pres-media-status').textContent === '' && document.getElementById('pres-background-remove').hidden), 'the Advanced row resets');
+    ok(await page.evaluate(() => document.getElementById('pres-media-status').textContent === '' && document.getElementById('pres-background-remove').hidden), 'the media row resets');
 
     // choosing a colour on the main page also removes it
     await page.setInputFiles('#pres-background-file', { name: 'again.png', mimeType: 'image/png', buffer: PNG });
@@ -234,18 +234,18 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     ok(!gone2, 'choosing a colour removes the saved picture too');
 
     // a saved choice whose file is gone says so instead of failing silently
-    await page.evaluate(() => { localStorage.setItem('sb-pres-background', JSON.stringify({ kind: 'media', media: 'image', name: 'lost.png' })); showPage('presentation-advanced'); });
+    await page.evaluate(() => { localStorage.setItem('sb-pres-background', JSON.stringify({ kind: 'media', media: 'image', name: 'lost.png' })); showPage('presentation-settings'); });
     await page.waitForTimeout(600);
     ok(await page.evaluate(() => document.getElementById('pres-media-status').textContent === 'lost.png — ' + t('presFileMissing')), 'a missing file is reported');
-    ok(await page.evaluate(() => document.querySelector('#presentation-advanced-content .settings-row-actions .btn-secondary').textContent === t('presRelinkMedia')), 'and the button offers to choose it again');
+    ok(await page.evaluate(() => document.querySelector('#presentation-settings-content .settings-row-actions .btn-secondary').textContent === t('presRelinkMedia')), 'and the button offers to choose it again');
 
     // oversize or failed saves still work for this session and say so
-    await page.evaluate(() => { localStorage.removeItem('sb-pres-background'); showPage('presentation-settings'); showPage('presentation-advanced'); });
+    await page.evaluate(() => { localStorage.removeItem('sb-pres-background'); showPage('presentation-settings'); showPage('presentation-settings'); });
     await page.waitForTimeout(400);
     await page.evaluate(() => { const real = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function () { throw new DOMException('quota', 'QuotaExceededError'); }; window.__restorePut = () => { IDBObjectStore.prototype.put = real; }; });
     await page.setInputFiles('#pres-background-file', { name: 'huge.png', mimeType: 'image/png', buffer: PNG });
     await page.waitForFunction(() => document.getElementById('pres-media-status').textContent.includes(t('presFileNotSaved')), null, { timeout: 8000 });
-    ok(await page.evaluate(() => document.querySelector('#presentation-advanced-content .pres-bg img') !== null), 'when it cannot be saved the picture still shows for this session, with an honest message');
+    ok(await page.evaluate(() => document.querySelector('#presentation-settings-content .pres-bg img') !== null), 'when it cannot be saved the picture still shows for this session, with an honest message');
     await page.evaluate(() => window.__restorePut());
     await ctx.close();
   }

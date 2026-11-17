@@ -35,7 +35,7 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-overlay, .pres-background-preview { color: var(--pres-text, #fff); font-family: var(--pres-font, var(--font-lyrics)); }
 .pres-overlay[data-bg-tone="light"] .pres-hint { color: rgba(0,0,0,.5); }
 :is(.pres-overlay, .pres-background-preview)[data-effect="shadow"] :is(.pres-slide, .pres-background-sample) {
-  text-shadow: 0 .03em .14em color-mix(in srgb, var(--pres-fx) 55%, transparent);
+  text-shadow: 0 .045em .12em color-mix(in srgb, var(--pres-fx) 88%, transparent), 0 .09em .24em color-mix(in srgb, var(--pres-fx) 70%, transparent), 0 0 .4em color-mix(in srgb, var(--pres-fx) 40%, transparent);
 }
 :is(.pres-overlay, .pres-background-preview)[data-effect="glow"] :is(.pres-slide, .pres-background-sample) {
   text-shadow: 0 0 .22em color-mix(in srgb, var(--pres-fx) 85%, transparent), 0 0 .6em color-mix(in srgb, var(--pres-fx) 55%, transparent);
@@ -287,3 +287,15 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-range { width: 130px; flex: none; } /* look comes from .app-range (03-song-view.css) */
 .pres-range-value { min-width: 2.6em; text-align: right; font-size: .82rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .pres-reset-row { justify-content: flex-start; }
+
+/* A compact preview switch shows both lyric and title-slide appearance.
+   The same stage renders both so custom fonts, colour and text effects agree. */
+.pres-preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.pres-preview-modes { flex: 0 1 auto; }
+.pres-preview-wrap .pres-background-preview { margin-top: 10px; }
+.pres-background-sample.is-title-preview { padding: 12px 20px; }
+.pres-background-sample.is-title-preview .pres-slide { font-size: clamp(1rem, 3.5vw, 1.75rem); max-width: 100%; }
+.pres-background-sample.is-title-preview .pres-title-number { font-size: .55em; }
+.pres-background-sample.is-title-preview .pres-title-artist { font-size: .45em; }
+.pres-font-style-toggle .seg-toggle-btn { padding-inline: 5px; font-size: .69rem; white-space: nowrap; }
+@media (max-width: 360px) { .pres-font-style-toggle .seg-toggle-btn { padding-inline: 3px; font-size: .65rem; } }

@@ -1,64 +1,59 @@
-// Simulates initViewportSync() from js/app.js with a stub visualViewport:
-// keyboard open -> html.keyboard-open + card pinned at its current top (or
-// moved up only as far as needed); keyboard closed -> state cleared;
-// pinch-zoom -> never treated as a keyboard.
+// Regression test for keyboard-safe dialog geometry. Simulates the Android
+// visual viewport shrinking while the layout viewport remains fixed OR also
+// shrinks. The overlay stays anchored; the card gets one eased translation.
+'use strict';
 const fs = require('fs');
 const vm = require('vm');
-const src = require('./read_application.cjs').readApplication();
+const assert = require('assert');
+const src = fs.readFileSync(require('path').join(__dirname, '../js/ui.js'), 'utf8');
 const start = src.indexOf('function initViewportSync()');
-const end = src.indexOf('// Focuses `input` only after', start);
-if (start < 0 || end < 0) throw new Error('initViewportSync not found');
-
-function run(vvInit, cardRect) {
-  const props = {}; const classes = new Set(); const listeners = {}; const queue = [];
-  const vv = { height: vvInit.height, offsetTop: 0, scale: vvInit.scale || 1,
-    addEventListener: (t, f) => { listeners[t] = f; } };
-  const card = { getBoundingClientRect: () => cardRect };
-  const overlay = { hidden: false, getBoundingClientRect: () => ({ top: 0 }), querySelector: () => card };
-  const ctx = {
-    window: { visualViewport: vv, innerHeight: 800 },
-    document: { documentElement: { style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } },
-      classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) } },
-      getElementById: () => overlay },
-    // Queue like a real browser: the callback runs AFTER requestAnimationFrame
-    // has returned its id, so initViewportSync's `frame` guard resets properly.
-    requestAnimationFrame: (f) => { queue.push(f); return queue.length; },
-  };
+const end = src.indexOf('/* @end:initViewportSync */', start);
+assert(start >= 0 && end > start, 'initViewportSync must exist');
+const css = require('./read_stylesheet.cjs').readStylesheet().css;
+assert(src.includes('function focusModalInput(input, delay = 360)'), 'wait until modal opening animation completes before triggering keyboard');
+const overlayRules = (css.match(/\.modal-overlay\s*\{[\s\S]*?\n\}/) || [''])[0];
+const cardRules = (css.match(/\.modal-card\s*\{[\s\S]*?\n\}/) || [''])[0];
+assert(cardRules.includes('translate: 0 var(--keyboard-card-shift, 0px)'), 'keyboard adjustment must use translated card, not padding recenter');
+assert(cardRules.includes('transition: translate 300ms'), 'card should ease instead of jump');
+assert(!css.includes('html.keyboard-open .modal-overlay {'), 'must not change overlay alignment as keyboard opens');
+assert(overlayRules.includes('align-items: center'), 'modal must remain centered initially');
+assert(cardRules.includes('--modal-height-limit'), 'modal max height must not depend on shrinking visualViewport');
+assert(css.includes('.modal-card.modal-card-anchored'), 'text-entry modals must keep their pre-keyboard vertical origin');
+function fixture({initial=800,cardTop=250,cardHeight=220,typing=true}={}) {
+  const props = {};
+  const classes = new Set();
+  const listeners = {};
+  const frames = [];
+  let vvHeight = initial;
+  const style = {getPropertyValue:(k)=>props[k]||'',setProperty:(k,v)=>props[k]=v,removeProperty:k=>delete props[k]};
+  const card = {offsetTop:cardTop,offsetHeight:cardHeight,style:{maxHeight:''}};
+  const overlay = {hidden:false,_baseViewportHeight:initial,style,querySelector:()=>card,getBoundingClientRect:()=>({top:0})};
+  const root = {style:{setProperty:(k,v)=>props['root:'+k]=v},classList:{toggle:(k,v)=>v?classes.add(k):classes.delete(k)}};
+  const vv = {height:initial, offsetTop:0, scale:1,addEventListener:(k,fn)=>listeners[k]=fn};
+  const win = {innerHeight:initial,visualViewport:vv,addEventListener:(k,fn)=>listeners['window:'+k]=fn};
+  const doc = {documentElement:root,activeElement:{matches:()=>typing},getElementById:(id)=>id==='modal-overlay'?overlay:null};
+  const ctx={window:win,document:doc,requestAnimationFrame:(cb)=>{frames.push(cb);return frames.length;}};
   vm.createContext(ctx);
-  vm.runInContext(src.slice(start, end) + '\ninitViewportSync();', ctx);
-  return { vv, props, classes, fire: () => { listeners.resize(); while (queue.length) queue.shift()(); } };
+  vm.runInContext(src.slice(start,end)+'\ninitViewportSync();',ctx);
+  const fire=()=>{listeners.resize();while(frames.length)frames.shift()();};
+  return {props,classes,vv,win,fire};
 }
-
-let failed = 0;
-const check = (ok, msg) => { console.log(ok ? 'PASS' : 'FAIL', msg); if (!ok) failed++; };
-
-// Closed keyboard: no class, --vvh mirrors the viewport.
-let t = run({ height: 800 }, { top: 250, height: 300 });
-check(!t.classes.has('keyboard-open') && t.props['--vvh'] === '800px', 'no keyboard: class off, --vvh mirrors viewport');
-
-// Keyboard opens, card fits above it: pinned where it already was (no jump).
-t = run({ height: 800 }, { top: 250, height: 300 });
-t.vv.height = 480; t.fire();
-check(t.classes.has('keyboard-open'), 'keyboard open sets html.keyboard-open');
-check(t.props['--kb-card-top'] === '168px', 'tall card is moved up only as far as needed (480-300-12=168)');
-
-// Short card well above the keyboard: stays exactly where it was.
-t = run({ height: 800 }, { top: 100, height: 200 });
-t.vv.height = 480; t.fire();
-check(t.props['--kb-card-top'] === '100px', 'card that already fits does not move');
-
-// Keyboard closes: state cleared.
-t.vv.height = 800; t.fire();
-check(!t.classes.has('keyboard-open') && !('--kb-card-top' in t.props), 'keyboard close clears class and pinned top');
-
-// Pinch zoom shrinks vv.height but is not a keyboard.
-t = run({ height: 800 }, { top: 250, height: 300 });
-t.vv.height = 400; t.vv.scale = 2; t.fire();
-check(!t.classes.has('keyboard-open'), 'pinch-zoom is not treated as a keyboard');
-
-// Small browser-toolbar changes are not a keyboard.
-t = run({ height: 800 }, { top: 250, height: 300 });
-t.vv.height = 740; t.fire();
-check(!t.classes.has('keyboard-open'), 'small toolbar-size change is not a keyboard');
-
-if (failed) process.exit(1);
+let t=fixture();
+assert(!t.classes.has('keyboard-open'));
+t.vv.height=480;t.fire();
+assert(t.classes.has('keyboard-open'),'keyboard should be detected');
+assert.equal(t.props['--keyboard-card-shift'],'-2px','should move only enough to clear the keyboard');
+t.vv.height=340;t.fire();
+assert.equal(t.props['--keyboard-card-shift'],'-142px','shift should be based on the stationary original position');
+t.win.innerHeight=340;t.fire();
+assert.equal(t.props['--keyboard-card-shift'],'-142px','layout resizing must not hide keyboard detection');
+t.vv.height=800;t.fire();
+assert(!t.classes.has('keyboard-open'));
+assert(!('--keyboard-card-shift' in t.props),'shift should reset when keyboard closes');
+t=fixture({cardTop:50,cardHeight:200});t.vv.height=480;t.fire();
+assert.equal(t.props['--keyboard-card-shift'],'0px','dialog fully above keyboard must not move');
+t=fixture();t.vv.scale=2;t.vv.height=420;t.fire();
+assert(!t.classes.has('keyboard-open'),'pinch zoom is not a keyboard');
+t=fixture({typing:false});t.vv.height=400;t.fire();
+assert(!t.classes.has('keyboard-open'),'no typing, no keyboard state');
+console.log('Keyboard viewport: anchored overlay, one eased card translation, safe resize/focus handling.');

@@ -111,7 +111,7 @@ span.trash-row-check {
 .modal-card {
   width: min(100%, 440px);
   max-width: 440px;
-  max-height: min(78vh, calc(var(--vvh, 100vh) - 32px));
+  max-height: var(--modal-height-limit, min(78vh, calc(var(--vvh, 100vh) - 32px)));
   display: flex;
   flex-direction: column;
   background: var(--paper);
@@ -119,18 +119,28 @@ span.trash-row-check {
   box-shadow: var(--shadow-2);
   padding-bottom: 0;
   animation: modal-slide-up .34s var(--motion-settle);
+  /* Independent of the opening transform animation. Keyboard movement is
+     one smooth compositor translation, never an alignment/padding snap. */
+  translate: 0 var(--keyboard-card-shift, 0px);
+  transition: translate 300ms cubic-bezier(.25, .1, .25, 1);
+}
+/* A text-input dialog is positioned at the precise vertical location where
+   it opened. Changing its max-height to fit above the keyboard does not
+   alter this origin, unlike flex centering (which used to jump instantly). */
+.modal-card.modal-card-anchored {
+  position: absolute;
+  left: 50%;
+  top: var(--modal-card-top, 0px);
+  width: min(calc(100% - 24px), 440px);
+  translate: -50% var(--keyboard-card-shift, 0px);
 }
 
-/* Keyboard open (class set by initViewportSync in app.js): keep the card
-   where it already was instead of re-centering it in the shorter area.
-   --kb-card-top is measured in JS from the card's own position. */
-html.keyboard-open .modal-overlay {
-  align-items: flex-start;
-  padding-top: var(--kb-card-top, max(12px, env(safe-area-inset-top)));
-  transition: opacity var(--dur-base) ease, padding-top .18s cubic-bezier(.22,1,.36,1);
-}
-html.keyboard-open .modal-card {
-  max-height: calc(var(--vvh, 100vh) - var(--kb-card-top, 12px) - 12px);
+/* The dialog's fixed overlay is frozen at its pre-keyboard height when
+   opened; do not switch align-items or padding on keyboard resize. For
+   playlist/label dialogs the only displacement is the eased card translate.
+   Other dialogs use the same logic with internal body scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  .modal-card { transition: none; }
 }
 /* The shared dialog now behaves like a centered popup at every viewport
    size. A small rise + scale gives the card some arrival motion without
@@ -216,13 +226,10 @@ html.keyboard-open .modal-card {
    inline control (see the comment above), so give it more presence than
    the base .seg-toggle-btn sizing — taller tap targets and a slightly
    larger label read better spanning the popup's full width. */
-/* Toolbar = tab track + multi-select button, built to share ONE height
-   (--db-picker-ctl) instead of two numbers that merely happened to be
-   close. The track's old 2px-top/4px-bottom margin used to sit on the
-   track alone, which pushed it 1px above the button's centre line, so
-   that spacing now lives on the toolbar instead. Both controls use the
-   same flat fill + 1px border; the button is a circle (the app's
-   icon-button shape) rather than a rounded square beside a capsule. */
+/* The multiple-selection toggle uses the same floating circular icon-button
+   language as Back / Favorite on the song page: paper fill, small press lip,
+   and an accent-filled selected state. It is vertically centered beside the
+   taller segmented tabs instead of stretching to their height. */
 .db-picker-toolbar {
   --db-picker-ctl: 44px;
   display: flex; align-items: center; gap: 8px;
@@ -232,21 +239,33 @@ html.keyboard-open .modal-card {
 .db-picker-tabs .seg-toggle-btn { padding: 0 10px; font-size: 0.85rem; }
 .db-picker-toolbar .db-picker-tabs { flex: 1; min-width: 0; width: auto; box-sizing: border-box; height: var(--db-picker-ctl); }
 .db-picker-multi.icon-btn {
-  flex: 0 0 var(--db-picker-ctl);
-  width: var(--db-picker-ctl); height: var(--db-picker-ctl);
-  border-radius: 50%;
-  background: var(--paper);   /* same fill as the tab track beside it */
-  box-shadow: none;           /* flat like the track — no lip */
+  flex: 0 0 38px;
+  width: 38px; height: 38px;
+  transition: transform var(--dur-press) ease,
+              box-shadow var(--dur-press) ease,
+              background-color var(--dur-base) ease,
+              border-color var(--dur-base) ease;
 }
-.db-picker-multi.icon-btn:active { transform: scale(var(--press-scale-icon)); box-shadow: none; }
-/* On state mirrors the tab thumb (.seg-toggle-thumb): solid accent fill,
-   light glyph, inverted pairing in dark mode. The glyph colour is set on
-   the svg's fill because .icon-btn svg hard-codes fill (a plain `color`
-   never reached it, so the old on state kept a grey icon). */
-.db-picker-multi[aria-pressed="true"] { background: var(--accent-strong); border-color: var(--accent-strong); }
+.db-picker-multi.icon-btn svg { transition: fill var(--dur-base) ease; }
+/* Selected state matches the Favorite button's solid-color / raised-lip
+   treatment, using the current accent rather than the heart's red. */
+.db-picker-multi[aria-pressed="true"] {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
+}
 .db-picker-multi[aria-pressed="true"] svg { fill: var(--paper); }
-html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.db-picker-multi[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--accent-strong) 40%, var(--line));
+}
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: var(--shadow-1), 0 var(--lip-sm) 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
+}
 html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] svg { fill: var(--paper-dim); }
+html[data-theme="dark"] .db-picker-multi[aria-pressed="true"]:active {
+  box-shadow: var(--shadow-1), 0 0 0 color-mix(in srgb, var(--accent) 40%, var(--paper-dim));
+}
 .db-picker-multi:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 .checklist { list-style: none; margin: 8px 0 0; padding: 0; }
 /* Wraps the DB picker's checklist (see openDbPickerModal / renderList in
@@ -304,22 +323,33 @@ html[data-theme="dark"] .db-picker-multi[aria-pressed="true"] svg { fill: var(--
   border-color: var(--accent-strong);
 }
 .checklist-item[aria-pressed="true"] .checklist-check svg { opacity: 1; }
-/* Database picker rows. Selected = highlighted row (same accent-tint +
-   accent-strong pairing as the Chord Finder menu's active segment), in both
-   modes. The round check indicator only appears in multi-select mode, where
-   rows act as checkboxes (.is-multi is toggled on the list by
-   syncSelectionUI in app.js); in single-select mode a tap just picks the
-   library, so a checkbox would promise something that isn't there. */
+/* Database rows always reserve the same 24px trailing check area, whether
+   multi-selection is enabled or not. Previously the check switched from
+   display:none to display:flex, taking away text width instantly and making
+   long database names wrap. That caused the entire modal to jump taller.
+   Keeping layout dimensions stable eliminates the jump altogether; only the
+   checkmark fades/scales into place, with no reflow or main-thread animation. */
+.db-picker-item { position: relative; padding-right: 50px; }
 .db-picker-item[aria-pressed="true"] {
   background: var(--accent-tint);
   border-color: var(--accent-strong);
   color: var(--accent-strong);
 }
-.db-picker-item .checklist-check { display: none; }
-.checklist.is-multi .db-picker-item .checklist-check { display: flex; animation: db-check-in .18s var(--motion-settle); }
-@keyframes db-check-in {
-  from { opacity: 0; transform: scale(.7); }
-  to { opacity: 1; transform: scale(1); }
+.db-picker-item .checklist-check {
+  display: flex;
+  position: absolute;
+  top: 50%; right: 14px;
+  transform: translateY(-50%) scale(.76);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) ease,
+              transform .28s var(--motion-settle),
+              background-color var(--dur-base) ease,
+              border-color var(--dur-base) ease;
+}
+.checklist.is-multi .db-picker-item .checklist-check {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
 }
 .checklist-item-icon { flex-shrink: 0; color: var(--ink-faint); }
 .checklist-item.is-favorites .checklist-item-icon { color: var(--danger); }

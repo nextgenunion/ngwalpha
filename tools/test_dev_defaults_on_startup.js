@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs'),path=require('path');
+const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+const settings=fs.readFileSync(path.join(__dirname,'../js/settings.js'),'utf8');
+const css=require('./read_stylesheet.cjs').readStylesheet().css;
+const init=settings.slice(settings.indexOf('function initDevOptions()'),settings.indexOf('/* @end:initDevOptions */'));
+assert(app.includes('devHideDescriptions: true'),'hide description should default to true');
+assert(app.includes("safe('initDevOptions', initDevOptions)"),'developer defaults must initialize');
+assert(init.includes('  applyDevOptions();\n}'),'applyDevOptions must run on startup, not just inside a toggle');
+assert(css.includes('html[data-hide-setting-desc] .settings-row-sub:not(.settings-row-current-value)'),'description CSS must hide regular subtext');
+console.log('Developer defaults: hide-description preference actually applied at startup.');

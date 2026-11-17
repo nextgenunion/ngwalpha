@@ -5,7 +5,7 @@
 > `beta.1` / `beta.2` / `beta.00000` counter. See "Versioning scheme" below
 > for the full policy. This is not optional and not a "just this once."
 
-# Next Gen Worship — Worship Song App (v5.0.95-alpha)
+# Next Gen Worship — Worship Song App (v5.1.1-alpha)
 
 An offline-first worship songbook PWA. Static HTML/CSS/JS, no build step, no
 backend — built to run on GitHub Pages and install like a native app.
@@ -13,6 +13,26 @@ backend — built to run on GitHub Pages and install like a native app.
 This is the **Version 5** line: the songbook, Playlists/Favorites, User Songs,
 backup/import, labels and Trash, with guitar/piano chord tools. Sheet Music
 remains an optional developer preview.
+
+## v5.1.1 database picker polish
+
+- Multi-database checkmark now uses the same raised circular `icon-btn` / `icon-btn-float` visual language as the song-view Back and Favorites controls, including a matching accent-filled selected state and press feedback.
+- Database option rows reserve the trailing checkbox space in both single- and multi-selection modes; toggling multi-selection only fades/scales the checks, without narrowing the labels and abruptly increasing the dialog height.
+- No changes to selected databases, search, song rendering, offline caching, or saved user data. Mobile/light/dark layout checks and source tests passed; full installed-PWA testing remains necessary.
+
+## v5.1.0 restore v4 song transitions and keyboard-safe popups
+
+- Restored the v4.1.1 horizontal song-view push (320 ms) and Back pop (260 ms) on web, installed PWA and Android native wrapper; removed the v5-specific short fade / delayed native animation that replaced it.
+- Creating or renaming playlists and adding/editing labels no longer re-centers the dialog when the on-screen keyboard rises. The overlay keeps its initial geometry and the card only moves as needed on one eased compositor translation; removed the extra `scrollIntoView()` correction.
+- The Developer Options defaults (including hidden Settings descriptions and hidden slider dots) are now applied at startup instead of only when a toggle is pressed.
+- Keyboard movements remain reduced-motion aware and offline data/splash/announcements remain unchanged.
+- Source-level regression guards added; real-device Android keyboard and navigation testing remains necessary.
+
+## v5.0.99 slider steps and accent-colour fix
+
+- Restores the 12 positions for both song-view size sliders: lyrics 0.75–1.63 in 0.08 rem steps and chords 0.60–1.26 in 0.06 rem steps. A−/A+ controls use the same increments if sliders are disabled.
+- Developer-only optional guide dots now show 12 faint 4px dots and preserve the accent-coloured slider fill. Fixed CSS `calc()` spacing that could invalidate the full track background when dots were enabled.
+- Step dots remain **off by default**. No slider settings, offline assets or other features were changed.
 
 ## v5.0.95 presentation settings: custom colours where you see them, lighter panel
 
@@ -1479,3 +1499,13 @@ UI (chip picker, fretboard, etc.) — it's a plain textarea using the same
 someone would need to already know to read "Editing the song list," below.
 The editor still has no Sheet Music attachment control. User Songs do support
 manual import/export and editable labels; see the current backup format above.
+
+
+### Presentation Settings refinement (v5.1.2 Alpha)
+
+- Added Bold Italic font style for lyrics and title slides (works offline with bundled fonts).
+- Removed the separate Presentation Advanced page without losing its background media picker or dim control; these are now in ordinary Presentation Settings.
+- Added a Lyrics / Title preview switch; title preview responds to title-slide visibility switches and uses the active song when available.
+- Back from Presentation Settings resumes the previous presentation (same song, slide and blank state). Fullscreen may need to be re-entered from the controls because browser history navigation cannot always request fullscreen.
+- Strengthened the Shadow effect for readability over bright or busy backgrounds.
+- Kept Cut and Fade as the two low-distraction transitions; no third transition was introduced.
