@@ -49,7 +49,6 @@
   const MIN_FONT_PX = 12;
   const CONTROLS_IDLE_MS = 2200;        // mouse / keyboard: the panel hides quickly
   const CONTROLS_IDLE_TOUCH_MS = 6000;  // touch: a finger needs longer to reach the next button
-  const LS_FS = 'sb-pres-fs';           // '0' = the person left full screen on purpose
   const LS_INTRO = 'sb-pres-intro';     // { n: launches that showed the hint, done: panel was opened }
   const INTRO_MAX_LAUNCHES = 4;
   const INTRO_SHOW_MS = 4500;
@@ -186,7 +185,7 @@
   // ---------- advanced look (font, colours, effect, dim) ----------
   const LS_ADV = 'sb-pres-adv';
   const HEX = /^#[0-9a-f]{6}$/i;
-  const ADV_DEFAULTS = { font: 'standard', fontStyle: 'normal', textColor: null, bgColor: null, effect: 'shadow', dim: 0 };
+  const ADV_DEFAULTS = { font: 'standard', fontStyle: 'normal', textColor: null, bgColor: null, effect: 'shadow', effects: {}, dim: 0 };
   const FONTS = {
     standard: ['presFontStandard', 'var(--font-lyrics)'],
     classic: ['presFontClassic', "ui-serif, 'Times New Roman', Georgia, serif"],
@@ -218,17 +217,23 @@
   const EFFECTS = ['none', 'shadow', 'glow', 'outline'];
   const DIM_MAX = 70;
   const AUTO_DIM = 30; // a new picture/video starts a little dimmed so lyrics stay readable
-  let adv = { ...ADV_DEFAULTS };
+  let adv = { ...ADV_DEFAULTS, effects: {} };
 
   function loadAdvanced() {
-    adv = { ...ADV_DEFAULTS };
+    adv = { ...ADV_DEFAULTS, effects: {} };
     try {
       const saved = JSON.parse(localStorage.getItem(LS_ADV));
       if (!saved || typeof saved !== 'object') return;
       if (Object.hasOwn(FONTS, saved.font) || Object.hasOwn(ONLINE_FONTS, saved.font)) adv.font = saved.font;
       if (Object.hasOwn(FONT_STYLES, saved.fontStyle)) adv.fontStyle = saved.fontStyle;
-      if (HEX.test(saved.textColor)) adv.textColor = saved.textColor;
-      if (HEX.test(saved.bgColor)) adv.bgColor = saved.bgColor;
+      adv.textColor = readPaint(saved.textColor);
+      adv.bgColor = readPaint(saved.bgColor);
+      for (const effect of EFFECTS) {
+        const prefs = saved.effects?.[effect];
+        if (!prefs || effect === 'none') continue;
+        const strength = Number.isFinite(prefs.strength) ? Math.min(100, Math.max(0, prefs.strength)) : 50;
+        adv.effects[effect] = { strength, color: HEX.test(prefs.color) ? prefs.color : null };
+      }
       if (EFFECTS.includes(saved.effect)) adv.effect = saved.effect;
       const dim = Number(saved.dim);
       if (Number.isFinite(dim)) adv.dim = Math.min(DIM_MAX, Math.max(0, Math.round(dim / 5) * 5));
@@ -245,6 +250,32 @@
     } catch (_) {}
   }
 
+  function readPaint(value) {
+    if (typeof value === 'string' && HEX.test(value)) return value;
+    if (!value || !HEX.test(value.start) || !HEX.test(value.end) || !Number.isFinite(value.angle)) return null;
+    return { start: value.start, end: value.end, angle: ((value.angle % 360) + 360) % 360 };
+  }
+
+  function paintCss(value) {
+    return value && typeof value === 'object'
+      ? `linear-gradient(${value.angle}deg, ${value.start}, ${value.end})`
+      : value;
+  }
+
+  function paintLuminance(value) {
+    return typeof value === 'string' ? luminance(value) : (luminance(value.start) + luminance(value.end)) / 2;
+  }
+
+  function activeEffect() {
+    return adv.effects[adv.effect] || { strength: 50, color: null };
+  }
+
+  function autoEffectColor() {
+    const text = textColor();
+    if (adv.effect === 'glow') return typeof text === 'string' ? text : text.start;
+    return paintLuminance(text) > 0.179 ? '#000000' : '#ffffff';
+  }
+
   // Relative luminance (WCAG). White vs black text is equally readable at 0.179.
   function luminance(hex) {
     const ch = (i) => {
@@ -255,7 +286,7 @@
   }
   function bgIsLight() {
     if (background.kind === 'media') return false;
-    if (adv.bgColor) return luminance(adv.bgColor) > 0.179;
+    if (adv.bgColor) return paintLuminance(adv.bgColor) > 0.179;
     return BACKGROUNDS[background.preset][2] === 'dark';
   }
   // Auto follows the background (white on photos and video); White/Black force
@@ -269,14 +300,19 @@
   // Sets everything the CSS needs on the overlay or the settings preview.
   function applyTone(node) {
     const text = textColor();
-    const lightText = luminance(text) > 0.179;
+    const lightText = paintLuminance(text) > 0.179;
     node.dataset.tone = lightText ? 'light' : 'dark';
     node.dataset.bg = background.kind === 'media' ? 'media' : 'preset';
     node.dataset.bgTone = bgIsLight() ? 'light' : 'dark';
     node.dataset.effect = adv.effect;
-    node.style.setProperty('--pres-text', text);
-    // Shadow and outline use the opposite of the text; glow uses the text colour.
-    node.style.setProperty('--pres-fx', adv.effect === 'glow' ? text : (lightText ? '#000000' : '#ffffff'));
+    const gradient = typeof text === 'object';
+    const effect = activeEffect();
+    node.toggleAttribute('data-text-gradient', gradient);
+    node.style.setProperty('--pres-text', gradient ? text.start : text);
+    node.style.setProperty('--pres-text-gradient', gradient ? paintCss(text) : '');
+    node.style.setProperty('--pres-fx', effect.color || autoEffectColor());
+    node.style.setProperty('--pres-fx-size', String(effect.strength / 50));
+    node.style.setProperty('--pres-fx-opacity', Math.min(100, effect.strength * 2) + '%');
     node.style.setProperty('--pres-dim', String(adv.dim / 100));
     const online = ONLINE_FONTS[adv.font];
     node.style.setProperty('--pres-font', online ? `"${online}", var(--font-lyrics)` : FONTS[adv.font][1]);
@@ -298,7 +334,7 @@
 
   function paintBackground(layer, preview = false, translate = cfg && cfg.t) {
     layer.replaceChildren();
-    layer.style.background = background.kind === 'preset' ? (adv.bgColor || BACKGROUNDS[background.preset][1]) : '#000';
+    layer.style.background = background.kind === 'preset' ? (paintCss(adv.bgColor) || BACKGROUNDS[background.preset][1]) : '#000';
     if (background.kind !== 'media' || !mediaURL) return;
     const media = document.createElement(background.media === 'video' ? 'video' : 'img');
     if (background.media === 'video') {
@@ -344,44 +380,73 @@
     loadAdvanced();
   }
 
-  // The same 16:9 preview can show the lyrics or the actual title-slide
-  // layout. This keeps Settings compact while making the title switches
-  // visible immediately, without opening Presentation Mode.
-  function makePreview(translate, hooks = {}) {
+  // First stanza of song #1 in each bundled SDA collection, available offline.
+  const ENGLISH_PREVIEW = {
+    "number": 1,
+    "title": "Praise to the Lord",
+    "artist": "Traditional",
+    "lines": [
+      "Praise to the Lord, the Almighty, the King of creation!",
+      "O my soul, praise Him, for He is thy health and salvation!",
+      "All ye who hear, Now to His temple draw near;",
+      "Join ye in glad adoration!"
+    ]
+  };
+  const MONGOLIAN_PREVIEW = {
+    "number": 1,
+    "title": "Есүс Та Монголд алдаршаач",
+    "artist": "Адвентист Сүм Магтаал",
+    "lines": [
+      "Орчлон Ертөнцийн ганц Эзэн",
+      "Есүс Та Монголд алдаршаач Аа",
+      "Мөнхийн үхэл аймшгийг",
+      "Өөрөө туулан гарсан"
+    ]
+  };
+
+  function makePreview(translate) {
     const wrap = el('div', 'pres-preview-wrap');
-    const bar = el('div', 'pres-preview-toolbar');
-    bar.appendChild(el('span', 'settings-row-title', translate('presPreviewLabel')));
     const preview = el('div', 'pres-background-preview');
     const layer = el('div', 'pres-bg');
     const sample = el('div', 'pres-background-sample');
+    sample.setAttribute('aria-live', 'polite');
     preview.append(layer, sample);
-    let mode = 'lyrics';
+
+    const language = document.documentElement.lang;
+    const song = ['mn', 'mn2'].includes(language) ? MONGOLIAN_PREVIEW : ENGLISH_PREVIEW;
+    let mode = titlePrefs.presTitleSlide === false ? 'lyrics' : 'title';
+    const previous = el('button', 'icon-btn pres-preview-arrow', '‹');
+    const next = el('button', 'icon-btn pres-preview-arrow', '›');
+    previous.type = next.type = 'button';
+    previous.setAttribute('aria-label', translate('presPreviewTitle'));
+    next.setAttribute('aria-label', translate('presPreviewLyrics'));
+
+    const renderSlide = () => {
+      sample.classList.toggle('is-title-preview', mode === 'title');
+      previous.setAttribute('aria-current', String(mode === 'title'));
+      next.setAttribute('aria-current', String(mode === 'lyrics'));
+      previous.disabled = titlePrefs.presTitleSlide === false;
+      const slide = mode === 'lyrics'
+        ? { kind: 'lyrics', lines: song.lines }
+        : {
+          kind: 'title',
+          number: titlePrefs.presTitleNumber === false ? null : song.number,
+          title: titlePrefs.presTitleText === false ? null : song.title,
+          artist: titlePrefs.presTitleArtist === false ? null : song.artist,
+        };
+      sample.replaceChildren(buildCard(slide));
+    };
+    previous.addEventListener('click', () => { mode = 'title'; renderSlide(); });
+    next.addEventListener('click', () => { mode = 'lyrics'; renderSlide(); });
+    wrap.append(previous, preview, next);
     const refresh = () => {
+      if (titlePrefs.presTitleSlide === false) mode = 'lyrics';
       paintBackground(layer, true, translate);
       applyTone(preview);
-      sample.replaceChildren();
-      sample.classList.toggle('is-title-preview', mode === 'title');
-      if (mode === 'lyrics') {
-        sample.textContent = translate('presBackgroundSample');
-      } else if (titlePrefs.presTitleSlide !== false) {
-        const song = hooks.previewSong;
-        const card = buildCard({
-          kind: 'title',
-          number: titlePrefs.presTitleNumber === false ? null : (song?.number ?? '108'),
-          title: titlePrefs.presTitleText === false ? null : (song?.title || translate('presPreviewExampleTitle')),
-          artist: titlePrefs.presTitleArtist === false ? null : (song?.artist || translate('presPreviewExampleArtist')),
-        });
-        sample.appendChild(card);
-      }
+      renderSlide();
     };
-    const modes = segControl(translate, 'presPreviewLabel',
-      [['lyrics', translate('presPreviewLyrics')], ['title', translate('presPreviewTitle')]], mode,
-      value => { mode = value; refresh(); });
-    modes.classList.add('pres-preview-modes');
-    bar.appendChild(modes);
-    wrap.append(bar, preview);
     refresh();
-    return { preview: wrap, refresh };
+    return { preview: wrap, refresh, showTitle: () => { mode = 'title'; refresh(); } };
   }
 
   function settingsRow(translate, titleKey, control, wide) {
@@ -425,11 +490,11 @@
     return seg;
   }
 
-  function settings(translate, hooks = {}) {
+  function settings(translate) {
     loadAll();
     const container = document.getElementById('presentation-settings-content');
     container.replaceChildren();
-    const { preview, refresh } = makePreview(translate, hooks);
+    const { preview, refresh, showTitle } = makePreview(translate);
     ensureMedia().then(ok => { if (ok) refresh(); });
 
     // Look: background colour + text colour (Auto follows the background).
@@ -440,14 +505,14 @@
     section.appendChild(el('h3', 'settings-heading', translate('presLook')));
     const swatches = el('div', 'accent-swatches');
     const presetButtons = [];
-    const customBg = colorPicker(translate, 'presCustomBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (hex) => {
+    const customBg = colorPicker(translate, 'presCustomBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (paint) => {
       const wasMedia = background.kind === 'media';
       dropMedia(); // a colour replaces any picture/video (and its saved file)
       if (wasMedia) { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
-      adv.bgColor = hex; saveAdvanced();
+      adv.bgColor = paint; saveAdvanced();
       presetButtons.forEach(b => b.setAttribute('aria-pressed', 'false'));
       refresh();
-    });
+    }, { gradients: true });
     Object.entries(BACKGROUNDS).forEach(([id, [label, css]]) => {
       const button = el('button', 'accent-swatch pres-swatch');
       button.type = 'button';
@@ -482,11 +547,11 @@
       saveAdvanced();
       refresh();
     });
-    const customText = colorPicker(translate, 'presCustomTextColor', adv.textColor, textColor(), (hex) => {
-      adv.textColor = hex; saveAdvanced();
+    const customText = colorPicker(translate, 'presCustomTextColor', adv.textColor, bgIsLight() ? '#111111' : '#ffffff', (paint) => {
+      adv.textColor = paint; saveAdvanced();
       textSeg.select(null);
       refresh();
-    });
+    }, { gradients: true });
     const textControl = el('div', 'pres-text-control');
     textControl.append(textSeg, customText);
     section.appendChild(settingsRow(translate, 'presTextColor', textControl, true));
@@ -503,10 +568,55 @@
       });
     fontStyleControl.classList.add('pres-font-style-toggle');
     text.appendChild(settingsRow(translate, 'fontStyle', fontStyleControl, true));
+    const effectOptions = el('div', 'pres-effect-options');
+    const strength = el('input', 'app-range pres-range');
+    strength.type = 'range';
+    strength.min = '0';
+    strength.max = '100';
+    strength.step = '5';
+    strength.setAttribute('aria-label', translate('presEffectStrength'));
+    const strengthValue = el('output', 'pres-range-value');
+    const strengthControl = el('div', 'pres-range-wrap');
+    strengthControl.append(strength, strengthValue);
+    effectOptions.appendChild(settingsRow(translate, 'presEffectStrength', strengthControl));
+
+    const colorControl = el('div', 'pres-text-control');
+    const auto = el('button', 'seg-toggle-btn', translate('presTextAuto'));
+    auto.type = 'button';
+    const autoPill = el('div', 'seg-toggle pres-effect-auto');
+    autoPill.append(auto);
+    const custom = colorPicker(translate, 'presEffectCustomColor', activeEffect().color,
+      autoEffectColor, color => updateEffect({ color }));
+    colorControl.append(autoPill, custom);
+    effectOptions.appendChild(settingsRow(translate, 'presColor', colorControl));
+
+    function syncEffect() {
+      const prefs = activeEffect();
+      effectOptions.hidden = adv.effect === 'none';
+      strength.value = prefs.strength;
+      strengthValue.textContent = prefs.strength + '%';
+      strength.style.setProperty('--p', prefs.strength + '%');
+      auto.setAttribute('aria-pressed', String(!prefs.color));
+      custom.setColor(prefs.color);
+    }
+    function updateEffect(changes) {
+      adv.effects[adv.effect] = { ...activeEffect(), ...changes };
+      saveAdvanced();
+      syncEffect();
+      refresh();
+    }
+    strength.addEventListener('input', () => updateEffect({ strength: Number(strength.value) }));
+    auto.addEventListener('click', () => updateEffect({ color: null }));
+
     text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
       EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
-        adv.effect = value; saveAdvanced(); refresh();
+        adv.effect = value;
+        saveAdvanced();
+        syncEffect();
+        refresh();
       }), true));
+    text.appendChild(effectOptions);
+    syncEffect();
     // Slide change: Cut or Fade. (Used to live in the presentation panel; it is
     // rarely changed mid-song. Hidden when the device asks for reduced motion,
     // because slides always cut then.)
@@ -519,7 +629,6 @@
 
     // Title slide: one switch per part.
     const titles = el('section', 'settings-section');
-    titles.appendChild(el('h3', 'settings-heading', translate('presTitleSlide')));
     const switches = {};
     for (const key of titleOptions) {
       const sw = el('button', 'switch');
@@ -535,7 +644,8 @@
         titlePrefs[key] = on;
         try { localStorage.setItem('sb-pres-title', JSON.stringify(titlePrefs)); } catch (_) {}
         if (key === 'presTitleSlide') titleOptions.slice(1).forEach(k => { switches[k].disabled = !on; });
-        refresh();
+        if (titlePrefs.presTitleSlide === false) refresh();
+        else showTitle();
       });
       if (key !== 'presTitleSlide') sw.disabled = titlePrefs.presTitleSlide === false;
       titles.appendChild(settingsRow(translate, key, sw));
@@ -553,21 +663,20 @@
     reset.addEventListener('click', () => {
       dropMedia();
       background = { kind: 'preset', preset: 'black' };
-      adv = { ...ADV_DEFAULTS };
+      adv = { ...ADV_DEFAULTS, effects: {} };
       textPref = 'auto';
       transition = DEFAULT_TRANSITION;
       saveBackground();
       saveAdvanced();
       savePref(LS_TEXT, 'auto');
       savePref(LS_TRANSITION, DEFAULT_TRANSITION);
-      settings(translate, hooks); // rebuild with the defaults
+      settings(translate); // rebuild with the defaults
     });
-    const resetSection = el('section', 'settings-section');
     const resetRow = el('div', 'settings-row pres-reset-row');
     resetRow.appendChild(reset);
-    resetSection.appendChild(resetRow);
+    text.appendChild(resetRow);
 
-    container.append(preview, section, media, text, titles, resetSection);
+    container.append(preview, section, media, text, titles);
     if (typeof initIcons === 'function') initIcons(container);
   }
 
@@ -593,14 +702,14 @@
     return button;
   }
 
-  function colorPicker(translate, labelKey, value, fallback, onInput) {
+  function colorPicker(translate, labelKey, value, fallback, onInput, { gradients = false } = {}) {
     const button = el('button', 'accent-swatch pres-swatch pres-custom');
     button.type = 'button';
     button.dataset.presPicker = labelKey;
     button.setAttribute('aria-label', translate(labelKey));
     button.setAttribute('aria-haspopup', 'dialog');
     const show = (hex) => {
-      button.style.setProperty('--pres-swatch-color', hex || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)');
+      button.style.setProperty('--pres-swatch-color', paintCss(hex) || 'conic-gradient(#f44, #fd4, #4d6, #4bf, #84f, #f4a, #f44)');
       button.dataset.selected = String(!!hex);
       button.setAttribute('aria-pressed', String(!!hex));
     };
@@ -615,9 +724,13 @@
       hexInput.type = 'text';
       hexInput.spellcheck = false;
       hexInput.maxLength = 7;
-      hexInput.value = value || fallback;
+      const defaultColor = typeof fallback === 'function' ? fallback() : fallback;
+      const initialGradient = typeof value === 'object' && value;
+      hexInput.value = initialGradient ? initialGradient.start : value || defaultColor;
       hexRow.appendChild(hexInput);
-      editor.append(preview, hexRow);
+      const solidControls = el('div', 'pres-color-fields');
+      solidControls.append(hexRow);
+      editor.append(preview, solidControls);
 
       const channels = [['colorHue', 359, 1], ['colorSaturation', 100, 0.1], ['colorLightness', 100, 0.1]];
       const sliders = channels.map(([label, max, step]) => {
@@ -628,7 +741,7 @@
         slider.max = String(max);
         slider.step = String(step);
         row.appendChild(slider);
-        editor.appendChild(row);
+        solidControls.appendChild(row);
         return slider;
       });
       const actions = el('div', 'modal-actions');
@@ -639,6 +752,54 @@
       editor.appendChild(actions);
       sliders[0].style.setProperty('--pres-channel-track', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
       let draft;
+      const mode = initialGradient ? 'gradient' : 'solid';
+      let initialize = () => update(true);
+      if (gradients) {
+        const fields = el('div', 'pres-color-fields');
+        const stop = (label, initial) => {
+          const row = el('label', 'pres-color-row', translate(label));
+          const input = el('input', 'pres-gradient-stop');
+          input.type = 'color';
+          input.value = initial;
+          row.append(input);
+          fields.append(row);
+          input.addEventListener('input', drawGradient);
+          return input;
+        };
+        const first = stop('presGradientStart', initialGradient?.start || hexInput.value);
+        const second = stop('presGradientEnd', initialGradient?.end || '#40a8e8');
+        const direction = el('label', 'pres-color-row', translate('presGradientAngle'));
+        const angle = el('input', 'app-range');
+        angle.type = 'range';
+        angle.min = '0';
+        angle.max = '359';
+        angle.value = initialGradient?.angle ?? 90;
+        const angleValue = el('output', 'pres-range-value');
+        const rangeWrap = el('span', 'pres-range-wrap');
+        rangeWrap.append(angle, angleValue);
+        direction.append(rangeWrap);
+        fields.append(direction);
+        angle.addEventListener('input', drawGradient);
+
+        function drawGradient() {
+          draft = { start: first.value, end: second.value, angle: Number(angle.value) };
+          angleValue.textContent = angle.value + '°';
+          angle.style.setProperty('--p', (draft.angle / 359 * 100) + '%');
+          preview.style.background = paintCss(draft);
+          done.disabled = false;
+        }
+        function selectMode(selected) {
+          solidControls.hidden = selected === 'gradient';
+          fields.hidden = selected === 'solid';
+          if (selected === 'gradient') drawGradient();
+          else update(true);
+        }
+        const modes = segControl(translate, labelKey,
+          [['solid', translate('presSolid')], ['gradient', translate('presGradient')]], mode, selectMode);
+        editor.prepend(modes);
+        editor.insertBefore(fields, actions);
+        initialize = () => selectMode(mode);
+      }
       const update = (fromHex) => {
         if (fromHex) {
           const candidate = hexInput.value.trim();
@@ -656,7 +817,7 @@
           hexInput.setAttribute('aria-invalid', 'false');
           done.disabled = false;
         }
-        preview.style.backgroundColor = draft;
+        preview.style.background = draft;
         const [h, s, l] = sliders.map(slider => Number(slider.value));
         sliders[1].style.setProperty('--pres-channel-track', `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`);
         sliders[2].style.setProperty('--pres-channel-track', `linear-gradient(to right, #000, hsl(${h} ${s}% 50%), #fff)`);
@@ -670,7 +831,7 @@
         onInput(value);
         closeModal({ immediate: true });
       });
-      update(true);
+      initialize();
       openModal(translate(labelKey), editor);
     });
     return button;
@@ -912,6 +1073,17 @@
     } else {
       if (slide.label) card.appendChild(el('div', 'pres-label', slide.label));
       slide.lines.forEach(line => card.appendChild(buildLine(line)));
+    }
+    if (adv.textColor && typeof adv.textColor === 'object') {
+      const fill = el('div', 'pres-gradient-fill');
+      fill.append(...card.childNodes);
+      if (adv.effect !== 'none' && activeEffect().strength > 0) {
+        const effect = fill.cloneNode(true);
+        effect.className = 'pres-gradient-effect';
+        effect.setAttribute('aria-hidden', 'true');
+        card.append(effect);
+      }
+      card.append(fill);
     }
     return card;
   }
@@ -1238,12 +1410,16 @@
   // full screen (iPhone Safari) simply skip it; an installed PWA there already
   // has no browser bars.
   function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
-  function fsSupported() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled); }
+  function fsSupported(element = document.documentElement) {
+    return !!((document.fullscreenEnabled && element.requestFullscreen)
+      || (document.webkitFullscreenEnabled && element.webkitRequestFullscreen));
+  }
   function enterFullscreen() {
     if (!root || fsElement() || !fsSupported()) return;
     try {
-      const request = root.requestFullscreen || root.webkitRequestFullscreen;
-      const result = request && request.call(root, { navigationUI: 'hide' });
+      const result = document.fullscreenEnabled && root.requestFullscreen
+        ? root.requestFullscreen({ navigationUI: 'hide' })
+        : root.webkitRequestFullscreen();
       if (result && typeof result.catch === 'function') result.catch(() => {});
     } catch (_) {}
   }
@@ -1258,11 +1434,8 @@
     if (!root) return;
     if (fsElement()) exitFullscreen(); else enterFullscreen();
   }
-  // Leaving full screen by hand (button, F, Esc) is remembered, so the next
-  // launch respects it; going back in remembers that too.
   function onFullscreenChange() {
     if (!root) return;
-    savePref(LS_FS, fsElement() ? '1' : '0');
     syncControls();
     scheduleRefresh();
   }
@@ -1526,11 +1699,8 @@
     if (background.kind === 'media' && !mediaURL) {
       ensureMedia().then(ok => { if (ok && root) paintBackground(root.querySelector('.pres-bg')); });
     }
-    // Full screen first (it needs the open click's user gesture), unless the
-    // person left it on purpose last time.
-    let wantFullscreen = true;
-    try { wantFullscreen = localStorage.getItem(LS_FS) !== '0'; } catch (_) {}
-    if (wantFullscreen) enterFullscreen();
+    // Request fullscreen while the launch click still has user activation.
+    enterFullscreen();
     syncControls();
     showIntro();
   }

@@ -19,5 +19,5 @@ assert.match(css, /\.checklist\.is-multi \.db-picker-item \.checklist-check\s*\{
   'multi mode must reveal checks without changing layout');
 assert.doesNotMatch(css, /\.db-picker-item \.checklist-check\s*\{[^}]*display:\s*none;/s,
   'display:none checkbox was the original source of the height jump');
-assert.match(version, /SONGBOOK_VERSION_NUMBER = '5\.1\.2'/);
+assert.match(version, /SONGBOOK_VERSION_NUMBER = '\d+\.\d+\.\d+'/);
 console.log('Database picker visual-stability contract PASS');

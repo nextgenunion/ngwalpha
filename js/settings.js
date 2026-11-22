@@ -605,7 +605,6 @@ function applyLanguage() {
     't-lyricsSpacingNormal': 'lyricsSpacingNormal',
     't-lyricsSpacingLoose': 'lyricsSpacingLoose',
     't-textSizeTitle': 'textSizeTitle',
-    't-textSizeSub': 'textSizeSub',
     't-lyricsWordSpacingTitle': 'lyricsWordSpacingTitle',
     't-lyricsWordSpacingSub': 'lyricsWordSpacingSub',
     't-lyricsWordSpacingTight': 'lyricsSpacingTight',

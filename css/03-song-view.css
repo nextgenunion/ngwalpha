@@ -505,3 +505,13 @@ html[data-theme="dark"] .seg-toggle-btn[aria-pressed="true"] { color: var(--pape
   padding: 4px 10px;
 }
 
+
+.font-size-reset {
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font-family: inherit;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.font-size-reset:focus-visible { outline: 2px solid var(--accent-strong); }

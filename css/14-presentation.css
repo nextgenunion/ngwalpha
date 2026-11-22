@@ -34,15 +34,33 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 /* Colour, font, effect and dim all come from variables that applyTone() sets. */
 .pres-overlay, .pres-background-preview { color: var(--pres-text, #fff); font-family: var(--pres-font, var(--font-lyrics)); }
 .pres-overlay[data-bg-tone="light"] .pres-hint { color: rgba(0,0,0,.5); }
-:is(.pres-overlay, .pres-background-preview)[data-effect="shadow"] :is(.pres-slide, .pres-background-sample) {
-  text-shadow: 0 .045em .12em color-mix(in srgb, var(--pres-fx) 88%, transparent), 0 .09em .24em color-mix(in srgb, var(--pres-fx) 70%, transparent), 0 0 .4em color-mix(in srgb, var(--pres-fx) 40%, transparent);
+[data-effect="shadow"] :is(.pres-slide:not(:has(.pres-gradient-fill)), .pres-gradient-effect) {
+  text-shadow:
+    calc(.025em * var(--pres-fx-size)) calc(.045em * var(--pres-fx-size)) calc(.15em * var(--pres-fx-size)) color-mix(in srgb, var(--pres-fx) calc(.88 * var(--pres-fx-opacity)), transparent),
+    calc(.045em * var(--pres-fx-size)) calc(.09em * var(--pres-fx-size)) calc(.29em * var(--pres-fx-size)) color-mix(in srgb, var(--pres-fx) calc(.70 * var(--pres-fx-opacity)), transparent),
+    0 0 calc(.4em * var(--pres-fx-size)) color-mix(in srgb, var(--pres-fx) calc(.40 * var(--pres-fx-opacity)), transparent);
 }
-:is(.pres-overlay, .pres-background-preview)[data-effect="glow"] :is(.pres-slide, .pres-background-sample) {
-  text-shadow: 0 0 .22em color-mix(in srgb, var(--pres-fx) 85%, transparent), 0 0 .6em color-mix(in srgb, var(--pres-fx) 55%, transparent);
+[data-effect="glow"] :is(.pres-slide:not(:has(.pres-gradient-fill)), .pres-gradient-effect) {
+  text-shadow:
+    0 0 calc(.22em * var(--pres-fx-size)) color-mix(in srgb, var(--pres-fx) calc(.85 * var(--pres-fx-opacity)), transparent),
+    0 0 calc(.6em * var(--pres-fx-size)) color-mix(in srgb, var(--pres-fx) calc(.55 * var(--pres-fx-opacity)), transparent);
 }
-:is(.pres-overlay, .pres-background-preview)[data-effect="outline"] :is(.pres-slide, .pres-background-sample) {
-  -webkit-text-stroke: .06em var(--pres-fx);
+[data-effect="outline"] :is(.pres-slide:not(:has(.pres-gradient-fill)), .pres-gradient-effect) {
+  -webkit-text-stroke: calc(.06em * var(--pres-fx-size)) var(--pres-fx);
   paint-order: stroke fill;
+}
+
+/* Both layers share the same wrapping and font size. The back layer carries
+   the effect so the front gradient can remain clipped to the glyphs. */
+[data-text-gradient] .pres-slide:not(.pres-measure) { display: grid; }
+.pres-gradient-fill, .pres-gradient-effect { grid-area: 1 / 1; min-width: 0; }
+.pres-gradient-effect { color: transparent; pointer-events: none; }
+.pres-gradient-fill {
+  position: relative;
+  background-image: var(--pres-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 /* Dim darkens only the background (picture, video or colour), never the text. */
 .pres-bg::after { content: ''; position: absolute; inset: 0; background: #000; opacity: var(--pres-dim, 0); pointer-events: none; }
@@ -270,14 +288,12 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-color-hex { width: 100%; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--paper); color: var(--ink); font: inherit; }
 .pres-color-hex[aria-invalid="true"] { outline: 2px solid var(--danger, #b42318); }
 
-/* Rows whose control needs the full width (segmented controls with 3-4 options). */
+/* Let long settings wrap naturally while keeping pills content-sized. */
 .pres-row-wide { flex-wrap: wrap; }
-.pres-row-wide .settings-row-text { flex: 1 0 100%; }
-.pres-row-wide .seg-toggle { width: 100%; }
-.pres-row-wide .seg-toggle-btn { flex: 1 1 0; }
+.pres-row-wide .seg-toggle { width: fit-content; max-width: 100%; }
 /* Text colour: Auto / White / Black plus the custom swatch on one line. */
-.pres-text-control { display: flex; align-items: center; gap: 12px; width: 100%; }
-.pres-text-control .seg-toggle { flex: 1 1 auto; width: auto; min-width: 0; }
+.pres-text-control { display: flex; align-items: center; gap: 8px; max-width: 100%; }
+.pres-text-control .seg-toggle { flex: 0 1 auto; width: auto; min-width: 0; }
 .pres-text-control .pres-custom { flex: 0 0 auto; }
 /* Nothing selected (a custom colour is in use): no highlight thumb. */
 .seg-toggle.is-none .seg-toggle-thumb { opacity: 0; }
@@ -288,14 +304,32 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-range-value { min-width: 2.6em; text-align: right; font-size: .82rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .pres-reset-row { justify-content: flex-start; }
 
-/* A compact preview switch shows both lyric and title-slide appearance.
-   The same stage renders both so custom fonts, colour and text effects agree. */
-.pres-preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
-.pres-preview-modes { flex: 0 1 auto; }
-.pres-preview-wrap .pres-background-preview { margin-top: 10px; }
-.pres-background-sample.is-title-preview { padding: 12px 20px; }
-.pres-background-sample.is-title-preview .pres-slide { font-size: clamp(1rem, 3.5vw, 1.75rem); max-width: 100%; }
+/* Keep the preview navigation outside the slide. */
+.pres-preview-wrap {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 0 16px;
+}
+.pres-preview-wrap .pres-background-preview { margin: 0; container-type: inline-size; }
+.pres-preview-arrow.icon-btn { width: 36px; height: 44px; font-size: 1.65rem; }
+.pres-preview-arrow[aria-current="true"], .pres-preview-arrow:disabled { opacity: .45; }
+.pres-background-sample { padding: 6%; }
+.pres-background-sample .pres-slide { font-size: clamp(.66rem, 3.7cqw, 1.75rem); max-width: 100%; }
+.pres-background-sample.is-title-preview .pres-slide { font-size: clamp(.85rem, 6cqw, 1.8rem); }
 .pres-background-sample.is-title-preview .pres-title-number { font-size: .55em; }
 .pres-background-sample.is-title-preview .pres-title-artist { font-size: .45em; }
 .pres-font-style-toggle .seg-toggle-btn { padding-inline: 5px; font-size: .69rem; white-space: nowrap; }
 @media (max-width: 360px) { .pres-font-style-toggle .seg-toggle-btn { padding-inline: 3px; font-size: .65rem; } }
+
+.pres-color-fields { display: grid; gap: 12px; }
+.pres-color-fields[hidden] { display: none; }
+.pres-color-editor > .seg-toggle { justify-self: start; }
+.pres-gradient-stop { width: 100%; height: 38px; cursor: pointer; }
+.pres-color-fields .pres-range-wrap { min-width: 0; }
+.pres-color-fields .pres-range-wrap .app-range { flex: 1; }
+.pres-effect-auto .seg-toggle-btn[aria-pressed="true"] {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}

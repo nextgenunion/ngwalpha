@@ -2377,6 +2377,25 @@ function bindSongView() {
     });
   });
 
+  [
+    ['lyrics', 'lyricsSize', 'sb-lyrics-size'],
+    ['chords', 'chordSize', 'sb-chord-size'],
+  ].forEach(([name, key, storageKey]) => {
+    for (const suffix of ['', 'Slider']) {
+      const label = document.getElementById('t-' + name + 'Group' + suffix);
+      let lastTap = null;
+      label.addEventListener('click', event => {
+        const now = performance.now();
+        if (event.detail === 0 || (lastTap !== null && now - lastTap <= 350)) {
+          state[key] = DEFAULT_SONG_TEXT_SIZE[key];
+          localStorage.setItem(storageKey, state[key]);
+          applyFontSizes();
+          lastTap = null;
+        } else lastTap = now;
+      });
+    }
+  });
+
   // Developer options → "Text size sliders": the slider version of the
   // A−/A+ chips above. Resizing is live while dragging (input); the value is
   // saved once the finger lifts (change), under the same keys as the chips.
@@ -3208,7 +3227,6 @@ function openSongSearchToolsModal() {
   const viewList = document.createElement('ul');
   viewList.className = 'checklist';
   viewSection.appendChild(viewList);
-  wrap.appendChild(viewSection);
 
   const viewItems = new Map();
   const viewOptions = [
@@ -3241,7 +3259,7 @@ function openSongSearchToolsModal() {
   const labelSection = document.createElement('section');
   labelSection.className = 'song-search-tools-section';
   const labelHeading = document.createElement('p');
-  labelHeading.className = 'song-search-tools-heading';
+  labelHeading.className = 'song-search-tools-heading song-label-filter-heading';
   labelHeading.textContent = t('filterLabelsTitle');
   labelSection.appendChild(labelHeading);
   wrap.appendChild(labelSection);
@@ -3269,23 +3287,19 @@ function openSongSearchToolsModal() {
     clearBtn.textContent = t('filterLabelsClear');
     clearBtn.disabled = state.songLabelFilters.length === 0;
     clearRow.appendChild(clearBtn);
-    labelSection.appendChild(clearRow);
 
-    const list = document.createElement('ul');
-    list.className = 'checklist';
-    labelSection.appendChild(list);
+    const list = document.createElement('div');
+    list.className = 'label-editor-chips';
+    labelSection.append(list, clearRow);
 
     const renderLabels = () => {
       list.innerHTML = '';
       available.forEach(label => {
         const item = document.createElement('button');
         item.type = 'button';
-        item.className = 'checklist-item';
+        item.className = 'label-editor-chip label-filter-chip';
         item.setAttribute('aria-pressed', String(state.songLabelFilters.includes(label)));
-        item.innerHTML = `
-          <span class="checklist-check"><svg data-icon="check" viewBox="0 0 24 24"></svg></span>
-          <span>${escapeHtml(labelDisplayText(label))}</span>
-        `;
+        item.textContent = labelDisplayText(label);
         item.addEventListener('click', () => {
           const selected = state.songLabelFilters.includes(label);
           state.songLabelFilters = selected
@@ -3298,7 +3312,6 @@ function openSongSearchToolsModal() {
         });
         list.appendChild(item);
       });
-      initIcons(list);
     };
 
     clearBtn.addEventListener('click', () => {
@@ -3313,6 +3326,7 @@ function openSongSearchToolsModal() {
     renderLabels();
   }
 
+  wrap.appendChild(viewSection);
   initIcons(wrap);
   openModal(t('searchOptionsTitle'), wrap);
 }

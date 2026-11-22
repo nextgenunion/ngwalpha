@@ -102,6 +102,8 @@ let announcements = [];
 const dismissedAnnouncements = new Set();
 const shownAnnouncements = new Set();
 
+const DEFAULT_SONG_TEXT_SIZE = Object.freeze({ lyricsSize: 1.07, chordSize: 0.84 });
+
 const state = {
   sources: SOURCE_REGISTRY.createRuntimeSources(),
   // Primary/last selected database for the single picker and Sheet Music.
@@ -149,8 +151,7 @@ const state = {
                        // openSongEditor(). Read by saveSongFromEditor() to
                        // decide insert vs update.
   transpose: 0,
-  lyricsSize: 1.07,   // rem (on the 12-level grid, see the size sliders in index.html)
-  chordSize: 0.84,    // rem (on the 12-level grid)
+  ...DEFAULT_SONG_TEXT_SIZE, // rem, on the 12-level slider grid
   chordStyle: 'chip', // 'chip' | 'text' — see applyChordStyle()
   noteNames: 'letters', // 'letters' | 'solfege' | 'mongolian' — display-only note labels
   hideChords: false,  // see applyHideChords()
@@ -241,7 +242,7 @@ const PAGES = {
   'about':          { elId: 'page-about',          navKey: 'settings',  rememberScroll: false, hideNav: true },
   // Built-in tool, opened from Settings → Tools. ChordFinder.init() builds
   // the fretboard once, the first time the page is shown (see js/chord-finder.js).
-  'presentation-settings': { elId: 'page-presentation-settings', navKey: 'settings', rememberScroll: false, hideNav: true, onEnter: () => SongPresentation.settings(t, { previewSong: state.activeSong }) },
+  'presentation-settings': { elId: 'page-presentation-settings', navKey: 'settings', rememberScroll: false, hideNav: true, onEnter: () => SongPresentation.settings(t) },
   'chord-finder':   { elId: 'page-chord-finder',   navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => { if (window.ChordFinder) window.ChordFinder.init(); updateAllSegToggleThumbs({ instant: true }); } },
   'trash':          { elId: 'page-trash',          navKey: 'settings',  rememberScroll: false, hideNav: true, onEnter: () => renderTrashList() },
   // Only reachable once unlocked (see unlockDevOptions()) — not through

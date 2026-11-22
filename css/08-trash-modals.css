@@ -212,7 +212,7 @@ span.trash-row-check {
 }
 
 .modal-hint { font-size: 0.82rem; color: var(--ink-faint); margin: 4px 2px 0; }
-.label-filter-actions { margin-top: 2px; margin-bottom: 4px; }
+.label-filter-actions { margin-top: 12px; }
 
 /* Database-picker modal (openDbPickerModal() in app.js) — reuses the
    .seg-toggle segmented control (see its own rules above), which
@@ -731,3 +731,24 @@ html[data-theme="dark"] .editor-preview { background: var(--surface); }
   .sv-header-actions { gap: 10px; }       /* 34px buttons -> 44px centers */
 }
 
+
+.song-label-filter-heading {
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
+.label-filter-chip {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  min-height: 34px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+.label-filter-chip[aria-pressed="true"] {
+  border-color: var(--accent-strong);
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+}
