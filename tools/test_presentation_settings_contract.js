@@ -16,12 +16,21 @@ assert.match(pres, /boldItalic: 'fontStyleBoldItalic'/);
 assert.match(pres, /adv\.fontStyle === 'boldItalic'/);
 assert.match(pres, /ital,wght@0,400;0,700;1,400;1,700/);
 assert.match(pres, /function mediaControls\(translate, refresh\)/);
-assert.match(pres, /text\.appendChild\(resetRow\)/);
-assert.match(pres, /container\.append\(preview, section, media, text, titles\)/);
+assert.match(pres, /titles\.appendChild\(resetRow\)/);
+assert.match(pres, /container\.append\(preview, tabs, text, media, effects, titles\)/);
+// Background colour lives in the Background section, text colour in the Text section.
+assert.match(pres, /media\.insertBefore\(bgColorRow, media\.firstChild\)/);
+// Reset and the title-slide switches share the Other tab; Effect and Transition share Effects.
+assert.match(pres, /titles\.appendChild\(resetRow\)/);
+assert.match(pres, /effects\.appendChild\(settingsRow\(translate, 'presEffect'/);
+assert.match(pres, /text\.appendChild\(textColorRow\)/);
+assert.doesNotMatch(pres, /presLook/);
 assert.doesNotMatch(html, /id="page-presentation-advanced"/);
 assert.doesNotMatch(app, /'presentation-advanced':\s*\{/);
 assert.doesNotMatch(pres, /presentation-advanced-nav-row/);
-assert.match(pres, /wrap\.append\(previous, preview, next\)/);
+assert.match(pres, /wrap\.append\(preview, dots\)/);
+assert.doesNotMatch(pres, /pres-preview-arrow/);
+assert.match(css, /\.pres-dot\[aria-current="true"\]::after/);
 assert.match(pres, /sample\.replaceChildren\(buildCard\(slide\)\)/);
 assert.doesNotMatch(pres, /presPreviewLabel/);
 assert.doesNotMatch(pres, /sb-pres-fs/);

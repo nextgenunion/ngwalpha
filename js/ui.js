@@ -500,6 +500,7 @@ async function reloadSongLibrary() {
       const source = state.sources[sourceKey];
       source.syncAttempted = false;
       await syncSongDataFromIndividuals(sourceKey, { forceRefresh: true, manual: true });
+      markSongsRefreshed(sourceKey);
       searchCacheWarmSources.delete(sourceKey);
       scheduleSearchCacheWarmup(sourceKey);
     }
@@ -4077,6 +4078,10 @@ function openModal(title, bodyEl, options = {}) {
   body.scrollTop = 0;
   if (typeof overlay._onClose === 'function') overlay._onClose();
   overlay._onClose = typeof options.onClose === 'function' ? options.onClose : null;
+  // Reset on every open so one dialog's setting can never leak into the next.
+  // Announcements set closeOnBackdrop: false so a stray tap outside the card
+  // cannot dismiss them; only the X / Done buttons (or Escape / Back) close.
+  overlay._closeOnBackdrop = options.closeOnBackdrop !== false;
   const card = overlay.querySelector('.modal-card');
   // Modal variants keep feature-specific sizing/presentation in CSS without
   // creating a second modal implementation. Every open resets the variant so
@@ -4271,7 +4276,7 @@ function closeModal({ immediate = false } = {}) {
 function bindModalShell() {
   document.getElementById('modal-close-btn').addEventListener('click', closeModal);
   document.getElementById('modal-overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'modal-overlay') closeModal();
+    if (e.target.id === 'modal-overlay' && e.currentTarget._closeOnBackdrop !== false) closeModal();
   });
   document.addEventListener('keydown', event => {
     const overlay = document.getElementById('modal-overlay');
@@ -5740,7 +5745,7 @@ function openAnnouncementDialog(items, options = {}) {
   const done = document.createElement('button'); done.type = 'button'; done.className = 'btn-primary';
   done.textContent = t('doneBtn'); done.addEventListener('click', () => closeModal());
   actions.appendChild(done); body.appendChild(actions);
-  openModal(options.title || t('announcementsLabel'), body, { onClose: options.onClose });
+  openModal(options.title || t('announcementsLabel'), body, { onClose: options.onClose, closeOnBackdrop: false });
 }
 /* @end:openAnnouncementDialog */
 

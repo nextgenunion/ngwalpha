@@ -241,17 +241,21 @@ async function installedAssetOrNetwork(request) {
     cached = await cache.match(request, { ignoreSearch: true });
   } catch (_) { /* fall back to the network below */ }
   const url = new URL(request.url);
-  // Keep the existing explicit song-refresh button functional. Network
-  // failure retains the installed copy; ordinary app startup is cache-first.
+  // Keep the existing explicit song-refresh button functional. Ordinary app
+  // startup is cache-first and never reaches this branch.
   if (url.origin === self.location.origin && url.pathname.includes('/data/') && request.headers.get('X-Force-Refresh') === '1') {
+    // The person pressed Refresh: answer with the real network result. A
+    // failure is reported as a failure (the app keeps its saved songs and
+    // says "Couldn't refresh") instead of silently returning the installed
+    // copy, which used to show "Song database refreshed" when nothing changed.
     try {
       const response = await fetch(request);
       if (response.ok) {
         const key = new URL(request.url); key.search = '';
         if (cache) await cache.put(key.href, response.clone());
-        return response;
       }
-    } catch (_) { /* Continue with the installed response below. */ }
+      return response;
+    } catch (_) { return Response.error(); }
   }
   if (cached) return cachedResponse(request, cached);
   return fetch(request);

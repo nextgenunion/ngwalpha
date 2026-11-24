@@ -164,7 +164,11 @@ function text(response) { assert.ok(response, 'missing response'); return respon
  const part=await dispatchFetch(makeRequest('audio/'+audio,{headers:{Range:'bytes=10-19'}}));assert.equal(part.status,206);assert.equal((await part.arrayBuffer()).byteLength,10);
  const suffix=await dispatchFetch(makeRequest('audio/'+audio,{headers:{Range:'bytes=-12'}}));assert.equal(suffix.status,206);assert.equal((await suffix.arrayBuffer()).byteLength,12);
  const invalid=await dispatchFetch(makeRequest('audio/'+audio,{headers:{Range:'bytes=999999999-'}}));assert.equal(invalid.status,416);
- const refresh=await dispatchFetch(makeRequest([...expected.keys()][0],{headers:{'X-Force-Refresh':'1'}}));assert(refresh.ok,'offline explicit refresh loses installed data');
+ const dbFile=[...expected.keys()][0];
+ // An explicit Refresh while the network is down must report failure (so the app shows "Couldn't refresh", not a false success)...
+ const refresh=await dispatchFetch(makeRequest(dbFile,{headers:{'X-Force-Refresh':'1'}}));assert(!refresh.ok,'offline explicit refresh must not pretend to succeed');
+ // ...while the installed copy is untouched and still served for normal loads.
+ assert((await dispatchFetch(makeRequest(dbFile))).ok,'failed explicit refresh must keep the installed data');
  const cache=await caches.open(version);await cache.delete('./');await cache.delete('./index.html');
  assert((await (await dispatchFetch(makeRequest('fallback',{mode:'navigate'}))).text()).includes("You're offline"));
  assert(!/\.unregister\(|caches\.delete\(/.test(require('./read_application.cjs').readApplication()),'page update path destroys offline install');

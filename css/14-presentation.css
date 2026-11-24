@@ -293,7 +293,7 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-row-wide .seg-toggle { width: fit-content; max-width: 100%; }
 /* Text colour: Auto / White / Black plus the custom swatch on one line. */
 .pres-text-control { display: flex; align-items: center; gap: 8px; max-width: 100%; }
-.pres-text-control .seg-toggle { flex: 0 1 auto; width: auto; min-width: 0; }
+.pres-chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .pres-text-control .pres-custom { flex: 0 0 auto; }
 /* Nothing selected (a custom colour is in use): no highlight thumb. */
 .seg-toggle.is-none .seg-toggle-thumb { opacity: 0; }
@@ -304,17 +304,21 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-range-value { min-width: 2.6em; text-align: right; font-size: .82rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .pres-reset-row { justify-content: flex-start; }
 
-/* Keep the preview navigation outside the slide. */
-.pres-preview-wrap {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 4px;
-  margin: 12px 0 16px;
+/* Preview with page dots under it (one dot per slide, current one lit). */
+.pres-preview-wrap { margin: 12px 0 16px; }
+.pres-preview-wrap .pres-background-preview { margin: 0; container-type: inline-size; touch-action: pan-y; }
+.pres-dots { display: flex; justify-content: center; gap: 2px; margin-top: 6px; }
+.pres-dots[hidden] { display: none; }
+/* 24px tap target around a 7px dot; the current dot grows a little and takes the accent colour. */
+.pres-dot { position: relative; width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
+.pres-dot::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--ink-faint); opacity: .45;
+  transform: translate(-50%, -50%);
+  transition: width var(--dur-base) ease, height var(--dur-base) ease, background var(--dur-fast) ease, opacity var(--dur-fast) ease;
 }
-.pres-preview-wrap .pres-background-preview { margin: 0; container-type: inline-size; }
-.pres-preview-arrow.icon-btn { width: 36px; height: 44px; font-size: 1.65rem; }
-.pres-preview-arrow[aria-current="true"], .pres-preview-arrow:disabled { opacity: .45; }
+.pres-dot[aria-current="true"]::after { width: 9px; height: 9px; background: var(--accent); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pres-dot::after { transition: none; } }
 .pres-background-sample { padding: 6%; }
 .pres-background-sample .pres-slide { font-size: clamp(.66rem, 3.7cqw, 1.75rem); max-width: 100%; }
 .pres-background-sample.is-title-preview .pres-slide { font-size: clamp(.85rem, 6cqw, 1.8rem); }
@@ -329,7 +333,9 @@ html.pres-open, html.pres-open body { overflow: hidden; }
 .pres-gradient-stop { width: 100%; height: 38px; cursor: pointer; }
 .pres-color-fields .pres-range-wrap { min-width: 0; }
 .pres-color-fields .pres-range-wrap .app-range { flex: 1; }
-.pres-effect-auto .seg-toggle-btn[aria-pressed="true"] {
-  background: var(--accent-tint);
-  color: var(--accent-strong);
-}
+
+/* Tabs under the preview: Text / Background / Effects / Other. Same segmented
+   pill as the song database picker, spanning the page width. */
+.pres-tabs { width: 100%; margin: 0 0 12px; box-sizing: border-box; --seg-inset: 3px; }
+.pres-tabs .seg-toggle-btn { flex: 1; text-align: center; padding: 8px 4px; font-size: 0.85rem; }
+.pres-panel[hidden] { display: none !important; }

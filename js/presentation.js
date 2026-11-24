@@ -89,6 +89,7 @@
   const LS_TEXT = 'sb-pres-text';
   const TEXT_CHOICES = ['auto', 'light', 'dark'];
   let textPref = 'auto';
+  let settingsTab = 'text'; // which Presentation settings tab is open (kept while the app runs)
   let background = { kind: 'preset', preset: 'black' };
   let mediaURL = null;
 
@@ -415,17 +416,25 @@
     const language = document.documentElement.lang;
     const song = ['mn', 'mn2'].includes(language) ? MONGOLIAN_PREVIEW : ENGLISH_PREVIEW;
     let mode = titlePrefs.presTitleSlide === false ? 'lyrics' : 'title';
-    const previous = el('button', 'icon-btn pres-preview-arrow', '‹');
-    const next = el('button', 'icon-btn pres-preview-arrow', '›');
-    previous.type = next.type = 'button';
-    previous.setAttribute('aria-label', translate('presPreviewTitle'));
-    next.setAttribute('aria-label', translate('presPreviewLyrics'));
+    // Page dots under the slide (like an Instagram carousel): one per slide,
+    // the current one is highlighted. Tap a dot or swipe the preview to switch.
+    const dots = el('div', 'pres-dots');
+    dots.setAttribute('role', 'group');
+    const dotFor = {};
+    [['title', 'presPreviewTitle'], ['lyrics', 'presPreviewLyrics']].forEach(([slideMode, labelKey]) => {
+      const dot = el('button', 'pres-dot');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', translate(labelKey));
+      dot.addEventListener('click', () => { mode = slideMode; renderSlide(); });
+      dotFor[slideMode] = dot;
+      dots.appendChild(dot);
+    });
 
     const renderSlide = () => {
       sample.classList.toggle('is-title-preview', mode === 'title');
-      previous.setAttribute('aria-current', String(mode === 'title'));
-      next.setAttribute('aria-current', String(mode === 'lyrics'));
-      previous.disabled = titlePrefs.presTitleSlide === false;
+      // With the title slide switched off there is only one slide: no dots.
+      dots.hidden = titlePrefs.presTitleSlide === false;
+      Object.entries(dotFor).forEach(([slideMode, dot]) => dot.setAttribute('aria-current', String(slideMode === mode)));
       const slide = mode === 'lyrics'
         ? { kind: 'lyrics', lines: song.lines }
         : {
@@ -436,9 +445,19 @@
         };
       sample.replaceChildren(buildCard(slide));
     };
-    previous.addEventListener('click', () => { mode = 'title'; renderSlide(); });
-    next.addEventListener('click', () => { mode = 'lyrics'; renderSlide(); });
-    wrap.append(previous, preview, next);
+
+    let swipeX = null;
+    preview.addEventListener('pointerdown', (event) => { swipeX = event.clientX; });
+    preview.addEventListener('pointerup', (event) => {
+      if (swipeX == null || titlePrefs.presTitleSlide === false) { swipeX = null; return; }
+      const dx = event.clientX - swipeX;
+      swipeX = null;
+      if (Math.abs(dx) < 40) return;
+      mode = dx < 0 ? 'lyrics' : 'title';
+      renderSlide();
+    });
+    preview.addEventListener('pointercancel', () => { swipeX = null; });
+    wrap.append(preview, dots);
     const refresh = () => {
       if (titlePrefs.presTitleSlide === false) mode = 'lyrics';
       paintBackground(layer, true, translate);
@@ -490,6 +509,34 @@
     return seg;
   }
 
+  // A row of separate pills in the same style as the Songbook sort chips
+  // (.sort-btn): the chosen one is tinted in the accent colour. Same interface
+  // as segControl: select(value) highlights one, select(null) clears them all.
+  function chipControl(translate, labelKey, choices, current, onChange) {
+    const chips = el('div', 'pres-chips');
+    chips.setAttribute('role', 'group');
+    chips.setAttribute('aria-label', translate(labelKey));
+    chips.select = (value) => {
+      chips.querySelectorAll('.sort-btn').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.value === value)));
+    };
+    choices.forEach(([value, labelText]) => {
+      const b = el('button', 'sort-btn', labelText);
+      b.type = 'button';
+      b.dataset.value = value;
+      b.setAttribute('aria-pressed', String(value === current));
+      b.addEventListener('animationend', () => b.classList.remove('sort-btn-tap'));
+      b.addEventListener('click', () => {
+        b.classList.remove('sort-btn-tap');
+        void b.offsetWidth; // restart the tap animation on repeated taps
+        b.classList.add('sort-btn-tap');
+        chips.select(value);
+        onChange(value);
+      });
+      chips.appendChild(b);
+    });
+    return chips;
+  }
+
   function settings(translate) {
     loadAll();
     const container = document.getElementById('presentation-settings-content');
@@ -497,12 +544,11 @@
     const { preview, refresh, showTitle } = makePreview(translate);
     ensureMedia().then(ok => { if (ok) refresh(); });
 
-    // Look: background colour + text colour (Auto follows the background).
-    // The last swatch of each row is the custom colour. It opens the same
-    // editor as before, is lit while a custom colour is in use, and is cleared
-    // by picking any fixed choice.
-    const section = el('section', 'settings-section');
-    section.appendChild(el('h3', 'settings-heading', translate('presLook')));
+    // Background colour (shown in the Background section) and text colour
+    // (shown in the Text section; Auto follows the background). The last
+    // swatch of each row is the custom colour. It opens the same editor as
+    // before, is lit while a custom colour is in use, and is cleared by
+    // picking any fixed choice.
     const swatches = el('div', 'accent-swatches');
     const presetButtons = [];
     const customBg = colorPicker(translate, 'presCustomBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (paint) => {
@@ -534,12 +580,12 @@
       swatches.appendChild(button);
     });
     swatches.appendChild(customBg);
-    section.appendChild(settingsRow(translate, 'presColor', swatches));
+    const bgColorRow = settingsRow(translate, 'presColor', swatches);
 
-    // Text colour: Auto / White / Black on a line of its own, with the custom
-    // swatch beside it (same two-line shape as the Effect row).
+    // Text colour: Auto / White / Black with the custom swatch beside it
+    // (same two-line shape as the Effect row).
     const textChoices = TEXT_CHOICES.map(c => [c, translate('presText' + c[0].toUpperCase() + c.slice(1))]);
-    const textSeg = segControl(translate, 'presTextColor', textChoices, adv.textColor ? null : textPref, (choice) => {
+    const textSeg = chipControl(translate, 'presTextColor', textChoices, adv.textColor ? null : textPref, (choice) => {
       textPref = choice;
       adv.textColor = null; // a fixed choice replaces any custom colour
       customText.setColor(null);
@@ -554,11 +600,11 @@
     }, { gradients: true });
     const textControl = el('div', 'pres-text-control');
     textControl.append(textSeg, customText);
-    section.appendChild(settingsRow(translate, 'presTextColor', textControl, true));
+    const textColorRow = settingsRow(translate, 'presTextColor', textControl, true);
 
-    // Text: font, style and effect.
-    const text = el('section', 'settings-section');
-    text.appendChild(el('h3', 'settings-heading', translate('presAdvText')));
+    // One panel per tab: Text, Background, Effects, Other.
+    const text = el('section', 'settings-section pres-panel');
+    const effects = el('section', 'settings-section pres-panel');
     text.appendChild(choiceRow(translate, 'presFont', fontChoices(translate, adv.font), adv.font, (value) => {
       adv.font = value; saveAdvanced(); refresh();
     }));
@@ -568,6 +614,7 @@
       });
     fontStyleControl.classList.add('pres-font-style-toggle');
     text.appendChild(settingsRow(translate, 'fontStyle', fontStyleControl, true));
+    text.appendChild(textColorRow);
     const effectOptions = el('div', 'pres-effect-options');
     const strength = el('input', 'app-range pres-range');
     strength.type = 'range';
@@ -581,13 +628,11 @@
     effectOptions.appendChild(settingsRow(translate, 'presEffectStrength', strengthControl));
 
     const colorControl = el('div', 'pres-text-control');
-    const auto = el('button', 'seg-toggle-btn', translate('presTextAuto'));
+    const auto = el('button', 'sort-btn', translate('presTextAuto'));
     auto.type = 'button';
-    const autoPill = el('div', 'seg-toggle pres-effect-auto');
-    autoPill.append(auto);
     const custom = colorPicker(translate, 'presEffectCustomColor', activeEffect().color,
       autoEffectColor, color => updateEffect({ color }));
-    colorControl.append(autoPill, custom);
+    colorControl.append(auto, custom);
     effectOptions.appendChild(settingsRow(translate, 'presColor', colorControl));
 
     function syncEffect() {
@@ -608,27 +653,27 @@
     strength.addEventListener('input', () => updateEffect({ strength: Number(strength.value) }));
     auto.addEventListener('click', () => updateEffect({ color: null }));
 
-    text.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
+    effects.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
       EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
         adv.effect = value;
         saveAdvanced();
         syncEffect();
         refresh();
       }), true));
-    text.appendChild(effectOptions);
+    effects.appendChild(effectOptions);
     syncEffect();
     // Slide change: Cut or Fade. (Used to live in the presentation panel; it is
     // rarely changed mid-song. Hidden when the device asks for reduced motion,
     // because slides always cut then.)
     if (!reducedMotion()) {
-      text.appendChild(settingsRow(translate, 'presentationTransitionLabel', segControl(translate, 'presentationTransitionLabel',
+      effects.appendChild(settingsRow(translate, 'presentationTransitionLabel', segControl(translate, 'presentationTransitionLabel',
         TRANSITIONS.map(tr => [tr, translate(tr === 'cut' ? 'presentationCut' : 'presentationFade')]), transition, (value) => {
           transition = value; savePref(LS_TRANSITION, value);
         }), true));
     }
 
     // Title slide: one switch per part.
-    const titles = el('section', 'settings-section');
+    const titles = el('section', 'settings-section pres-panel');
     const switches = {};
     for (const key of titleOptions) {
       const sw = el('button', 'switch');
@@ -654,6 +699,8 @@
     // Background media and dimming belong directly to Presentation Settings;
     // there is no separate Advanced page to hunt through.
     const media = mediaControls(translate, refresh);
+    media.classList.add('pres-panel');
+    media.insertBefore(bgColorRow, media.firstChild); // first row of the Background tab
 
     // One Reset for the entire look. Title-slide switches
     // are content choices, not look, so they stay.
@@ -674,9 +721,24 @@
     });
     const resetRow = el('div', 'settings-row pres-reset-row');
     resetRow.appendChild(reset);
-    text.appendChild(resetRow);
+    titles.appendChild(resetRow);
 
-    container.append(preview, section, media, text, titles);
+    // The pill selector under the preview (same look as the song database
+    // picker) shows one panel at a time.
+    const panels = { text, background: media, effects, other: titles };
+    const showTab = (tab) => {
+      settingsTab = tab;
+      Object.entries(panels).forEach(([name, panel]) => { panel.hidden = name !== tab; });
+    };
+    const tabs = segControl(translate, 'presSettingsTitle', [
+      ['text', translate('presAdvText')],
+      ['background', translate('presAdvBackground')],
+      ['effects', translate('presTabEffects')],
+      ['other', translate('presTabOther')],
+    ], settingsTab, showTab);
+    tabs.classList.add('pres-tabs');
+    showTab(settingsTab);
+    container.append(preview, tabs, text, media, effects, titles);
     if (typeof initIcons === 'function') initIcons(container);
   }
 
@@ -841,7 +903,6 @@
   // The picker is an ordinary app dialog; nothing requires a second page.
   function mediaControls(translate, refresh) {
     const bg = el('section', 'settings-section');
-    bg.appendChild(el('h3', 'settings-heading', translate('presAdvBackground')));
 
     // Picture or video from this device. It is remembered automatically on
     // this device (IndexedDB), so it is still there after the app is closed.

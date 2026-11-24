@@ -769,8 +769,28 @@ function applyLanguage() {
   if (state.currentPage === 'sheet-music' && isSheetMusicFeatureEnabled()) renderSheetMusicLibrary();
   if (state.currentPage === 'sheet-view') updateSheetMusicPageUI();
   if (window.ChordFinder) window.ChordFinder.refreshLanguage();
+  updateReloadRowSub();
 }
 /* @end:applyLanguage */
+
+/* @begin:updateReloadRowSub */
+// Subtitle of "Refresh song database": the plain description until the person
+// has refreshed, then the date (oldest of the selected libraries, so it never
+// claims more than is true).
+function updateReloadRowSub() {
+  const el = document.getElementById('t-reloadSub');
+  if (!el) return;
+  const saved = readSongsRefreshed();
+  const times = state.selectedDbSources.map(key => saved[key]).filter(Number.isFinite);
+  if (!times.length || times.length < state.selectedDbSources.length) { el.textContent = t('reloadSub'); return; }
+  const when = new Date(Math.min(...times));
+  const locale = { en: 'en', kr: 'ko', mn: 'mn', mn2: 'mn' }[state.lang] || 'en';
+  let text;
+  try { text = new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(when); }
+  catch (_) { text = when.toLocaleDateString(); }
+  el.textContent = t('reloadSubUpdated', text);
+}
+/* @end:updateReloadRowSub */
 
 /* @begin:bindSettings */
 function bindSettings() {

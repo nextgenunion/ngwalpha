@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Announcement maker</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--soft:#5d6470;--line:#dfe3e8;--accent:#2f6fed;--accent-ink:#fff;--ok:#1b7f4b;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#101215;--card:#1a1d22;--ink:#eef0f3;--soft:#a2a9b5;--line:#2c3139;--accent:#6b9bff;--accent-ink:#0b1020;--ok:#5fd394;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:1.5rem;margin:8px 0 4px}
+.lead{color:var(--soft);margin:0 0 20px}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px}
+h2{font-size:1rem;margin:0 0 4px}
+.hint{color:var(--soft);font-size:.9rem;margin:0 0 10px}
+label.field{display:block;font-weight:600;font-size:.9rem;margin:10px 0 4px}
+input[type=text],input[type=date],textarea{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}
+textarea{min-height:110px;resize:vertical}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.chip,.btn{font:inherit;border:1px solid var(--line);background:var(--bg);color:inherit;border-radius:999px;padding:9px 14px;cursor:pointer}
+.chip:hover,.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;border-radius:14px;padding:13px 18px}
+.btn.big{width:100%}
+.choices{display:grid;gap:8px}
+.choice{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;background:var(--bg)}
+.choice input{margin-top:4px}
+.choice b{display:block}
+.choice span{color:var(--soft);font-size:.9rem}
+.choice:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+details{margin-top:6px}
+summary{cursor:pointer;font-weight:600;padding:6px 0}
+.preview{border:1px dashed var(--line);border-radius:14px;padding:14px;margin-top:6px}
+.preview.popup{background:var(--bg)}
+.preview.banner{background:var(--accent);color:var(--accent-ink);padding:10px 14px;border-radius:10px}
+.preview h3{margin:0 0 4px;font-size:1.05rem}
+.preview p{margin:0;white-space:pre-wrap}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.item small{color:var(--soft);display:block}
+.item .rm{border:0;background:none;color:var(--soft);font-size:1.4rem;line-height:1;cursor:pointer;padding:0 6px}
+.empty{color:var(--soft)}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;font-size:.8rem;max-height:240px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.ok{color:var(--ok);font-weight:600;min-height:1.4em;margin:8px 0 0}
+ol{padding-left:20px;margin:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Announcement maker</h1>
+<p class="lead">Write a message in plain words. This page makes the file for you. No coding needed.</p>
+
+<section>
+  <h2>1. What do you want to say?</h2>
+  <p class="hint">Start from an example, or write your own.</p>
+  <div class="chips" id="templates">
+    <button type="button" class="chip" data-t="coming">Update coming</button>
+    <button type="button" class="chip" data-t="new">What’s new</button>
+    <button type="button" class="chip" data-t="break">Short break</button>
+    <button type="button" class="chip" data-t="thanks">Thank you</button>
+  </div>
+  <label class="field" for="title">Title (optional)</label>
+  <input type="text" id="title" placeholder="For example: Update coming soon" autocomplete="off">
+  <label class="field" for="text">Message</label>
+  <textarea id="text" placeholder="For example: A new update is coming this week. It includes ..."></textarea>
+</section>
+
+<section>
+  <h2>2. How should it show up?</h2>
+  <div class="choices">
+    <label class="choice"><input type="radio" name="style" value="popup" checked><div><b>Pop-up</b><span>A small window. People tap Done to close it. Best for most messages.</span></div></label>
+    <label class="choice"><input type="radio" name="style" value="banner"><div><b>Strip at the bottom</b><span>A thin bar above the menu. Only for short, important notices.</span></div></label>
+  </div>
+  <div id="preview" class="preview popup"></div>
+</section>
+
+<section>
+  <h2>3. How often?</h2>
+  <div class="choices">
+    <label class="choice"><input type="radio" name="when" value="once" checked><div><b>One time</b><span>Each person sees it once, then it stays away.</span></div></label>
+    <label class="choice"><input type="radio" name="when" value="every-open"><div><b>Every time the app opens</b><span>Good for a notice that is true for a few days.</span></div></label>
+  </div>
+</section>
+
+<section>
+  <h2>4. Extra options</h2>
+  <details>
+    <summary>Show only between two dates</summary>
+    <p class="hint">Leave empty to show it right away with no end date.</p>
+    <div class="row">
+      <div><label class="field" for="from">From</label><input type="date" id="from"></div>
+      <div><label class="field" for="until">Until (the whole day)</label><input type="date" id="until"></div>
+    </div>
+  </details>
+  <details>
+    <summary>Other languages</summary>
+    <p class="hint">Optional. The message above is used for everyone. If you write a version here, people with that language see it instead.</p>
+    <div id="langs"></div>
+  </details>
+</section>
+
+<button type="button" class="btn primary big" id="add">Add this announcement</button>
+<p class="ok" id="addMsg" role="status"></p>
+
+<section>
+  <h2>Your announcements</h2>
+  <p class="hint">These go into the file. Remove one to stop showing it.</p>
+  <div id="list"></div>
+  <details>
+    <summary>I already have an announcements.json</summary>
+    <p class="hint">Open it here so your old announcements are kept.</p>
+    <input type="file" id="open" accept=".json,application/json">
+  </details>
+</section>
+
+<section>
+  <h2>Get your file</h2>
+  <div class="actions">
+    <button type="button" class="btn primary" id="download">Download file</button>
+    <button type="button" class="btn" id="copy">Copy text</button>
+  </div>
+  <p class="ok" id="outMsg" role="status"></p>
+  <details><summary>Show the file contents</summary><pre id="out">[]</pre></details>
+  <h2 style="margin-top:14px">Then publish it</h2>
+  <ol>
+    <li>Open your GitHub project and go to the folder that has <b>index.html</b>.</li>
+    <li>Upload the downloaded <b>announcements.json</b> there. Replace the old one.</li>
+    <li>People see it the next time the app checks (within about 5 minutes while it is open).</li>
+  </ol>
+  <p class="hint" style="margin-top:10px">To hide everything, remove all announcements above and upload the file. It will contain only <b>[]</b>.</p>
+</section>
+</main>
+
+<script>
+/* @pure-begin */
+function pad2(n) { return String(n).padStart(2, '0'); }
+function offsetString(d) {
+  const minutes = -d.getTimezoneOffset();
+  const abs = Math.abs(minutes);
+  return (minutes >= 0 ? '+' : '-') + pad2(Math.floor(abs / 60)) + ':' + pad2(abs % 60);
+}
+// 'YYYY-MM-DD' -> midnight on that day in the browser's time zone, with offset.
+// The end date means the whole day, so it becomes midnight at the start of the next day.
+function localIso(dateStr, wholeDay) {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  const dt = new Date(y, m - 1, d + (wholeDay ? 1 : 0), 0, 0, 0);
+  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()) + 'T00:00:00' + offsetString(dt);
+}
+function slugify(s) {
+  return String(s || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+function stamp(now) {
+  const d = now instanceof Date ? now : new Date(now);
+  return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
+}
+// form: { style: 'popup'|'banner', when: 'once'|'every-open', from, until,
+//         langs: { en:{title,text}, mn:{...}, kr:{...}, mn2:{...} } }
+function buildNotice(form, now) {
+  const filled = Object.entries(form.langs)
+    .map(([code, v]) => [code, { title: String(v.title || '').trim(), text: String(v.text || '').trim() }])
+    .filter(([, v]) => v.text);
+  if (!filled.length) return null;
+  const base = filled.find(([code]) => code === 'en')?.[1].title || filled[0][1].title;
+  const notice = { id: (slugify(base) || 'notice') + '-' + stamp(now || new Date()), mode: form.when };
+  if (form.style === 'banner') notice.display = 'banner';
+  if (filled.length === 1) {
+    if (filled[0][1].title) notice.title = filled[0][1].title;
+    notice.text = filled[0][1].text;
+  } else {
+    notice.translations = {};
+    for (const [code, v] of filled) {
+      notice.translations[code] = v.title ? { title: v.title, text: v.text } : { text: v.text };
+    }
+  }
+  if (form.from) notice.startsAt = localIso(form.from, false);
+  if (form.until) notice.endsAt = localIso(form.until, true);
+  return notice;
+}
+function noticeSummary(n) {
+  const first = n.text ? n : (n.translations ? (n.translations.en || Object.values(n.translations)[0]) : {});
+  return { title: (first && first.title) || '', text: (first && first.text) || '' };
+}
+/* @pure-end */
+
+const TEMPLATES = {
+  coming: { title: 'Update coming soon', text: 'A new update is coming this week. It includes: ' },
+  new: { title: 'What’s new', text: 'You can now ' },
+  break: { title: 'Short break for updates', text: 'Online updates will pause on [date]. Your downloaded songs will still work offline.' },
+  thanks: { title: 'Thank you', text: 'Thank you for using the app and for your feedback. ' }
+};
+const LANGS = [['mn', 'Монгол (Mongolian)'], ['kr', '한국어 (Korean)'], ['mn2', 'ᠮᠣᠩᠭᠣᠯ (Traditional Mongolian)']];
+const $ = id => document.getElementById(id);
+let notices = [];
+
+const langBox = $('langs');
+for (const [code, label] of LANGS) {
+  langBox.insertAdjacentHTML('beforeend',
+    '<label class="field">' + label + ' title</label><input type="text" data-lang="' + code + '" data-part="title">' +
+    '<label class="field">' + label + ' message</label><textarea data-lang="' + code + '" data-part="text" style="min-height:80px"></textarea>');
+}
+const radio = name => document.querySelector('input[name="' + name + '"]:checked').value;
+function readForm() {
+  const langs = { en: { title: $('title').value, text: $('text').value }, mn: {}, kr: {}, mn2: {} };
+  document.querySelectorAll('[data-lang]').forEach(el => { langs[el.dataset.lang][el.dataset.part] = el.value; });
+  return { style: radio('style'), when: radio('when'), from: $('from').value, until: $('until').value, langs };
+}
+function renderPreview() {
+  const box = $('preview');
+  const style = radio('style');
+  box.className = 'preview ' + style;
+  const title = $('title').value.trim(), text = $('text').value.trim();
+  box.replaceChildren();
+  if (title) { const h = document.createElement('h3'); h.textContent = title; box.appendChild(h); }
+  const p = document.createElement('p');
+  p.textContent = text || 'Your message will look like this.';
+  box.appendChild(p);
+}
+function renderList() {
+  const list = $('list');
+  list.replaceChildren();
+  if (!notices.length) {
+    const e = document.createElement('p'); e.className = 'empty'; e.textContent = 'Nothing yet. The file will be empty, so no announcement shows.';
+    list.appendChild(e);
+  }
+  notices.forEach((n, i) => {
+    const s = noticeSummary(n);
+    const item = document.createElement('div'); item.className = 'item';
+    const body = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = s.title || s.text.slice(0, 40) || n.id;
+    const small = document.createElement('small');
+    small.textContent = (n.display === 'banner' ? 'Strip' : 'Pop-up') + ' · ' + (n.mode === 'once' ? 'one time' : 'every open') +
+      (n.startsAt || n.endsAt ? ' · dated' : '') + (n.translations ? ' · ' + Object.keys(n.translations).length + ' languages' : '');
+    body.append(b, small);
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove this announcement');
+    rm.addEventListener('click', () => { notices.splice(i, 1); renderList(); });
+    item.append(body, rm);
+    list.appendChild(item);
+  });
+  $('out').textContent = JSON.stringify(notices, null, 2);
+}
+function flash(id, msg) { const el = $(id); el.textContent = msg; setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3500); }
+
+document.querySelectorAll('#templates .chip').forEach(btn => btn.addEventListener('click', () => {
+  const t = TEMPLATES[btn.dataset.t];
+  $('title').value = t.title; $('text').value = t.text; renderPreview(); $('text').focus();
+}));
+document.querySelectorAll('input[name="style"]').forEach(r => r.addEventListener('change', renderPreview));
+$('title').addEventListener('input', renderPreview);
+$('text').addEventListener('input', renderPreview);
+
+$('add').addEventListener('click', () => {
+  const form = readForm();
+  if (form.from && form.until && form.until < form.from) { flash('addMsg', 'The end date is before the start date.'); return; }
+  const notice = buildNotice(form, new Date());
+  if (!notice) { flash('addMsg', 'Please write a message first.'); $('text').focus(); return; }
+  notices.push(notice); renderList();
+  $('title').value = ''; $('text').value = ''; document.querySelectorAll('[data-lang]').forEach(el => { el.value = ''; });
+  renderPreview(); flash('addMsg', 'Added. You can add more, or get your file below.');
+});
+
+$('open').addEventListener('change', event => {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || '[]'));
+      if (!Array.isArray(data)) throw new Error('not a list');
+      notices = data.filter(n => n && typeof n === 'object' && typeof n.id === 'string');
+      renderList(); flash('addMsg', 'Opened ' + notices.length + ' announcement(s).');
+    } catch (_) { flash('addMsg', 'That file could not be read. Is it announcements.json?'); }
+  };
+  reader.readAsText(file);
+});
+
+$('download').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(notices, null, 2) + '\n'], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'announcements.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  flash('outMsg', 'Downloaded announcements.json');
+});
+$('copy').addEventListener('click', async () => {
+  const text = JSON.stringify(notices, null, 2) + '\n';
+  try { await navigator.clipboard.writeText(text); flash('outMsg', 'Copied. Paste it into announcements.json.'); }
+  catch (_) { const area = document.createElement('textarea'); area.value = text; document.body.appendChild(area); area.select(); try { document.execCommand('copy'); flash('outMsg', 'Copied.'); } catch (e) { flash('outMsg', 'Could not copy. Use Download instead.'); } area.remove(); }
+});
+
+renderPreview(); renderList();
+</script>
+</body>
+</html>

@@ -873,7 +873,7 @@ let dbSelectionRevision = 0;
 
 /* @extracted:settings.js:bindDevOptionsUnlock *//* @extracted:settings.js:applyDevOptions */
 
-/* @extracted:settings.js:initDevOptions *//* @extracted:settings.js:applyLanguage *//* @extracted:ui.js:bindNav */
+/* @extracted:settings.js:initDevOptions *//* @extracted:settings.js:applyLanguage *//* @extracted:settings.js:updateReloadRowSub *//* @extracted:ui.js:bindNav */
 
 /* @extracted:ui.js:showPage *//* @extracted:ui.js:prefersReducedMotion *//* @extracted:ui.js:cancelRowExit */
 
@@ -1478,7 +1478,7 @@ const DISCO_PERIOD_SECONDS = 48;/* @extracted:ui.js:startDiscoMode */
 
 /* @extracted:ui.js:editorHasChanges */
 
-/* @extracted:data.js:loadAnnouncements */
+/* @extracted:data.js:readSongsRefreshed *//* @extracted:data.js:markSongsRefreshed *//* @extracted:data.js:loadAnnouncements */
 
 /* @extracted:ui.js:renderAnnouncements */
 

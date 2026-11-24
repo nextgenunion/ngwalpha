@@ -927,6 +927,7 @@ function applyDbSelection(keys, { primary } = {}) {
   const changed = selected.join('\u001f') !== songbookSelectionKey();
   const revision = ++dbSelectionRevision;
   state.selectedDbSources = selected;
+  updateReloadRowSub();
   state.activeDbSource = selected.includes(primary) ? primary
     : (selected.includes(state.activeDbSource) ? state.activeDbSource : selected[0]);
 
@@ -1570,6 +1571,27 @@ function matchesSongLabelFilter(song, sourceKey) {
 }
 /* @end:matchesSongLabelFilter */
 
+
+/* @begin:readSongsRefreshed */
+// When each library was last refreshed from the network by the Refresh button.
+// Only a manual refresh counts: background sync reads the installed copy.
+const SONGS_REFRESHED_KEY = 'ngw_songs_refreshed';
+function readSongsRefreshed() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SONGS_REFRESHED_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch (_) { return {}; }
+}
+/* @end:readSongsRefreshed */
+
+/* @begin:markSongsRefreshed */
+function markSongsRefreshed(sourceKey) {
+  const saved = readSongsRefreshed();
+  saved[sourceKey] = Date.now();
+  try { localStorage.setItem(SONGS_REFRESHED_KEY, JSON.stringify(saved)); } catch (_) {}
+  updateReloadRowSub();
+}
+/* @end:markSongsRefreshed */
 
 /* @begin:loadAnnouncements */
 // Live notices are completely optional: no startup dependency, no app cache.

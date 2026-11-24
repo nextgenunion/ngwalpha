@@ -6,6 +6,18 @@ same folder as index.html. It is fetched at launch, every five minutes while
 the app is visible, and on returning when the last check is at least five
 minutes old. Reconnecting to the internet triggers a new check.
 
+## Easy way (no coding)
+
+Open `announcement-maker.html` (double-click it; it works offline). Pick an
+example or write a title and message, choose Pop-up or Strip, choose One time or
+Every open, and press **Add**. Optional dates and other languages are tucked
+away. Press **Download file** and upload the new `announcements.json` next to
+`index.html`, replacing the old one. Use "I already have an announcements.json"
+to keep earlier notices. The page makes the IDs and date formats for you. It
+only builds the file; publishing still means uploading it (there is no server).
+The page is not part of the app and is not cached for offline use; it is safe to
+leave out of the live site.
+
 Ordinary announcements use the app's existing small dialog. Several messages
 share one dialog and one Done button. It waits until the launch splash is gone
 and Songbook is visible, and does not replace another open dialog.
