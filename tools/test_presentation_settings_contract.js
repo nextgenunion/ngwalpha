@@ -19,7 +19,8 @@ assert.match(pres, /function mediaControls\(translate, refresh\)/);
 assert.match(pres, /titles\.appendChild\(resetRow\)/);
 assert.match(pres, /container\.append\(preview, tabs, text, media, effects, titles\)/);
 // Background colour lives in the Background section, text colour in the Text section.
-assert.match(pres, /media\.insertBefore\(bgColorRow, media\.firstChild\)/);
+assert.match(pres, /media\.insertBefore\(plainRow, media\.firstChild\)/);
+assert.match(pres, /media\.insertBefore\(gradientRow, media\.firstChild\)/);
 // Reset and the title-slide switches share the Other tab; Effect and Transition share Effects.
 assert.match(pres, /titles\.appendChild\(resetRow\)/);
 assert.match(pres, /effects\.appendChild\(settingsRow\(translate, 'presEffect'/);
@@ -89,4 +90,8 @@ assert.equal(props.get('--pres-fx-size'), '0.5');
 assert.equal(props.get('--pres-fx'), '#000000');
 load({ textColor: { ...textColor, end: 'invalid' }, effect: 'none' });
 assert.equal(attributes.get('data-text-gradient'), false);
+// Sliding pills: re-placed when shown/resized, and never white-on-nothing while unplaced.
+assert.match(pres, /new ResizeObserver\(/);
+assert.match(pres, /setAttribute\('data-pending', ''\)/);
+assert.match(css, /\.seg-toggle\[data-pending\] \.seg-toggle-btn\[aria-pressed="true"\]/);
 console.log('Presentation settings and paint preferences PASS');

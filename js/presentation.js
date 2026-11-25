@@ -254,12 +254,17 @@
   function readPaint(value) {
     if (typeof value === 'string' && HEX.test(value)) return value;
     if (!value || !HEX.test(value.start) || !HEX.test(value.end) || !Number.isFinite(value.angle)) return null;
-    return { start: value.start, end: value.end, angle: ((value.angle % 360) + 360) % 360 };
+    const position = Number.isFinite(value.position) ? Math.min(100, Math.max(0, value.position)) : 50;
+    return { start: value.start, end: value.end, angle: ((value.angle % 360) + 360) % 360, position };
   }
 
   function paintCss(value) {
     return value && typeof value === 'object'
-      ? `linear-gradient(${value.angle}deg, ${value.start}, ${value.end})`
+      ? (Number.isFinite(value.position) && value.position !== 50
+        // A colour hint moves the point where the two colours are mixed 50/50,
+        // so one colour can be given less or more of the space.
+        ? `linear-gradient(${value.angle}deg, ${value.start}, ${value.position}%, ${value.end})`
+        : `linear-gradient(${value.angle}deg, ${value.start}, ${value.end})`)
       : value;
   }
 
@@ -484,7 +489,15 @@
     const thumb = el('div', 'seg-toggle-thumb');
     thumb.setAttribute('aria-hidden', 'true');
     seg.appendChild(thumb);
-    const place = (opts) => { if (typeof positionSegToggleThumb === 'function') positionSegToggleThumb(seg, opts); };
+    // data-pending stays on until the highlight has really been placed. While it
+    // is on, the chosen label is drawn in the normal text colour (see the CSS),
+    // so it can never be white text on a missing highlight.
+    seg.setAttribute('data-pending', '');
+    const place = (opts) => {
+      if (typeof positionSegToggleThumb !== 'function') return;
+      positionSegToggleThumb(seg, opts);
+      if (thumb.style.width) seg.removeAttribute('data-pending');
+    };
     // select(value) moves the highlight; select(null) clears it (used when a
     // custom colour is active and none of the fixed choices applies).
     seg.select = (value) => {
@@ -504,37 +517,20 @@
       seg.appendChild(b);
     });
     seg.classList.toggle('is-none', current == null);
-    // The page may still be hidden while it is built; place the thumb once it shows.
+    // The page may still be hidden while it is built, and fonts can change the
+    // button widths after the first measurement. Without the thumb in place the
+    // chosen label (white) is invisible until the next tap, so re-place it
+    // whenever the control appears or any button changes size.
+    if (typeof ResizeObserver === 'function') {
+      const watcher = new ResizeObserver(() => {
+        if (!seg.isConnected) { watcher.disconnect(); return; }
+        place({ instant: true });
+      });
+      watcher.observe(seg);
+      seg.querySelectorAll('.seg-toggle-btn').forEach(b => watcher.observe(b));
+    }
     requestAnimationFrame(() => requestAnimationFrame(() => place({ instant: true })));
     return seg;
-  }
-
-  // A row of separate pills in the same style as the Songbook sort chips
-  // (.sort-btn): the chosen one is tinted in the accent colour. Same interface
-  // as segControl: select(value) highlights one, select(null) clears them all.
-  function chipControl(translate, labelKey, choices, current, onChange) {
-    const chips = el('div', 'pres-chips');
-    chips.setAttribute('role', 'group');
-    chips.setAttribute('aria-label', translate(labelKey));
-    chips.select = (value) => {
-      chips.querySelectorAll('.sort-btn').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.value === value)));
-    };
-    choices.forEach(([value, labelText]) => {
-      const b = el('button', 'sort-btn', labelText);
-      b.type = 'button';
-      b.dataset.value = value;
-      b.setAttribute('aria-pressed', String(value === current));
-      b.addEventListener('animationend', () => b.classList.remove('sort-btn-tap'));
-      b.addEventListener('click', () => {
-        b.classList.remove('sort-btn-tap');
-        void b.offsetWidth; // restart the tap animation on repeated taps
-        b.classList.add('sort-btn-tap');
-        chips.select(value);
-        onChange(value);
-      });
-      chips.appendChild(b);
-    });
-    return chips;
   }
 
   function settings(translate) {
@@ -544,21 +540,27 @@
     const { preview, refresh, showTitle } = makePreview(translate);
     ensureMedia().then(ok => { if (ok) refresh(); });
 
-    // Background colour (shown in the Background section) and text colour
-    // (shown in the Text section; Auto follows the background). The last
-    // swatch of each row is the custom colour. It opens the same editor as
-    // before, is lit while a custom colour is in use, and is cleared by
-    // picking any fixed choice.
-    const swatches = el('div', 'accent-swatches');
+    // Background colours: two rows, Plain colors and Gradients. Each ends with
+    // its own custom swatch (a plain colour or a two-colour gradient). The
+    // custom swatch is lit while that kind of custom colour is in use, and is
+    // cleared by picking any fixed choice or the other kind.
+    const plainSwatches = el('div', 'accent-swatches');
+    const gradientSwatches = el('div', 'accent-swatches');
     const presetButtons = [];
-    const customBg = colorPicker(translate, 'presCustomBgColor', adv.bgColor, bgIsLight() ? '#ffffff' : '#000000', (paint) => {
+    const applyCustomBg = (paint) => {
       const wasMedia = background.kind === 'media';
       dropMedia(); // a colour replaces any picture/video (and its saved file)
       if (wasMedia) { background = { kind: 'preset', preset: 'black' }; saveBackground(); }
       adv.bgColor = paint; saveAdvanced();
       presetButtons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+      (typeof paint === 'string' ? customGradient : customPlain).setColor(null);
       refresh();
-    }, { gradients: true });
+    };
+    const bgFallback = () => (bgIsLight() ? '#ffffff' : '#000000');
+    const customPlain = colorPicker(translate, 'presCustomBgColor',
+      typeof adv.bgColor === 'string' ? adv.bgColor : null, bgFallback, applyCustomBg, { kind: 'solid' });
+    const customGradient = colorPicker(translate, 'presCustomBgGradient',
+      adv.bgColor && typeof adv.bgColor === 'object' ? adv.bgColor : null, bgFallback, applyCustomBg, { kind: 'gradient' });
     Object.entries(BACKGROUNDS).forEach(([id, [label, css]]) => {
       const button = el('button', 'accent-swatch pres-swatch');
       button.type = 'button';
@@ -573,19 +575,22 @@
         saveBackground();
         saveAdvanced();
         presetButtons.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
-        customBg.setColor(null);
+        customPlain.setColor(null);
+        customGradient.setColor(null);
         refresh();
       });
       presetButtons.push(button);
-      swatches.appendChild(button);
+      (css.startsWith('linear-gradient') ? gradientSwatches : plainSwatches).appendChild(button);
     });
-    swatches.appendChild(customBg);
-    const bgColorRow = settingsRow(translate, 'presColor', swatches);
+    plainSwatches.appendChild(customPlain);
+    gradientSwatches.appendChild(customGradient);
+    const plainRow = settingsRow(translate, 'presPlainColors', plainSwatches);
+    const gradientRow = settingsRow(translate, 'presGradients', gradientSwatches);
 
     // Text colour: Auto / White / Black with the custom swatch beside it
     // (same two-line shape as the Effect row).
     const textChoices = TEXT_CHOICES.map(c => [c, translate('presText' + c[0].toUpperCase() + c.slice(1))]);
-    const textSeg = chipControl(translate, 'presTextColor', textChoices, adv.textColor ? null : textPref, (choice) => {
+    const textSeg = segControl(translate, 'presTextColor', textChoices, adv.textColor ? null : textPref, (choice) => {
       textPref = choice;
       adv.textColor = null; // a fixed choice replaces any custom colour
       customText.setColor(null);
@@ -597,7 +602,7 @@
       adv.textColor = paint; saveAdvanced();
       textSeg.select(null);
       refresh();
-    }, { gradients: true });
+    }, { kind: 'both' });
     const textControl = el('div', 'pres-text-control');
     textControl.append(textSeg, customText);
     const textColorRow = settingsRow(translate, 'presTextColor', textControl, true);
@@ -628,8 +633,8 @@
     effectOptions.appendChild(settingsRow(translate, 'presEffectStrength', strengthControl));
 
     const colorControl = el('div', 'pres-text-control');
-    const auto = el('button', 'sort-btn', translate('presTextAuto'));
-    auto.type = 'button';
+    const auto = segControl(translate, 'presColor', [['auto', translate('presTextAuto')]],
+      activeEffect().color ? null : 'auto', () => updateEffect({ color: null }));
     const custom = colorPicker(translate, 'presEffectCustomColor', activeEffect().color,
       autoEffectColor, color => updateEffect({ color }));
     colorControl.append(auto, custom);
@@ -641,7 +646,7 @@
       strength.value = prefs.strength;
       strengthValue.textContent = prefs.strength + '%';
       strength.style.setProperty('--p', prefs.strength + '%');
-      auto.setAttribute('aria-pressed', String(!prefs.color));
+      auto.select(prefs.color ? null : 'auto');
       custom.setColor(prefs.color);
     }
     function updateEffect(changes) {
@@ -651,7 +656,6 @@
       refresh();
     }
     strength.addEventListener('input', () => updateEffect({ strength: Number(strength.value) }));
-    auto.addEventListener('click', () => updateEffect({ color: null }));
 
     effects.appendChild(settingsRow(translate, 'presEffect', segControl(translate, 'presEffect',
       EFFECTS.map(e => [e, translate('presEffect' + e[0].toUpperCase() + e.slice(1))]), adv.effect, (value) => {
@@ -700,7 +704,8 @@
     // there is no separate Advanced page to hunt through.
     const media = mediaControls(translate, refresh);
     media.classList.add('pres-panel');
-    media.insertBefore(bgColorRow, media.firstChild); // first row of the Background tab
+    media.insertBefore(gradientRow, media.firstChild); // Plain colors, then Gradients, then picture/video
+    media.insertBefore(plainRow, media.firstChild);
 
     // One Reset for the entire look. Title-slide switches
     // are content choices, not look, so they stay.
@@ -764,7 +769,73 @@
     return button;
   }
 
-  function colorPicker(translate, labelKey, value, fallback, onInput, { gradients = false } = {}) {
+  // HEX box plus Hue / Saturation / Lightness sliders for ONE colour. The same
+  // selector is used for a plain colour and for each end of a gradient.
+  // onChange gets the new '#rrggbb', or null while the typed HEX is not valid.
+  function colorFields(translate, onChange) {
+    const box = el('div', 'pres-color-fields');
+    const hexRow = el('label', 'pres-color-row', 'HEX');
+    const hexInput = el('input', 'pres-color-hex');
+    hexInput.type = 'text';
+    hexInput.spellcheck = false;
+    hexInput.maxLength = 7;
+    hexRow.appendChild(hexInput);
+    box.appendChild(hexRow);
+    const sliders = [['colorHue', 359, 1], ['colorSaturation', 100, 0.1], ['colorLightness', 100, 0.1]].map(([label, max, step]) => {
+      const row = el('label', 'pres-color-row', translate(label));
+      const slider = el('input', 'app-range');
+      slider.type = 'range';
+      slider.min = '0';
+      slider.max = String(max);
+      slider.step = String(step);
+      row.appendChild(slider);
+      box.appendChild(row);
+      return slider;
+    });
+    sliders[0].style.setProperty('--pres-channel-track', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
+    const paintTracks = () => {
+      const [h, s, l] = sliders.map(slider => Number(slider.value));
+      sliders[1].style.setProperty('--pres-channel-track', `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`);
+      sliders[2].style.setProperty('--pres-channel-track', `linear-gradient(to right, #000, hsl(${h} ${s}% 50%), #fff)`);
+    };
+    const moveSliders = (hex) => {
+      const { h, s, l } = hexToHsl(hex);
+      [h, s * 100, l * 100].forEach((v, i) => { sliders[i].value = String(v); });
+      paintTracks();
+    };
+    hexInput.addEventListener('input', () => {
+      const candidate = hexInput.value.trim();
+      const hex = candidate.startsWith('#') ? candidate : '#' + candidate;
+      const valid = HEX.test(hex);
+      hexInput.setAttribute('aria-invalid', String(!valid));
+      if (!valid) { onChange(null); return; }
+      moveSliders(hex);
+      onChange(hex.toLowerCase());
+    });
+    for (const slider of sliders) {
+      slider.addEventListener('input', () => {
+        const [h, s, l] = sliders.map(x => Number(x.value));
+        const hex = hslToHex(h, s / 100, l / 100);
+        hexInput.value = hex;
+        hexInput.setAttribute('aria-invalid', 'false');
+        paintTracks();
+        onChange(hex);
+      });
+    }
+    return {
+      el: box,
+      // Shows a colour without reporting a change.
+      set(hex) {
+        hexInput.value = hex;
+        hexInput.setAttribute('aria-invalid', 'false');
+        moveSliders(hex);
+      },
+    };
+  }
+
+  // kind: 'solid' (one colour), 'gradient' (two colours) or 'both' (a Solid /
+  // Gradient switch at the top of the editor).
+  function colorPicker(translate, labelKey, value, fallback, onInput, { kind = 'solid' } = {}) {
     const button = el('button', 'accent-swatch pres-swatch pres-custom');
     button.type = 'button';
     button.dataset.presPicker = labelKey;
@@ -781,111 +852,88 @@
     button.addEventListener('click', () => {
       const editor = el('div', 'pres-color-editor');
       const preview = el('div', 'pres-color-sample');
-      const hexRow = el('label', 'pres-color-row', 'HEX');
-      const hexInput = el('input', 'pres-color-hex');
-      hexInput.type = 'text';
-      hexInput.spellcheck = false;
-      hexInput.maxLength = 7;
       const defaultColor = typeof fallback === 'function' ? fallback() : fallback;
-      const initialGradient = typeof value === 'object' && value;
-      hexInput.value = initialGradient ? initialGradient.start : value || defaultColor;
-      hexRow.appendChild(hexInput);
-      const solidControls = el('div', 'pres-color-fields');
-      solidControls.append(hexRow);
-      editor.append(preview, solidControls);
-
-      const channels = [['colorHue', 359, 1], ['colorSaturation', 100, 0.1], ['colorLightness', 100, 0.1]];
-      const sliders = channels.map(([label, max, step]) => {
-        const row = el('label', 'pres-color-row', translate(label));
-        const slider = el('input', 'app-range');
-        slider.type = 'range';
-        slider.min = '0';
-        slider.max = String(max);
-        slider.step = String(step);
-        row.appendChild(slider);
-        solidControls.appendChild(row);
-        return slider;
-      });
+      const initialGradient = value && typeof value === 'object' ? value : null;
+      const solidStart = typeof value === 'string' ? value : (initialGradient ? initialGradient.start : defaultColor);
       const actions = el('div', 'modal-actions');
       const cancel = el('button', 'btn-secondary', translate('cancelBtn'));
       const done = el('button', 'btn-primary', translate('doneBtn'));
       cancel.type = done.type = 'button';
       actions.append(cancel, done);
-      editor.appendChild(actions);
-      sliders[0].style.setProperty('--pres-channel-track', 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
-      let draft;
-      const mode = initialGradient ? 'gradient' : 'solid';
-      let initialize = () => update(true);
-      if (gradients) {
-        const fields = el('div', 'pres-color-fields');
-        const stop = (label, initial) => {
-          const row = el('label', 'pres-color-row', translate(label));
-          const input = el('input', 'pres-gradient-stop');
-          input.type = 'color';
-          input.value = initial;
-          row.append(input);
-          fields.append(row);
-          input.addEventListener('input', drawGradient);
-          return input;
-        };
-        const first = stop('presGradientStart', initialGradient?.start || hexInput.value);
-        const second = stop('presGradientEnd', initialGradient?.end || '#40a8e8');
-        const direction = el('label', 'pres-color-row', translate('presGradientAngle'));
-        const angle = el('input', 'app-range');
-        angle.type = 'range';
-        angle.min = '0';
-        angle.max = '359';
-        angle.value = initialGradient?.angle ?? 90;
-        const angleValue = el('output', 'pres-range-value');
-        const rangeWrap = el('span', 'pres-range-wrap');
-        rangeWrap.append(angle, angleValue);
-        direction.append(rangeWrap);
-        fields.append(direction);
-        angle.addEventListener('input', drawGradient);
 
-        function drawGradient() {
-          draft = { start: first.value, end: second.value, angle: Number(angle.value) };
-          angleValue.textContent = angle.value + '°';
-          angle.style.setProperty('--p', (draft.angle / 359 * 100) + '%');
-          preview.style.background = paintCss(draft);
-          done.disabled = false;
-        }
-        function selectMode(selected) {
-          solidControls.hidden = selected === 'gradient';
-          fields.hidden = selected === 'solid';
-          if (selected === 'gradient') drawGradient();
-          else update(true);
-        }
-        const modes = segControl(translate, labelKey,
-          [['solid', translate('presSolid')], ['gradient', translate('presGradient')]], mode, selectMode);
-        editor.prepend(modes);
-        editor.insertBefore(fields, actions);
-        initialize = () => selectMode(mode);
-      }
-      const update = (fromHex) => {
-        if (fromHex) {
-          const candidate = hexInput.value.trim();
-          const hex = candidate.startsWith('#') ? candidate : '#' + candidate;
-          done.disabled = !HEX.test(hex);
-          hexInput.setAttribute('aria-invalid', String(done.disabled));
-          if (done.disabled) return;
-          const { h, s, l } = hexToHsl(hex);
-          [h, s * 100, l * 100].forEach((v, i) => { sliders[i].value = String(v); });
-          draft = hex.toLowerCase();
-        } else {
-          const [h, s, l] = sliders.map(slider => Number(slider.value));
-          draft = hslToHex(h, s / 100, l / 100);
-          hexInput.value = draft;
-          hexInput.setAttribute('aria-invalid', 'false');
-          done.disabled = false;
-        }
-        preview.style.background = draft;
-        const [h, s, l] = sliders.map(slider => Number(slider.value));
-        sliders[1].style.setProperty('--pres-channel-track', `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`);
-        sliders[2].style.setProperty('--pres-channel-track', `linear-gradient(to right, #000, hsl(${h} ${s}% 50%), #fff)`);
+      let draft = null;
+      let solidHex = solidStart.toLowerCase();
+
+      // Plain colour.
+      const solid = colorFields(translate, (hex) => {
+        solidHex = hex;
+        draft = hex;
+        done.disabled = !hex;
+        if (hex) preview.style.background = hex;
+      });
+      solid.set(solidHex);
+
+      // Gradient: pick which end to edit, then use the same colour selector.
+      const stops = { start: (initialGradient?.start || solidHex).toLowerCase(), end: (initialGradient?.end || '#40a8e8').toLowerCase() };
+      let editing = 'start';
+      const gradientBox = el('div', 'pres-color-editor');
+      const stopFields = colorFields(translate, (hex) => {
+        if (!hex) { done.disabled = true; return; }
+        stops[editing] = hex;
+        drawGradient();
+      });
+      stopFields.set(stops.start);
+      const stopTabs = segControl(translate, labelKey,
+        [['start', translate('presGradientStart')], ['end', translate('presGradientEnd')]], 'start', (which) => {
+          editing = which;
+          stopFields.set(stops[which]);
+        });
+      const rangeRow = (key, min, max, initial, format) => {
+        const row = el('label', 'pres-color-row', translate(key));
+        const input = el('input', 'app-range');
+        input.type = 'range';
+        input.min = String(min);
+        input.max = String(max);
+        input.value = String(initial);
+        const output = el('output', 'pres-range-value');
+        const wrap = el('span', 'pres-range-wrap');
+        wrap.append(input, output);
+        row.append(wrap);
+        const sync = () => {
+          output.textContent = format(Number(input.value));
+          input.style.setProperty('--p', ((Number(input.value) - min) / (max - min) * 100) + '%');
+        };
+        input.addEventListener('input', () => { sync(); drawGradient(); });
+        sync();
+        return { row, input };
       };
-      hexInput.addEventListener('input', () => update(true));
-      for (const slider of sliders) slider.addEventListener('input', () => update(false));
+      const angle = rangeRow('presGradientAngle', 0, 359, initialGradient?.angle ?? 90, v => v + '°');
+      const position = rangeRow('presGradientPosition', 0, 100, initialGradient?.position ?? 50, v => v + '%');
+      function drawGradient() {
+        draft = { start: stops.start, end: stops.end, angle: Number(angle.input.value), position: Number(position.input.value) };
+        preview.style.background = paintCss(draft);
+        done.disabled = false;
+      }
+      gradientBox.append(stopTabs, stopFields.el, angle.row, position.row);
+
+      const selectMode = (selected) => {
+        solid.el.hidden = selected !== 'solid';
+        gradientBox.hidden = selected !== 'gradient';
+        if (selected === 'gradient') drawGradient();
+        else {
+          draft = solidHex;
+          done.disabled = !solidHex;
+          if (solidHex) preview.style.background = solidHex;
+        }
+      };
+      const startMode = kind === 'both' ? (initialGradient ? 'gradient' : 'solid') : kind;
+      if (kind === 'both') {
+        editor.append(segControl(translate, labelKey,
+          [['solid', translate('presSolid')], ['gradient', translate('presGradient')]], startMode, selectMode));
+      }
+      editor.append(preview, solid.el, gradientBox, actions);
+      selectMode(startMode);
+
       cancel.addEventListener('click', () => closeModal({ immediate: true }));
       done.addEventListener('click', () => {
         value = draft;
@@ -893,7 +941,6 @@
         onInput(value);
         closeModal({ immediate: true });
       });
-      initialize();
       openModal(translate(labelKey), editor);
     });
     return button;
