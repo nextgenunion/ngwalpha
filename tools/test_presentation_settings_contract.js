@@ -44,7 +44,7 @@ assert.match(ui, /if \(!resume\) pushNavState\(/);
 assert.match(css, /text-shadow:\s+calc\(\.025em \* var\(--pres-fx-size\)\) calc\(\.045em \* var\(--pres-fx-size\)\) calc\(\.15em \* var\(--pres-fx-size\)\)/);
 assert.match(css, /-webkit-text-stroke: calc\(\.06em \* var\(--pres-fx-size\)\)/);
 assert.match(css, /background-clip: text/);
-assert.match(pres, /const TRANSITIONS = \['cut', 'fade'\]/);
+assert.match(pres, /const TRANSITIONS = \['cut', 'fade', 'dip', 'blur'\]/);
 for (const file of ['eng.js','mn.js','mn2.js','kr.js']) {
   const lang = source('lang/' + file);
   for (const key of ['presPreviewLabel', 'presPreviewLyrics', 'presPreviewTitle', 'presPreviewExampleTitle','presPreviewExampleArtist','fontStyleBoldItalic']) {

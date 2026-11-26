@@ -130,6 +130,9 @@ function loadPrefs() {
   else if (savedHideVerseNumbers === 'false') state.hideVerseNumbers = false;
   applyHideVerseNumbers();
 
+  state.hideSectionLabels = localStorage.getItem('sb-hide-section-labels') === 'true';
+  applyHideSectionLabels();
+
   // Restore which song database was active (see applyDbSource()). Since
   // this version, 'sb-db' stores a DB_SOURCES key directly — the database
   // picker's checklist items (see openDbPickerModal()) are each keyed by
@@ -328,6 +331,18 @@ function applyHideVerseNumbers() {
   if (toggle) toggle.setAttribute('aria-checked', String(state.hideVerseNumbers));
 }
 /* @end:applyHideVerseNumbers */
+
+/* @begin:applyHideSectionLabels */
+// Display settings → "Hide section labels": hides the explicit gray labels
+// (.lyric-section-label — "Verse 1:", "Chorus:", "Bridge:") and nothing else.
+// Same attribute-driven pattern as applyHideVerseNumbers(): an attribute on
+// <html> plus CSS, so an open song updates immediately without a re-render.
+function applyHideSectionLabels() {
+  document.documentElement.setAttribute('data-hide-section-labels', String(state.hideSectionLabels));
+  const toggle = document.getElementById('hide-section-labels-toggle');
+  if (toggle) toggle.setAttribute('aria-checked', String(state.hideSectionLabels));
+}
+/* @end:applyHideSectionLabels */
 
 /* @begin:applyTextSizeSliders */
 // Developer options → Display → "Text size sliders": shows the slider
@@ -661,6 +676,8 @@ function applyLanguage() {
     't-sectionDevDisplay': 'sectionDevDisplay',
     't-landscapeModeTitle': 'landscapeModeTitle',
     't-landscapeModeSub': 'landscapeModeSub',
+    't-hideSectionLabelsTitle': 'hideSectionLabelsTitle',
+    't-hideSectionLabelsSub': 'hideSectionLabelsSub',
     't-hideVerseNumbersTitle': 'hideVerseNumbersTitle',
     't-hideVerseNumbersSub': 'hideVerseNumbersSub',
     't-textSizeSlidersTitle': 'textSizeSlidersTitle',
@@ -897,6 +914,12 @@ function bindSettings() {
     state.noteNames = choice;
     applyNoteNames();
     localStorage.setItem('sb-note-names', choice);
+  });
+
+  document.getElementById('hide-section-labels-toggle').addEventListener('click', () => {
+    state.hideSectionLabels = !state.hideSectionLabels;
+    applyHideSectionLabels();
+    localStorage.setItem('sb-hide-section-labels', String(state.hideSectionLabels));
   });
 
   const hideVerseNumbersToggle = document.getElementById('dev-hide-verse-numbers-toggle');

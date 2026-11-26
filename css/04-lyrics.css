@@ -135,6 +135,12 @@ html[data-hide-verse-numbers="true"] .lyric-section-index {
   display: none;
 }
 
+/* Display settings → "Hide section labels" (see applyHideSectionLabels()).
+   Hides only the explicit gray labels ("Verse 1:", "Chorus:"). */
+html[data-hide-section-labels="true"] .lyric-section-label {
+  display: none;
+}
+
 /* .lyric-token is one whole *visual word* — one flex item on the line, so
    the line's word-gap only ever falls between real words. Most words are
    a single .lyric-piece. When a chord lands mid-word (see renderLyrics in

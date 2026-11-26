@@ -168,6 +168,11 @@ const state = {
   // as .lyric-section-label instead and is NOT affected by this — see the
   // comment above sectionLabel in renderLyrics() for that split.
   hideVerseNumbers: true,
+  // Settings → Display settings → "Hide section labels" — see
+  // applyHideSectionLabels(). Off by default. Hides the small gray explicit
+  // labels (.lyric-section-label: "Verse 1:", "Chorus:", "Bridge:") that
+  // renderLyrics() builds from a "Label:" at the start of a part.
+  hideSectionLabels: false,
   // Settings → Display settings → "Text size sliders" — see
   // applyTextSizeSliders(). On by default; switched off, the A−/A+ chips are
   // the song page's text size controls instead.
@@ -840,7 +845,7 @@ if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => updateAllSegToggleThumbs({ instant: true })).catch(() => {});
 }/* @extracted:settings.js:applyHideChords */
 
-/* @extracted:settings.js:applyTextSizeVisibility *//* @extracted:settings.js:applyNoteNames *//* @extracted:settings.js:applyLyricsWeight *//* @extracted:settings.js:applyLyricsSpacing *//* @extracted:settings.js:applyLyricsWordSpacing *//* @extracted:settings.js:applySongListView *//* @extracted:settings.js:applyLandscapeMode *//* @extracted:settings.js:applyHideVerseNumbers *//* @extracted:settings.js:applyTextSizeSliders *//* @extracted:settings.js:syncSizeSliders *//* @extracted:ui.js:renderSongLoadingState */
+/* @extracted:settings.js:applyTextSizeVisibility *//* @extracted:settings.js:applyNoteNames *//* @extracted:settings.js:applyLyricsWeight *//* @extracted:settings.js:applyLyricsSpacing *//* @extracted:settings.js:applyLyricsWordSpacing *//* @extracted:settings.js:applySongListView *//* @extracted:settings.js:applyLandscapeMode *//* @extracted:settings.js:applyHideVerseNumbers *//* @extracted:settings.js:applyHideSectionLabels *//* @extracted:settings.js:applyTextSizeSliders *//* @extracted:settings.js:syncSizeSliders *//* @extracted:ui.js:renderSongLoadingState */
 
 let dbSelectionRevision = 0;
 /* @extracted:data.js:applyDbSource */

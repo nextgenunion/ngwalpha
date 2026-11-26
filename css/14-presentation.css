@@ -24,7 +24,9 @@ html.pres-open, html.pres-open body { overflow: hidden; }
   cursor: none;
 }
 .pres-overlay.controls-visible { cursor: default; }
-.pres-overlay[data-transition="fade"] { animation: pres-in var(--dur-base) ease-out; }
+.pres-overlay[data-transition="fade"],
+.pres-overlay[data-transition="dip"],
+.pres-overlay[data-transition="blur"] { animation: pres-in var(--dur-base) ease-out; }
 @keyframes pres-in { from { opacity: 0; } to { opacity: 1; } }
 
 .pres-bg { position: absolute; inset: 0; background: #000; }
@@ -349,3 +351,4 @@ html.pres-open, html.pres-open body { overflow: hidden; }
    (data-pending), show the chosen label in the normal text colour instead of the
    white that only reads on the highlight. */
 .seg-toggle[data-pending] .seg-toggle-btn[aria-pressed="true"] { color: var(--ink); }
+.pres-speed-row[hidden] { display: none !important; }

@@ -221,7 +221,8 @@
       }).observe(document.documentElement, {
         attributes: true,
         attributeFilter: ['style', 'data-chord-style', 'data-hide-chords', 'data-lyrics-weight',
-          'data-lyrics-spacing', 'data-lyrics-word-spacing', 'data-hide-verse-numbers'],
+          'data-lyrics-spacing', 'data-lyrics-word-spacing', 'data-hide-verse-numbers',
+          'data-hide-section-labels'],
       });
     }
   }

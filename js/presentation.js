@@ -37,9 +37,19 @@
   const FILL = 0; // lines setting: pack as many lines as fit (was "All" before 5.0.62)
   const LINE_CHOICES = [1, 2, 3, 4, FILL];
   const DEFAULT_LINES = 2;
-  const TRANSITIONS = ['cut', 'fade'];
+  // 'fade' is the crossfade (the id saved settings already use, shown as
+  // "Crossfade"). 'dip' is Fade: the old slide fades out, then the new one
+  // fades in. 'blur' does the same with a blur.
+  const TRANSITIONS = ['cut', 'fade', 'dip', 'blur'];
+  const TRANSITION_LABELS = { cut: 'presentationCut', fade: 'presentationFade', dip: 'presentationDip', blur: 'presentationBlur' };
   const DEFAULT_TRANSITION = 'fade';
-  const FADE_MS = 300;
+  const LS_TRANSITION_SPEED = 'sb-pres-transition-speed';
+  // Speed: 1 (slowest) to 10 (fastest) -> 1.5 s down to 0.15 s per fade.
+  // 7 is about 0.3 s, what the app always used.
+  const SPEED_STEPS = 10;
+  const DEFAULT_SPEED = 7;
+  const speedMs = (step) => Math.round(1500 * Math.pow(0.1, (step - 1) / 9));
+  const BLUR_PX = 18;
   // Text size is a real, absolute setting (not a starting point that gets
   // shrunk to fit). Each step is ~20% bigger than the last, so every press
   // visibly changes the text; the multiplier applies to a unit that follows the
@@ -81,14 +91,21 @@
   const BACKGROUNDS = {
     black: ['presBlack', '#000', 'light'],
     charcoal: ['presCharcoal', '#1d2026', 'light'],
+    navy: ['presNavy', '#0b1f3a', 'light'],
+    wine: ['presWine', '#3a0f1c', 'light'],
     ocean: ['presOcean', 'linear-gradient(160deg, #0a3d5c 0%, #0e86b8 100%)', 'light'],
+    twilight: ['presTwilight', 'linear-gradient(160deg, #2b1055 0%, #3a60c4 100%)', 'light'],
+    forest: ['presForest', 'linear-gradient(160deg, #0b3d2e 0%, #1f8a70 100%)', 'light'],
     white: ['presWhite', '#fff', 'dark'],
+    cream: ['presCream', '#f7f0e1', 'dark'],
     sky: ['presSky', 'linear-gradient(180deg, #d6efff 0%, #f4fbff 100%)', 'dark'],
     sunrise: ['presSunrise', 'linear-gradient(160deg, #fff1d6 0%, #ffd2c2 100%)', 'dark'],
+    blush: ['presBlush', 'linear-gradient(160deg, #ffe3ec 0%, #f8c8dc 100%)', 'dark'],
   };
   const LS_TEXT = 'sb-pres-text';
   const TEXT_CHOICES = ['auto', 'light', 'dark'];
   let textPref = 'auto';
+  let transitionSpeed = DEFAULT_SPEED;
   let settingsTab = 'text'; // which Presentation settings tab is open (kept while the app runs)
   let background = { kind: 'preset', preset: 'black' };
   let mediaURL = null;
@@ -375,7 +392,9 @@
     try {
       const saved = localStorage.getItem(LS_TRANSITION);
       transition = TRANSITIONS.includes(saved) ? saved : DEFAULT_TRANSITION;
-    } catch (_) { transition = DEFAULT_TRANSITION; }
+      const speed = parseInt(localStorage.getItem(LS_TRANSITION_SPEED), 10);
+      transitionSpeed = speed >= 1 && speed <= SPEED_STEPS ? speed : DEFAULT_SPEED;
+    } catch (_) { transition = DEFAULT_TRANSITION; transitionSpeed = DEFAULT_SPEED; }
   }
 
   function loadAll() {
@@ -666,14 +685,39 @@
       }), true));
     effects.appendChild(effectOptions);
     syncEffect();
-    // Slide change: Cut or Fade. (Used to live in the presentation panel; it is
-    // rarely changed mid-song. Hidden when the device asks for reduced motion,
-    // because slides always cut then.)
+    // Slide change: Cut, Crossfade, Fade or Blur, plus how fast. (Used to live in
+    // the presentation panel; it is rarely changed mid-song. Hidden when the
+    // device asks for reduced motion, because slides always cut then.)
     if (!reducedMotion()) {
+      const speed = el('input', 'app-range pres-range');
+      speed.type = 'range';
+      speed.min = '1';
+      speed.max = String(SPEED_STEPS);
+      speed.step = '1';
+      speed.setAttribute('aria-label', translate('presentationTransitionSpeed'));
+      const speedValue = el('output', 'pres-range-value');
+      const speedControl = el('div', 'pres-range-wrap');
+      speedControl.append(speed, speedValue);
+      const speedRow = settingsRow(translate, 'presentationTransitionSpeed', speedControl);
+      speedRow.classList.add('pres-speed-row');
+      const syncSpeed = () => {
+        speed.value = String(transitionSpeed);
+        speedValue.textContent = (speedMs(transitionSpeed) / 1000).toFixed(2) + ' s';
+        speed.style.setProperty('--p', ((transitionSpeed - 1) / (SPEED_STEPS - 1) * 100) + '%');
+        speedRow.hidden = transition === 'cut'; // nothing to speed up when slides just cut
+      };
+      speed.addEventListener('input', () => {
+        transitionSpeed = Number(speed.value);
+        savePref(LS_TRANSITION_SPEED, transitionSpeed);
+        syncSpeed();
+      });
       effects.appendChild(settingsRow(translate, 'presentationTransitionLabel', segControl(translate, 'presentationTransitionLabel',
-        TRANSITIONS.map(tr => [tr, translate(tr === 'cut' ? 'presentationCut' : 'presentationFade')]), transition, (value) => {
+        TRANSITIONS.map(tr => [tr, translate(TRANSITION_LABELS[tr])]), transition, (value) => {
           transition = value; savePref(LS_TRANSITION, value);
+          syncSpeed();
         }), true));
+      effects.appendChild(speedRow);
+      syncSpeed();
     }
 
     // Title slide: one switch per part.
@@ -718,10 +762,12 @@
       adv = { ...ADV_DEFAULTS, effects: {} };
       textPref = 'auto';
       transition = DEFAULT_TRANSITION;
+      transitionSpeed = DEFAULT_SPEED;
       saveBackground();
       saveAdvanced();
       savePref(LS_TEXT, 'auto');
       savePref(LS_TRANSITION, DEFAULT_TRANSITION);
+      savePref(LS_TRANSITION_SPEED, DEFAULT_SPEED);
       settings(translate); // rebuild with the defaults
     });
     const resetRow = el('div', 'settings-row pres-reset-row');
@@ -1050,6 +1096,8 @@
       if (Number.isInteger(size) && size >= 0 && size < SIZE_STEPS.length) sizeIndex = size;
       const tr = localStorage.getItem(LS_TRANSITION);
       if (TRANSITIONS.includes(tr)) transition = tr;
+      const speed = parseInt(localStorage.getItem(LS_TRANSITION_SPEED), 10);
+      if (speed >= 1 && speed <= SPEED_STEPS) transitionSpeed = speed;
     } catch (_) {}
   }
   function savePref(key, value) {
@@ -1061,7 +1109,7 @@
   function reducedMotion() { return !!(motionQuery && motionQuery.matches); }
   function effectiveTransition() { return reducedMotion() ? 'cut' : transition; }
   function canAnimate() {
-    return effectiveTransition() === 'fade' && typeof Element.prototype.animate === 'function';
+    return effectiveTransition() !== 'cut' && typeof Element.prototype.animate === 'function';
   }
 
   // ---------- slide model (plain data, no DOM) ----------
@@ -1374,10 +1422,19 @@
   }
 
   // ---------- rendering ----------
-  // A slide change in Fade mode is a true crossfade: the new slide is laid over
-  // the old one (same grid cell), the old fades out while the new fades in, and
-  // the old is removed when done. Cut swaps instantly. Settings changes
-  // (regrouping, size) never animate.
+  // A slide change animates in three ways (Cut swaps instantly):
+  //  - Crossfade ('fade'): the new slide is laid over the old one (same grid
+  //    cell); the old fades out while the new fades in.
+  //  - Fade ('dip') and Blur ('blur'): the old slide fades (or blurs) out
+  //    first, then the new one fades (or blurs) in. The new slide waits out the
+  //    old one's animation with a delay.
+  // Each fade lasts speedMs(transitionSpeed). The old slide is removed when
+  // done. Settings changes (regrouping, size) never animate.
+  function frameOf(opacity, blurred) {
+    return effectiveTransition() === 'blur'
+      ? { opacity, filter: `blur(${blurred ? BLUR_PX : 0}px)` }
+      : { opacity };
+  }
   function retire(node) {
     let from = parseFloat(getComputedStyle(node).opacity);
     if (!(from >= 0)) from = 1;
@@ -1385,7 +1442,7 @@
     node.classList.remove('is-current');
     node.classList.add('is-leaving');
     node.setAttribute('aria-hidden', 'true');
-    const anim = node.animate([{ opacity: from }, { opacity: 0 }], { duration: FADE_MS, easing: 'ease-in-out', fill: 'forwards' });
+    const anim = node.animate([frameOf(from, false), frameOf(0, true)], { duration: speedMs(transitionSpeed), easing: 'ease-in-out', fill: 'forwards' });
     anim.onfinish = () => node.remove();
   }
 
@@ -1405,7 +1462,12 @@
       card.classList.add('is-current');
       stage.appendChild(card);
       fitText();
-      if (fade) card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: 'ease-in-out' });
+      if (fade) {
+        const ms = speedMs(transitionSpeed);
+        const waits = effectiveTransition() !== 'fade'; // Fade and Blur: after the old slide has left
+        card.animate([frameOf(0, true), frameOf(1, false)],
+          { duration: ms, delay: waits ? ms : 0, easing: 'ease-in-out', fill: waits ? 'backwards' : 'none' });
+      }
     }
     root.querySelector('.pres-counter').textContent = slides.length ? `${index + 1} / ${slides.length}` : '';
   }
